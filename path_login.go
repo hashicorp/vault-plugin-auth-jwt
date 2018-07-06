@@ -97,7 +97,6 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		expected := jwt.Expected{
 			Issuer:   config.BoundIssuer,
 			Subject:  role.BoundSubject,
-			ID:       role.BoundID,
 			Audience: jwt.Audience(role.BoundAudiences),
 			Time:     time.Now(),
 		}
@@ -125,13 +124,6 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			return logical.ErrorResponse(errwrap.Wrapf("unable to successfully parse all claims from token: {{err}}", err).Error()), nil
 		}
 
-		var jtiVal string
-		if jti, ok := allClaims["jti"]; ok {
-			if jtiStr, ok := jti.(string); ok {
-				jtiVal = jtiStr
-			}
-		}
-
 		switch {
 		case config.BoundIssuer != "" && config.BoundIssuer != idToken.Issuer:
 			return logical.ErrorResponse("iss claim does not match bound issuer"), nil
@@ -139,8 +131,6 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			return logical.ErrorResponse("sub claim does not match bound subject"), nil
 		case len(role.BoundAudiences) != 0 && !strutil.StrListSubset(role.BoundAudiences, idToken.Audience):
 			return logical.ErrorResponse("aud claim does not match any bound audience"), nil
-		case role.BoundID != "" && role.BoundID != jtiVal:
-			return logical.ErrorResponse("jti claim does not match bound id"), nil
 		}
 
 	default:

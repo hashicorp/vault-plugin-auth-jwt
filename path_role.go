@@ -62,10 +62,6 @@ TTL will be set to the value of this parameter.`,
 					Type:        framework.TypeString,
 					Description: `The 'sub' claim that is valid for login. Optional.`,
 				},
-				"bound_id": &framework.FieldSchema{
-					Type:        framework.TypeString,
-					Description: `The 'jti' claim that is valid for login. Optional.`,
-				},
 				"bound_audiences": &framework.FieldSchema{
 					Type:        framework.TypeCommaStringSlice,
 					Description: `Comma-separated list of 'aud' claims that are valid for login`,
@@ -120,7 +116,6 @@ type jwtRole struct {
 	// Role binding properties
 	BoundAudiences []string                      `json:"bound_audiences"`
 	BoundSubject   string                        `json:"bound_subject"`
-	BoundID        string                        `json:"bound_id"`
 	BoundCIDRs     []*sockaddr.SockAddrMarshaler `json:"bound_cidrs"`
 	UserClaim      string                        `json:"user_claim"`
 	GroupsClaim    string                        `json:"groups_claim"`
@@ -192,7 +187,6 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 			"ttl":             role.TTL,
 			"max_ttl":         role.MaxTTL,
 			"bound_audiences": role.BoundAudiences,
-			"bound_id":        role.BoundID,
 			"bound_subject":   role.BoundSubject,
 			"bound_cidrs":     role.BoundCIDRs,
 			"user_claim":      role.UserClaim,
@@ -281,10 +275,6 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 
 	if boundSubject, ok := data.GetOk("bound_subject"); ok {
 		role.BoundSubject = boundSubject.(string)
-	}
-
-	if boundID, ok := data.GetOk("bound_id"); ok {
-		role.BoundID = boundID.(string)
 	}
 
 	if boundCIDRs, ok := data.GetOk("bound_cidrs"); ok {
