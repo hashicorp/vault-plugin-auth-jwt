@@ -63,7 +63,7 @@ TTL will be set to the value of this parameter.`,
 				},
 				"bound_audiences": &framework.FieldSchema{
 					Type:        framework.TypeCommaStringSlice,
-					Description: `Comma-separated list of 'aud' claims that are valid for login`,
+					Description: `Comma-separated list of 'aud' claims that are valid for login; any match is sufficient`,
 				},
 				"user_claim": &framework.FieldSchema{
 					Type:        framework.TypeString,
@@ -338,7 +338,7 @@ var roleHelp = map[string][2]string{
 	"role": {
 		"Register an role with the backend.",
 		`A role is required to authenticate with this backend. The role binds
-		Azure instance metadata with token policies and settings.
+		JWT token information with token policies and settings.
 		The bindings, token polices and token settings can all be configured
 		using this endpoint`,
 	},

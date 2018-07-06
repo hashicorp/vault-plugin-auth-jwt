@@ -124,11 +124,20 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			return logical.ErrorResponse(errwrap.Wrapf("unable to successfully parse all claims from token: {{err}}", err).Error()), nil
 		}
 
-		switch {
-		case role.BoundSubject != "" && role.BoundSubject != idToken.Subject:
+		if role.BoundSubject != "" && role.BoundSubject != idToken.Subject {
 			return logical.ErrorResponse("sub claim does not match bound subject"), nil
-		case len(role.BoundAudiences) != 0 && !strutil.StrListSubset(role.BoundAudiences, idToken.Audience):
-			return logical.ErrorResponse("aud claim does not match any bound audience"), nil
+		}
+		if len(role.BoundAudiences) != 0 {
+			var found bool
+			for _, v := range role.BoundAudiences {
+				if strutil.StrListContains(idToken.Audience, v) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return logical.ErrorResponse("aud claim does not match any bound audience"), nil
+			}
 		}
 
 	default:
