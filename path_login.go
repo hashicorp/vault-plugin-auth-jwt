@@ -20,7 +20,7 @@ func pathLogin(b *jwtAuthBackend) *framework.Path {
 		Pattern: `login$`,
 		Fields: map[string]*framework.FieldSchema{
 			"role": &framework.FieldSchema{
-				Type:        framework.TypeString,
+				Type:        framework.TypeLowerCaseString,
 				Description: "The role to log in against.",
 			},
 			"token": &framework.FieldSchema{

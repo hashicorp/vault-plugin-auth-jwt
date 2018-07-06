@@ -2,7 +2,6 @@ package jwtauth
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -30,7 +29,7 @@ func pathsRole(b *jwtAuthBackend) []*framework.Path {
 			Pattern: "role/" + framework.GenericNameRegex("name"),
 			Fields: map[string]*framework.FieldSchema{
 				"name": &framework.FieldSchema{
-					Type:        framework.TypeString,
+					Type:        framework.TypeLowerCaseString,
 					Description: "Name of the role.",
 				},
 				"policies": &framework.FieldSchema{
@@ -122,9 +121,9 @@ type jwtRole struct {
 }
 
 // role takes a storage backend and the name and returns the role's storage
-// entryÍ
+// entry
 func (b *jwtAuthBackend) role(ctx context.Context, s logical.Storage, name string) (*jwtRole, error) {
-	raw, err := s.Get(ctx, "role/"+strings.ToLower(name))
+	raw, err := s.Get(ctx, "role/"+name)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +132,7 @@ func (b *jwtAuthBackend) role(ctx context.Context, s logical.Storage, name strin
 	}
 
 	role := new(jwtRole)
-	if err := json.Unmarshal(raw.Value, role); err != nil {
+	if err := raw.DecodeJSON(role); err != nil {
 		return nil, err
 	}
 
@@ -205,7 +204,7 @@ func (b *jwtAuthBackend) pathRoleDelete(ctx context.Context, req *logical.Reques
 	}
 
 	// Delete the role itself
-	if err := req.Storage.Delete(ctx, "role/"+strings.ToLower(roleName)); err != nil {
+	if err := req.Storage.Delete(ctx, "role/"+roleName); err != nil {
 		return nil, err
 	}
 
@@ -316,7 +315,7 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 	}
 
 	// Store the entry.
-	entry, err := logical.StorageEntryJSON("role/"+strings.ToLower(roleName), role)
+	entry, err := logical.StorageEntryJSON("role/"+roleName, role)
 	if err != nil {
 		return nil, err
 	}
