@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"sync"
-	"sync/atomic"
 
 	oidc "github.com/coreos/go-oidc"
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
@@ -28,10 +27,9 @@ func Factory(ctx context.Context, c *logical.BackendConfig) (logical.Backend, er
 type jwtAuthBackend struct {
 	*framework.Backend
 
-	l sync.RWMutex
-
+	l             sync.RWMutex
 	provider      *oidc.Provider
-	parsedPubKeys atomic.Value
+	parsedPubKeys []interface{}
 }
 
 func backend(c *logical.BackendConfig) *jwtAuthBackend {
@@ -58,9 +56,6 @@ func backend(c *logical.BackendConfig) *jwtAuthBackend {
 		),
 	}
 
-	// Seed the type
-	b.parsedPubKeys.Store(([]interface{})(nil))
-
 	return b
 }
 
@@ -72,9 +67,9 @@ func (b *jwtAuthBackend) invalidate(ctx context.Context, key string) {
 }
 
 func (b *jwtAuthBackend) reset() {
-	b.parsedPubKeys.Store(([]interface{})(nil))
 	b.l.Lock()
 	b.provider = nil
+	b.parsedPubKeys = nil
 	b.l.Unlock()
 }
 

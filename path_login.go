@@ -125,8 +125,6 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		}
 
 		switch {
-		case config.BoundIssuer != "" && config.BoundIssuer != idToken.Issuer:
-			return logical.ErrorResponse("iss claim does not match bound issuer"), nil
 		case role.BoundSubject != "" && role.BoundSubject != idToken.Subject:
 			return logical.ErrorResponse("sub claim does not match bound subject"), nil
 		case len(role.BoundAudiences) != 0 && !strutil.StrListSubset(role.BoundAudiences, idToken.Audience):
@@ -191,6 +189,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 				TTL:       role.TTL,
 				MaxTTL:    role.MaxTTL,
 			},
+			BoundCIDRs: role.BoundCIDRs,
 		},
 	}
 

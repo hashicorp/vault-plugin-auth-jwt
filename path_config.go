@@ -50,6 +50,9 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 }
 
 func (b *jwtAuthBackend) config(ctx context.Context, s logical.Storage) (*jwtConfig, error) {
+	b.l.RLock()
+	defer b.l.RUnlock()
+
 	entry, err := s.Get(ctx, "config")
 	if err != nil {
 		return nil, err
@@ -65,7 +68,7 @@ func (b *jwtAuthBackend) config(ctx context.Context, s logical.Storage) (*jwtCon
 		}
 	}
 
-	pubKeys := b.parsedPubKeys.Load().([]interface{})
+	pubKeys := b.parsedPubKeys
 	if pubKeys == nil {
 		for _, v := range result.JWTValidationPubKeys {
 			key, err := certutil.ParsePublicKeyPEM([]byte(v))
@@ -74,7 +77,7 @@ func (b *jwtAuthBackend) config(ctx context.Context, s logical.Storage) (*jwtCon
 			}
 			pubKeys = append(pubKeys, key)
 		}
-		b.parsedPubKeys.Store(pubKeys)
+		b.parsedPubKeys = pubKeys
 	}
 	result.ParsedJWTPubKeys = pubKeys
 
