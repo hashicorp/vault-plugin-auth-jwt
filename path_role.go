@@ -319,9 +319,6 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 	if err != nil {
 		return nil, err
 	}
-	if entry == nil {
-		return nil, fmt.Errorf("failed to create storage entry for role %s", roleName)
-	}
 	if err = req.Storage.Put(ctx, entry); err != nil {
 		return nil, err
 	}
