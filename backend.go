@@ -2,17 +2,11 @@ package jwtauth
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"errors"
-	"net/http"
 	"sync"
 
 	oidc "github.com/coreos/go-oidc"
-	cleanhttp "github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
-	"golang.org/x/oauth2"
 )
 
 // Factory is used by framework
@@ -27,9 +21,9 @@ func Factory(ctx context.Context, c *logical.BackendConfig) (logical.Backend, er
 type jwtAuthBackend struct {
 	*framework.Backend
 
-	l             sync.RWMutex
-	provider      *oidc.Provider
-	parsedPubKeys []interface{}
+	l            sync.RWMutex
+	provider     *oidc.Provider
+	cachedConfig *jwtConfig
 }
 
 func backend(c *logical.BackendConfig) *jwtAuthBackend {
@@ -51,6 +45,8 @@ func backend(c *logical.BackendConfig) *jwtAuthBackend {
 		Paths: framework.PathAppend(
 			[]*framework.Path{
 				pathLogin(b),
+				pathRoleList(b),
+				pathRole(b),
 				pathConfig(b),
 			},
 		),
@@ -69,7 +65,7 @@ func (b *jwtAuthBackend) invalidate(ctx context.Context, key string) {
 func (b *jwtAuthBackend) reset() {
 	b.l.Lock()
 	b.provider = nil
-	b.parsedPubKeys = nil
+	b.cachedConfig = nil
 	b.l.Unlock()
 }
 
@@ -90,32 +86,13 @@ func (b *jwtAuthBackend) getProvider(ctx context.Context, config *jwtConfig) (*o
 		return b.provider, nil
 	}
 
-	var certPool *x509.CertPool
-	if config.OIDCIssuerCAPEM != "" {
-		certPool = x509.NewCertPool()
-		if ok := certPool.AppendCertsFromPEM([]byte(config.OIDCIssuerCAPEM)); !ok {
-			return nil, errors.New("could not parse 'oidc_issuer_ca_pem' value successfully")
-		}
-	}
-
-	tr := cleanhttp.DefaultPooledTransport()
-	if certPool != nil {
-		tr.TLSClientConfig = &tls.Config{
-			RootCAs: certPool,
-		}
-	}
-	tc := &http.Client{
-		Transport: tr,
-	}
-	oidcCtx := context.WithValue(ctx, oauth2.HTTPClient, tc)
-
-	provider, err := oidc.NewProvider(oidcCtx, config.OIDCIssuerURL)
+	provider, err := b.createProvider(ctx, config)
 	if err != nil {
 		return nil, err
 	}
 
 	b.provider = provider
-	return b.provider, nil
+	return provider, nil
 }
 
 const (

@@ -53,6 +53,10 @@ func (b *jwtAuthBackend) config(ctx context.Context, s logical.Storage) (*jwtCon
 	b.l.RLock()
 	defer b.l.RUnlock()
 
+	if b.cachedConfig != nil {
+		return b.cachedConfig, nil
+	}
+
 	entry, err := s.Get(ctx, "config")
 	if err != nil {
 		return nil, err
@@ -61,27 +65,24 @@ func (b *jwtAuthBackend) config(ctx context.Context, s logical.Storage) (*jwtCon
 		return nil, nil
 	}
 
-	var result jwtConfig
+	result := &jwtConfig{}
 	if entry != nil {
-		if err := entry.DecodeJSON(&result); err != nil {
+		if err := entry.DecodeJSON(result); err != nil {
 			return nil, err
 		}
 	}
 
-	pubKeys := b.parsedPubKeys
-	if pubKeys == nil {
-		for _, v := range result.JWTValidationPubKeys {
-			key, err := certutil.ParsePublicKeyPEM([]byte(v))
-			if err != nil {
-				return nil, errwrap.Wrapf("error parsing public key: {{err}}", err)
-			}
-			pubKeys = append(pubKeys, key)
+	for _, v := range result.JWTValidationPubKeys {
+		key, err := certutil.ParsePublicKeyPEM([]byte(v))
+		if err != nil {
+			return nil, errwrap.Wrapf("error parsing public key: {{err}}", err)
 		}
-		b.parsedPubKeys = pubKeys
+		result.ParsedJWTPubKeys = append(result.ParsedJWTPubKeys, key)
 	}
-	result.ParsedJWTPubKeys = pubKeys
 
-	return &result, nil
+	b.cachedConfig = result
+
+	return result, nil
 }
 
 func (b *jwtAuthBackend) pathConfigRead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
@@ -120,27 +121,9 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		return logical.ErrorResponse("exactly one of 'oidc_issuer_url' and 'jwt_validation_pubkeys' must be set"), nil
 
 	case config.OIDCIssuerURL != "":
-		var certPool *x509.CertPool
-		if config.OIDCIssuerCAPEM != "" {
-			certPool = x509.NewCertPool()
-			if ok := certPool.AppendCertsFromPEM([]byte(config.OIDCIssuerCAPEM)); !ok {
-				return logical.ErrorResponse("could not parse 'oidc_issuer_ca_pem' value successfully"), nil
-			}
-		}
-
-		tr := cleanhttp.DefaultPooledTransport()
-		if certPool != nil {
-			tr.TLSClientConfig = &tls.Config{
-				RootCAs: certPool,
-			}
-		}
-		tc := &http.Client{
-			Transport: tr,
-		}
-		oidcCtx := context.WithValue(ctx, oauth2.HTTPClient, tc)
-
-		if _, err := oidc.NewProvider(oidcCtx, config.OIDCIssuerURL); err != nil {
-			return logical.ErrorResponse(errwrap.Wrapf("error creating provider with given values: {{err}}", err).Error()), nil
+		_, err := b.createProvider(ctx, config)
+		if err != nil {
+			return logical.ErrorResponse(errwrap.Wrapf("error checking issuer URL: {{err}}", err).Error()), nil
 		}
 
 	case len(config.JWTValidationPubKeys) != 0:
@@ -163,6 +146,34 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	}
 
 	return nil, nil
+}
+
+func (b *jwtAuthBackend) createProvider(ctx context.Context, config *jwtConfig) (*oidc.Provider, error) {
+	var certPool *x509.CertPool
+	if config.OIDCIssuerCAPEM != "" {
+		certPool = x509.NewCertPool()
+		if ok := certPool.AppendCertsFromPEM([]byte(config.OIDCIssuerCAPEM)); !ok {
+			return nil, errors.New("could not parse 'oidc_issuer_ca_pem' value successfully")
+		}
+	}
+
+	tr := cleanhttp.DefaultPooledTransport()
+	if certPool != nil {
+		tr.TLSClientConfig = &tls.Config{
+			RootCAs: certPool,
+		}
+	}
+	tc := &http.Client{
+		Transport: tr,
+	}
+	oidcCtx := context.WithValue(ctx, oauth2.HTTPClient, tc)
+
+	provider, err := oidc.NewProvider(oidcCtx, config.OIDCIssuerURL)
+	if err != nil {
+		return nil, errwrap.Wrapf("error creating provider with given values: {{err}}", err)
+	}
+
+	return provider, nil
 }
 
 type jwtConfig struct {

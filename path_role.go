@@ -14,81 +14,82 @@ import (
 	"github.com/hashicorp/vault/logical/framework"
 )
 
-// pathsRole returns the path configurations for the CRUD operations on roles
-func pathsRole(b *jwtAuthBackend) []*framework.Path {
-	return []*framework.Path{
-		&framework.Path{
-			Pattern: "role/?",
-			Callbacks: map[logical.Operation]framework.OperationFunc{
-				logical.ListOperation: b.pathRoleList,
-			},
-			HelpSynopsis:    strings.TrimSpace(roleHelp["role-list"][0]),
-			HelpDescription: strings.TrimSpace(roleHelp["role-list"][1]),
+func pathRoleList(b *jwtAuthBackend) *framework.Path {
+	return &framework.Path{
+		Pattern: "role/?",
+		Callbacks: map[logical.Operation]framework.OperationFunc{
+			logical.ListOperation: b.pathRoleList,
 		},
-		&framework.Path{
-			Pattern: "role/" + framework.GenericNameRegex("name"),
-			Fields: map[string]*framework.FieldSchema{
-				"name": &framework.FieldSchema{
-					Type:        framework.TypeLowerCaseString,
-					Description: "Name of the role.",
-				},
-				"policies": &framework.FieldSchema{
-					Type:        framework.TypeCommaStringSlice,
-					Description: "List of policies on the role.",
-				},
-				"num_uses": &framework.FieldSchema{
-					Type:        framework.TypeInt,
-					Description: `Number of times issued tokens can be used`,
-				},
-				"ttl": &framework.FieldSchema{
-					Type: framework.TypeDurationSecond,
-					Description: `Duration in seconds after which the issued token should expire. Defaults
+		HelpSynopsis:    strings.TrimSpace(roleHelp["role-list"][0]),
+		HelpDescription: strings.TrimSpace(roleHelp["role-list"][1]),
+	}
+}
+
+// pathRole returns the path configurations for the CRUD operations on roles
+func pathRole(b *jwtAuthBackend) *framework.Path {
+	return &framework.Path{
+		Pattern: "role/" + framework.GenericNameRegex("name"),
+		Fields: map[string]*framework.FieldSchema{
+			"name": &framework.FieldSchema{
+				Type:        framework.TypeLowerCaseString,
+				Description: "Name of the role.",
+			},
+			"policies": &framework.FieldSchema{
+				Type:        framework.TypeCommaStringSlice,
+				Description: "List of policies on the role.",
+			},
+			"num_uses": &framework.FieldSchema{
+				Type:        framework.TypeInt,
+				Description: `Number of times issued tokens can be used`,
+			},
+			"ttl": &framework.FieldSchema{
+				Type: framework.TypeDurationSecond,
+				Description: `Duration in seconds after which the issued token should expire. Defaults
 to 0, in which case the value will fall back to the system/mount defaults.`,
-				},
-				"max_ttl": &framework.FieldSchema{
-					Type: framework.TypeDurationSecond,
-					Description: `Duration in seconds after which the issued token should not be allowed to
+			},
+			"max_ttl": &framework.FieldSchema{
+				Type: framework.TypeDurationSecond,
+				Description: `Duration in seconds after which the issued token should not be allowed to
 be renewed. Defaults to 0, in which case the value will fall back to the system/mount defaults.`,
-				},
-				"period": &framework.FieldSchema{
-					Type: framework.TypeDurationSecond,
-					Description: `If set, indicates that the token generated using this role
+			},
+			"period": &framework.FieldSchema{
+				Type: framework.TypeDurationSecond,
+				Description: `If set, indicates that the token generated using this role
 should never expire. The token should be renewed within the
 duration specified by this value. At each renewal, the token's
 TTL will be set to the value of this parameter.`,
-				},
-				"bound_subject": &framework.FieldSchema{
-					Type:        framework.TypeString,
-					Description: `The 'sub' claim that is valid for login. Optional.`,
-				},
-				"bound_audiences": &framework.FieldSchema{
-					Type:        framework.TypeCommaStringSlice,
-					Description: `Comma-separated list of 'aud' claims that are valid for login; any match is sufficient`,
-				},
-				"user_claim": &framework.FieldSchema{
-					Type:        framework.TypeString,
-					Description: `The claim to use for the Identity entity alias name`,
-				},
-				"groups_claim": &framework.FieldSchema{
-					Type:        framework.TypeString,
-					Description: `The claim to use for the Identity group alias names`,
-				},
-				"bound_cidrs": &framework.FieldSchema{
-					Type: framework.TypeCommaStringSlice,
-					Description: `Comma-separated list of IP CIDRS that are allowed to 
+			},
+			"bound_subject": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Description: `The 'sub' claim that is valid for login. Optional.`,
+			},
+			"bound_audiences": &framework.FieldSchema{
+				Type:        framework.TypeCommaStringSlice,
+				Description: `Comma-separated list of 'aud' claims that are valid for login; any match is sufficient`,
+			},
+			"user_claim": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Description: `The claim to use for the Identity entity alias name`,
+			},
+			"groups_claim": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Description: `The claim to use for the Identity group alias names`,
+			},
+			"bound_cidrs": &framework.FieldSchema{
+				Type: framework.TypeCommaStringSlice,
+				Description: `Comma-separated list of IP CIDRS that are allowed to 
 authenticate against this role`,
-				},
 			},
-			ExistenceCheck: b.pathRoleExistenceCheck,
-			Callbacks: map[logical.Operation]framework.OperationFunc{
-				logical.CreateOperation: b.pathRoleCreateUpdate,
-				logical.UpdateOperation: b.pathRoleCreateUpdate,
-				logical.ReadOperation:   b.pathRoleRead,
-				logical.DeleteOperation: b.pathRoleDelete,
-			},
-			HelpSynopsis:    strings.TrimSpace(roleHelp["role"][0]),
-			HelpDescription: strings.TrimSpace(roleHelp["role"][1]),
 		},
+		ExistenceCheck: b.pathRoleExistenceCheck,
+		Callbacks: map[logical.Operation]framework.OperationFunc{
+			logical.CreateOperation: b.pathRoleCreateUpdate,
+			logical.UpdateOperation: b.pathRoleCreateUpdate,
+			logical.ReadOperation:   b.pathRoleRead,
+			logical.DeleteOperation: b.pathRoleDelete,
+		},
+		HelpSynopsis:    strings.TrimSpace(roleHelp["role"][0]),
+		HelpDescription: strings.TrimSpace(roleHelp["role"][1]),
 	}
 }
 
