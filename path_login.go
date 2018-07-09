@@ -140,7 +140,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			return logical.ErrorResponse(errwrap.Wrapf("error validating signature: {{err}}", err).Error()), nil
 		}
 
-		if err := idToken.Claims(allClaims); err != nil {
+		if err := idToken.Claims(&allClaims); err != nil {
 			return logical.ErrorResponse(errwrap.Wrapf("unable to successfully parse all claims from token: {{err}}", err).Error()), nil
 		}
 
