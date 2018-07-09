@@ -124,7 +124,7 @@ type jwtRole struct {
 // role takes a storage backend and the name and returns the role's storage
 // entry
 func (b *jwtAuthBackend) role(ctx context.Context, s logical.Storage, name string) (*jwtRole, error) {
-	raw, err := s.Get(ctx, "role/"+name)
+	raw, err := s.Get(ctx, rolePrefix+name)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func (b *jwtAuthBackend) pathRoleExistenceCheck(ctx context.Context, req *logica
 
 // pathRoleList is used to list all the Roles registered with the backend.
 func (b *jwtAuthBackend) pathRoleList(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	roles, err := req.Storage.List(ctx, "role/")
+	roles, err := req.Storage.List(ctx, rolePrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +200,7 @@ func (b *jwtAuthBackend) pathRoleDelete(ctx context.Context, req *logical.Reques
 	}
 
 	// Delete the role itself
-	if err := req.Storage.Delete(ctx, "role/"+roleName); err != nil {
+	if err := req.Storage.Delete(ctx, rolePrefix+roleName); err != nil {
 		return nil, err
 	}
 
@@ -311,7 +311,7 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 	}
 
 	// Store the entry.
-	entry, err := logical.StorageEntryJSON("role/"+roleName, role)
+	entry, err := logical.StorageEntryJSON(rolePrefix+roleName, role)
 	if err != nil {
 		return nil, err
 	}

@@ -57,7 +57,7 @@ func (b *jwtAuthBackend) config(ctx context.Context, s logical.Storage) (*jwtCon
 		return b.cachedConfig, nil
 	}
 
-	entry, err := s.Get(ctx, "config")
+	entry, err := s.Get(ctx, configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		return nil, errors.New("unknown condition")
 	}
 
-	entry, err := logical.StorageEntryJSON("config", config)
+	entry, err := logical.StorageEntryJSON(configPath, config)
 	if err != nil {
 		return nil, err
 	}

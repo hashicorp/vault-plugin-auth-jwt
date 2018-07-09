@@ -9,6 +9,11 @@ import (
 	"github.com/hashicorp/vault/logical/framework"
 )
 
+const (
+	configPath string = "config"
+	rolePrefix string = "role/"
+)
+
 // Factory is used by framework
 func Factory(ctx context.Context, c *logical.BackendConfig) (logical.Backend, error) {
 	b := backend(c)
