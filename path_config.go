@@ -23,7 +23,7 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 		Fields: map[string]*framework.FieldSchema{
 			"oidc_issuer_url": &framework.FieldSchema{
 				Type:        framework.TypeString,
-				Description: "OIDC issuer URL, without any .well-known component (base path)",
+				Description: `OIDC issuer URL, without any .well-known component (base path). Cannot be used with "jwt_validation_pubkeys".`,
 			},
 			"oidc_issuer_ca_pem": &framework.FieldSchema{
 				Type:        framework.TypeString,
@@ -31,7 +31,7 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 			},
 			"jwt_validation_pubkeys": &framework.FieldSchema{
 				Type:        framework.TypeCommaStringSlice,
-				Description: "When performing local validation on a JWT, a list of PEM-encoded public keys to use to authenticate the JWT's signature.",
+				Description: `When performing local validation on a JWT, a list of PEM-encoded public keys to use to authenticate the JWT's signature. Cannot be used with "oidc_issuer_url".`,
 			},
 			"bound_issuer": &framework.FieldSchema{
 				Type:        framework.TypeString,
@@ -144,6 +144,8 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	if err := req.Storage.Put(ctx, entry); err != nil {
 		return nil, err
 	}
+
+	b.reset()
 
 	return nil, nil
 }
