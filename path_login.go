@@ -30,7 +30,8 @@ func pathLogin(b *jwtAuthBackend) *framework.Path {
 		},
 
 		Callbacks: map[logical.Operation]framework.OperationFunc{
-			logical.UpdateOperation: b.pathLogin,
+			logical.UpdateOperation:         b.pathLogin,
+			logical.AliasLookaheadOperation: b.pathLogin,
 		},
 
 		HelpSynopsis:    pathLoginHelpSyn,
@@ -85,13 +86,32 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 
 		var valid bool
 		for _, key := range config.ParsedJWTPubKeys {
-			if err := parsedJWT.Claims(key, &claims, allClaims); err == nil {
+			if err := parsedJWT.Claims(key, &claims, &allClaims); err == nil {
 				valid = true
 				break
 			}
 		}
 		if !valid {
 			return logical.ErrorResponse("no known key successfully validated the token signature"), nil
+		}
+
+		// We require notbefore or expiry; if only one is provided, we allow 5 minutes of leeway.
+		if claims.IssuedAt == 0 && claims.Expiry == 0 && claims.NotBefore == 0 {
+			return logical.ErrorResponse("no issue time, notbefore, or expiration time encoded in token"), nil
+		}
+		if claims.Expiry == 0 {
+			latestStart := claims.IssuedAt
+			if claims.NotBefore > claims.IssuedAt {
+				latestStart = claims.NotBefore
+			}
+			claims.Expiry = latestStart + 300
+		}
+		if claims.NotBefore == 0 {
+			if claims.IssuedAt != 0 {
+				claims.NotBefore = claims.IssuedAt
+			} else {
+				claims.NotBefore = claims.Expiry - 300
+			}
 		}
 
 		expected := jwt.Expected{
