@@ -173,19 +173,14 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 		return nil, nil
 	}
 
-	// Convert the 'time.Duration' values to second.
-	role.TTL /= time.Second
-	role.MaxTTL /= time.Second
-	role.Period /= time.Second
-
 	// Create a map of data to be returned
 	resp := &logical.Response{
 		Data: map[string]interface{}{
 			"policies":        role.Policies,
 			"num_uses":        role.NumUses,
-			"period":          role.Period,
-			"ttl":             role.TTL,
-			"max_ttl":         role.MaxTTL,
+			"period":          int64(role.Period.Seconds()),
+			"ttl":             int64(role.TTL.Seconds()),
+			"max_ttl":         int64(role.MaxTTL.Seconds()),
 			"bound_audiences": role.BoundAudiences,
 			"bound_subject":   role.BoundSubject,
 			"bound_cidrs":     role.BoundCIDRs,
