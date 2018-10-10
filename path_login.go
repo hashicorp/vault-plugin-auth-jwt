@@ -225,6 +225,16 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			})
 		}
 	}
+	metadatas := map[string]string{
+		"role": roleName,
+	}
+	if ClaimsMapping := role.ClaimsToMetadatas; ClaimsMapping != nil {
+		for claimMapped, metaKey := range ClaimsMapping {
+			if c, ok := allClaims[claimMapped]; ok && metaKey != "" {
+				metadatas[metaKey] = fmt.Sprintf("%+v", c)
+			}
+		}
+	}
 
 	resp := &logical.Response{
 		Auth: &logical.Auth{
@@ -239,9 +249,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			InternalData: map[string]interface{}{
 				"role": roleName,
 			},
-			Metadata: map[string]string{
-				"role": roleName,
-			},
+			Metadata: metadatas,
 			LeaseOptions: logical.LeaseOptions{
 				Renewable: true,
 				TTL:       role.TTL,

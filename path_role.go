@@ -80,10 +80,13 @@ TTL will be set to the value of this parameter.`,
 				Type:        framework.TypeString,
 				Description: `A pattern of delimiters used to allow the groups_claim to live outside of the top-level JWT structure. For instance, a "groups_claim" of "meta/user.name/groups" with this field set to "//" will expect nested structures named "meta", "user.name", and "groups". If this field was set to "/./" the groups information would expect to be via nested structures of "meta", "user", "name", and "groups".`,
 			},
-			"bound_cidrs": {
-				Type: framework.TypeCommaStringSlice,
-				Description: `Comma-separated list of IP CIDRS that are allowed to 
-authenticate against this role`,
+			"bound_cidrs": &framework.FieldSchema{
+				Type:        framework.TypeCommaStringSlice,
+				Description: `Comma-separated list of IP CIDRS that are allowed to authenticate against this role`,
+			},
+			"claims_to_metadatas": &framework.FieldSchema{
+				Type:        framework.TypeKVPairs,
+				Description: `Map that takes a claim's name as key and a target metadata key as value`,
 			},
 		},
 		ExistenceCheck: b.pathRoleExistenceCheck,
@@ -125,6 +128,7 @@ type jwtRole struct {
 	UserClaim                   string                        `json:"user_claim"`
 	GroupsClaim                 string                        `json:"groups_claim"`
 	GroupsClaimDelimiterPattern string                        `json:"groups_claim_delimiter_pattern"`
+	ClaimsToMetadatas           map[string]string             `json:"claims_to_metadatas"`
 }
 
 // role takes a storage backend and the name and returns the role's storage
@@ -193,6 +197,7 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 			"user_claim":                     role.UserClaim,
 			"groups_claim":                   role.GroupsClaim,
 			"groups_claim_delimiter_pattern": role.GroupsClaimDelimiterPattern,
+			"claims_to_metadata":             role.ClaimsToMetadatas,
 		},
 	}
 
@@ -321,6 +326,12 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 	if role.MaxTTL > 0 && role.TTL > role.MaxTTL {
 		return logical.ErrorResponse("ttl should not be greater than max_ttl"), nil
 	}
+
+	claimsToMetas, ok := data.Get("claims_to_metadatas").(map[string]string)
+	if !ok {
+		return logical.ErrorResponse("claims_to_metadatas should be a map[string]string"), nil
+	}
+	role.ClaimsToMetadatas = claimsToMetas
 
 	var resp *logical.Response
 	if role.MaxTTL > b.System().MaxLeaseTTL() {
