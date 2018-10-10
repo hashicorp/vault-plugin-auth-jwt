@@ -40,16 +40,17 @@ func TestPath_Create(t *testing.T) {
 	b, storage := getBackend(t)
 
 	data := map[string]interface{}{
-		"bound_subject":   "testsub",
-		"bound_audiences": "vault",
-		"user_claim":      "user",
-		"groups_claim":    "groups",
-		"bound_cidrs":     "127.0.0.1/8",
-		"policies":        "test",
-		"period":          "3s",
-		"ttl":             "1s",
-		"num_uses":        12,
-		"max_ttl":         "5s",
+		"bound_subject":       "testsub",
+		"bound_audiences":     "vault",
+		"user_claim":          "user",
+		"groups_claim":        "groups",
+		"bound_cidrs":         "127.0.0.1/8",
+		"policies":            "test",
+		"period":              "3s",
+		"ttl":                 "1s",
+		"num_uses":            12,
+		"max_ttl":             "5s",
+		"claims_to_metadatas": map[string]string{"key": "value"},
 	}
 
 	expectedSockAddr, err := sockaddr.NewSockAddr("127.0.0.1/8")
@@ -58,16 +59,17 @@ func TestPath_Create(t *testing.T) {
 	}
 
 	expected := &jwtRole{
-		Policies:       []string{"test"},
-		Period:         3 * time.Second,
-		BoundSubject:   "testsub",
-		BoundAudiences: []string{"vault"},
-		UserClaim:      "user",
-		GroupsClaim:    "groups",
-		TTL:            1 * time.Second,
-		MaxTTL:         5 * time.Second,
-		NumUses:        12,
-		BoundCIDRs:     []*sockaddr.SockAddrMarshaler{&sockaddr.SockAddrMarshaler{expectedSockAddr}},
+		Policies:          []string{"test"},
+		Period:            3 * time.Second,
+		BoundSubject:      "testsub",
+		BoundAudiences:    []string{"vault"},
+		UserClaim:         "user",
+		GroupsClaim:       "groups",
+		TTL:               1 * time.Second,
+		MaxTTL:            5 * time.Second,
+		NumUses:           12,
+		BoundCIDRs:        []*sockaddr.SockAddrMarshaler{&sockaddr.SockAddrMarshaler{expectedSockAddr}},
+		ClaimsToMetadatas: map[string]string{"key": "value"},
 	}
 
 	req := &logical.Request{
@@ -136,16 +138,17 @@ func TestPath_Read(t *testing.T) {
 	b, storage := getBackend(t)
 
 	data := map[string]interface{}{
-		"bound_subject":   "testsub",
-		"bound_audiences": "vault",
-		"user_claim":      "user",
-		"groups_claim":    "groups",
-		"bound_cidrs":     "127.0.0.1/8",
-		"policies":        "test",
-		"period":          "3s",
-		"ttl":             "1s",
-		"num_uses":        12,
-		"max_ttl":         "5s",
+		"bound_subject":       "testsub",
+		"bound_audiences":     "vault",
+		"user_claim":          "user",
+		"groups_claim":        "groups",
+		"bound_cidrs":         "127.0.0.1/8",
+		"policies":            "test",
+		"period":              "3s",
+		"ttl":                 "1s",
+		"num_uses":            12,
+		"max_ttl":             "5s",
+		"claims_to_metadatas": []string{"key=value"},
 	}
 
 	expected := map[string]interface{}{
@@ -159,6 +162,7 @@ func TestPath_Read(t *testing.T) {
 		"ttl":                            int64(1),
 		"num_uses":                       12,
 		"max_ttl":                        int64(5),
+		"claims_to_metadatas":            map[string]string{"key": "value"},
 	}
 
 	req := &logical.Request{

@@ -197,7 +197,7 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 			"user_claim":                     role.UserClaim,
 			"groups_claim":                   role.GroupsClaim,
 			"groups_claim_delimiter_pattern": role.GroupsClaimDelimiterPattern,
-			"claims_to_metadata":             role.ClaimsToMetadatas,
+			"claims_to_metadatas":            role.ClaimsToMetadatas,
 		},
 	}
 

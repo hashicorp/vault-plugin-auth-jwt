@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -47,14 +48,15 @@ func setupBackend(t *testing.T, oidc, audience bool) (logical.Backend, logical.S
 	}
 
 	data = map[string]interface{}{
-		"bound_subject": "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
-		"user_claim":    "https://vault/user",
-		"groups_claim":  "https://vault/groups",
-		"policies":      "test",
-		"period":        "3s",
-		"ttl":           "1s",
-		"num_uses":      12,
-		"max_ttl":       "5s",
+		"bound_subject":       "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+		"user_claim":          "https://vault/user",
+		"groups_claim":        "https://vault/groups",
+		"policies":            "test",
+		"period":              "3s",
+		"ttl":                 "1s",
+		"num_uses":            12,
+		"max_ttl":             "5s",
+		"claims_to_metadatas": map[string]string{"https://vault/fullName": "fullName"},
 	}
 	if audience {
 		data["bound_audiences"] = "https://vault.plugin.auth.jwt.test"
@@ -193,11 +195,13 @@ func TestLogin_JWT(t *testing.T) {
 		}
 
 		privateCl := struct {
-			User   string   `json:"https://vault/user"`
-			Groups []string `json:"https://vault/groups"`
+			User     string   `json:"https://vault/user"`
+			Groups   []string `json:"https://vault/groups"`
+			FullName string   `json:"https://vault/fullName"`
 		}{
 			"jeff",
 			[]string{"foo", "bar"},
+			"Jeff Mitchell",
 		}
 
 		jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
@@ -239,6 +243,8 @@ func TestLogin_JWT(t *testing.T) {
 			t.Fatal(auth.TTL)
 		case auth.MaxTTL != 5*time.Second:
 			t.Fatal(auth.MaxTTL)
+		case auth.Metadata["fullName"] != privateCl.FullName:
+			t.Fatal(fmt.Sprintf("\"%s\" should be equal to %s", auth.Metadata["fullName"], privateCl.FullName))
 		}
 	}
 
