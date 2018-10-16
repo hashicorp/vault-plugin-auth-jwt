@@ -10,6 +10,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -56,7 +58,7 @@ func setupBackend(t *testing.T, oidc, audience bool) (logical.Backend, logical.S
 		"ttl":                 "1s",
 		"num_uses":            12,
 		"max_ttl":             "5s",
-		"claims_to_metadatas": map[string]string{"https://vault/fullName": "fullName"},
+		"claims_to_metadatas": map[string]string{"https://vault/fullName": "fullName", "https://vault/number": "number"},
 	}
 	if audience {
 		data["bound_audiences"] = "https://vault.plugin.auth.jwt.test"
@@ -198,10 +200,12 @@ func TestLogin_JWT(t *testing.T) {
 			User     string   `json:"https://vault/user"`
 			Groups   []string `json:"https://vault/groups"`
 			FullName string   `json:"https://vault/fullName"`
+			Number   int      `json:"https://vault/number"`
 		}{
 			"jeff",
 			[]string{"foo", "bar"},
 			"Jeff Mitchell",
+			1230,
 		}
 
 		jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
@@ -230,6 +234,7 @@ func TestLogin_JWT(t *testing.T) {
 		}
 
 		auth := resp.Auth
+		expectedMetas := map[string]string{"role": "plugin-test", "fullName": privateCl.FullName, "number": strconv.Itoa(privateCl.Number)}
 		switch {
 		case len(auth.Policies) != 1 || auth.Policies[0] != "test":
 			t.Fatal(auth.Policies)
@@ -243,8 +248,8 @@ func TestLogin_JWT(t *testing.T) {
 			t.Fatal(auth.TTL)
 		case auth.MaxTTL != 5*time.Second:
 			t.Fatal(auth.MaxTTL)
-		case auth.Metadata["fullName"] != privateCl.FullName:
-			t.Fatal(fmt.Sprintf("\"%s\" should be equal to %s", auth.Metadata["fullName"], privateCl.FullName))
+		case !reflect.DeepEqual(auth.Metadata, expectedMetas):
+			t.Fatal(fmt.Sprintf("%v should be equal to %v", auth.Metadata, expectedMetas))
 		}
 	}
 

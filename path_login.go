@@ -231,7 +231,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 	if ClaimsMapping := role.ClaimsToMetadatas; ClaimsMapping != nil {
 		for claimMapped, metaKey := range ClaimsMapping {
 			if c, ok := allClaims[claimMapped]; ok && metaKey != "" {
-				metadatas[metaKey] = fmt.Sprintf("%+v", c)
+				metadatas[metaKey] = fmt.Sprintf("%v", c)
 			}
 		}
 	}
