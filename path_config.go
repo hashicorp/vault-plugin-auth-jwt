@@ -36,7 +36,7 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 			},
 			"jwt_supported_algs": {
 				Type:        framework.TypeCommaStringSlice,
-				Description: `A list of supported encoding algorithms. Defaults to empty, therefore the oidc plugin default, which currently is RS256 only.`,
+				Description: `A list of supported signing algorithms. Defaults to RS256.`,
 			},
 			"bound_issuer": {
 				Type:        framework.TypeString,
