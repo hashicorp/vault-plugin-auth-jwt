@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-test/deep"
 	"github.com/hashicorp/vault/logical"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
@@ -55,6 +56,10 @@ func setupBackend(t *testing.T, oidc, audience bool) (logical.Backend, logical.S
 		"ttl":           "1s",
 		"num_uses":      12,
 		"max_ttl":       "5s",
+		"claim_mappings": map[string]string{
+			"first_name":   "name",
+			"/org/primary": "primary_org",
+		},
 	}
 	if audience {
 		data["bound_audiences"] = "https://vault.plugin.auth.jwt.test"
@@ -192,12 +197,20 @@ func TestLogin_JWT(t *testing.T) {
 			Audience:  jwt.Audience{"https://vault.plugin.auth.jwt.test"},
 		}
 
+		type orgs struct {
+			Primary string `json:"primary"`
+		}
+
 		privateCl := struct {
-			User   string   `json:"https://vault/user"`
-			Groups []string `json:"https://vault/groups"`
+			User      string   `json:"https://vault/user"`
+			Groups    []string `json:"https://vault/groups"`
+			FirstName string   `json:"first_name"`
+			Org       orgs     `json:"org"`
 		}{
 			"jeff",
 			[]string{"foo", "bar"},
+			"jeff2",
+			orgs{"engineering"},
 		}
 
 		jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
@@ -240,6 +253,24 @@ func TestLogin_JWT(t *testing.T) {
 		case auth.MaxTTL != 5*time.Second:
 			t.Fatal(auth.MaxTTL)
 		}
+
+		// check alias metadata
+		metadata := map[string]string{
+			"name":        "jeff2",
+			"primary_org": "engineering",
+		}
+
+		if diff := deep.Equal(auth.Alias.Metadata, metadata); diff != nil {
+			t.Fatal(diff)
+		}
+
+		// check alias metadata
+		metadata["role"] = "plugin-test"
+
+		if diff := deep.Equal(auth.Metadata, metadata); diff != nil {
+			t.Fatal(diff)
+		}
+
 	}
 
 	// test bad signature
@@ -673,16 +704,15 @@ func TestLogin_NestedGroups(t *testing.T) {
 	}
 
 	data = map[string]interface{}{
-		"bound_audiences":                "https://vault.plugin.auth.jwt.test",
-		"bound_subject":                  "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
-		"user_claim":                     "https://vault/user",
-		"groups_claim":                   "https://vault/groups.testing",
-		"groups_claim_delimiter_pattern": ":.",
-		"policies":                       "test",
-		"period":                         "3s",
-		"ttl":                            "1s",
-		"num_uses":                       12,
-		"max_ttl":                        "5s",
+		"bound_audiences": "https://vault.plugin.auth.jwt.test",
+		"bound_subject":   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+		"user_claim":      "https://vault/user",
+		"groups_claim":    "/https/~1~1vault~1groups/testing",
+		"policies":        "test",
+		"period":          "3s",
+		"ttl":             "1s",
+		"num_uses":        12,
+		"max_ttl":         "5s",
 	}
 
 	req = &logical.Request{
