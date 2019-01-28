@@ -64,7 +64,6 @@ tags
 # compiled output
 ui/dist
 ui/tmp
-vault-plugin-secrets-azure
 
 # dependencies
 ui/node_modules

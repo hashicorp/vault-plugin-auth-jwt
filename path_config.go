@@ -35,7 +35,8 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 				Description: "The OAuth Client ID configured with your OIDC provider.",
 			},
 			"oidc_client_secret": {
-				Type:        framework.TypeString,
+				Type: framework.TypeString,
+				// TODO: mark this field as sensitive once that FieldSchema change lands
 				Description: "The OAuth Client Secret configured with your OIDC provider.",
 			},
 			"default_role": {
