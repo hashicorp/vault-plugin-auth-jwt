@@ -245,6 +245,14 @@
   revision = "f15292f7a699fcc1a38a80977f80a046874ba8ac"
 
 [[projects]]
+  branch = "master"
+  digest = "1:302de3c669b04a566d4e99760d6fb35a22177fc14c7a9284e8b3cf6e9fe3f28a"
+  name = "github.com/mitchellh/pointerstructure"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "f2329fcfa9e280bdb5a3f2544aec815a508ad72f"
+
+[[projects]]
   digest = "1:9ec6cf1df5ad1d55cf41a43b6b1e7e118a91bade4f68ff4303379343e40c0e25"
   name = "github.com/oklog/run"
   packages = ["."]
@@ -465,6 +473,7 @@
     "github.com/hashicorp/vault/logical/framework",
     "github.com/hashicorp/vault/logical/plugin",
     "github.com/patrickmn/go-cache",
+    "github.com/mitchellh/pointerstructure",
     "golang.org/x/oauth2",
     "gopkg.in/square/go-jose.v2",
     "gopkg.in/square/go-jose.v2/jwt",

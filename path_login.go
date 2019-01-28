@@ -180,43 +180,19 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 
 	var groupAliases []*logical.Alias
 	if role.GroupsClaim != "" {
-		mapPath, err := parseClaimWithDelimiters(role.GroupsClaim, role.GroupsClaimDelimiterPattern)
-		if err != nil {
-			return logical.ErrorResponse(errwrap.Wrapf("error parsing delimiters for groups claim: {{err}}", err).Error()), nil
-		}
-		if len(mapPath) < 1 {
-			return logical.ErrorResponse("unexpected length 0 of claims path after parsing groups claim against delimiters"), nil
-		}
-		var claimKey string
-		claimMap := allClaims
-		for i, key := range mapPath {
-			if i == len(mapPath)-1 {
-				claimKey = key
-				break
-			}
-			nextMapRaw, ok := claimMap[key]
-			if !ok {
-				return logical.ErrorResponse(fmt.Sprintf("map via key %q not found while navigating group claim delimiters", key)), nil
-			}
-			nextMap, ok := nextMapRaw.(map[string]interface{})
-			if !ok {
-				return logical.ErrorResponse(fmt.Sprintf("key %q does not reference a map while navigating group claim delimiters", key)), nil
-			}
-			claimMap = nextMap
-		}
+		groupsClaimRaw := getClaim(allClaims, role.GroupsClaim)
 
-		groupsClaimRaw, ok := claimMap[claimKey]
-		if !ok {
-			return logical.ErrorResponse(fmt.Sprintf("%q claim not found in token", role.GroupsClaim)), nil
+		if groupsClaimRaw == nil {
+			return logical.ErrorResponse("%q claim not found in token", role.GroupsClaim), nil
 		}
 		groups, ok := groupsClaimRaw.([]interface{})
 		if !ok {
-			return logical.ErrorResponse(fmt.Sprintf("%q claim could not be converted to string list", role.GroupsClaim)), nil
+			return logical.ErrorResponse("%q claim could not be converted to string list", role.GroupsClaim), nil
 		}
 		for _, groupRaw := range groups {
 			group, ok := groupRaw.(string)
 			if !ok {
-				return logical.ErrorResponse(fmt.Sprintf("value %v in groups claim could not be parsed as string", groupRaw)), nil
+				return logical.ErrorResponse("value %v in groups claim could not be parsed as string", groupRaw), nil
 			}
 			if group == "" {
 				continue
@@ -227,22 +203,36 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		}
 	}
 
+	// extract metadata for alias
+	metadata, err := extractMetadata(allClaims, role.ClaimMappings)
+	if err != nil {
+		return nil, err
+	}
+
+	alias := &logical.Alias{
+		Name:     userName,
+		Metadata: metadata,
+	}
+
+	// include role in token metadata
+	tokenMetadata := make(map[string]string)
+	for k, v := range metadata {
+		tokenMetadata[k] = v
+	}
+	tokenMetadata["role"] = roleName
+
 	resp := &logical.Response{
 		Auth: &logical.Auth{
-			Policies:    role.Policies,
-			DisplayName: userName,
-			Period:      role.Period,
-			NumUses:     role.NumUses,
-			Alias: &logical.Alias{
-				Name: userName,
-			},
+			Policies:     role.Policies,
+			DisplayName:  userName,
+			Period:       role.Period,
+			NumUses:      role.NumUses,
+			Alias:        alias,
 			GroupAliases: groupAliases,
 			InternalData: map[string]interface{}{
 				"role": roleName,
 			},
-			Metadata: map[string]string{
-				"role": roleName,
-			},
+			Metadata: tokenMetadata,
 			LeaseOptions: logical.LeaseOptions{
 				Renewable: true,
 				TTL:       role.TTL,
