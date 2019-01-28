@@ -11,9 +11,12 @@ import (
 	sockaddr "github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/vault/helper/parseutil"
 	"github.com/hashicorp/vault/helper/policyutil"
+	"github.com/hashicorp/vault/helper/strutil"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 )
+
+var reservedMetadata = []string{"role"}
 
 func pathRoleList(b *jwtAuthBackend) *framework.Path {
 	return &framework.Path{
@@ -34,6 +37,10 @@ func pathRole(b *jwtAuthBackend) *framework.Path {
 			"name": {
 				Type:        framework.TypeLowerCaseString,
 				Description: "Name of the role.",
+			},
+			"role_type": {
+				Type:        framework.TypeString,
+				Description: "Type of the role, either 'jwt' or 'oidc'.",
 			},
 			"policies": {
 				Type:        framework.TypeCommaStringSlice,
@@ -68,6 +75,14 @@ TTL will be set to the value of this parameter.`,
 				Type:        framework.TypeCommaStringSlice,
 				Description: `Comma-separated list of 'aud' claims that are valid for login; any match is sufficient`,
 			},
+			"bound_claims": &framework.FieldSchema{
+				Type:        framework.TypeMap,
+				Description: `Map of claims/values which must match for login`,
+			},
+			"claim_mappings": &framework.FieldSchema{
+				Type:        framework.TypeKVPairs,
+				Description: `Mappings of claims (key) that will be copied to a metadata field (value)`,
+			},
 			"user_claim": {
 				Type:        framework.TypeString,
 				Description: `The claim to use for the Identity entity alias name`,
@@ -85,6 +100,14 @@ TTL will be set to the value of this parameter.`,
 				Description: `Comma-separated list of IP CIDRS that are allowed to 
 authenticate against this role`,
 			},
+			"oidc_scopes": {
+				Type:        framework.TypeCommaStringSlice,
+				Description: `Comma-separated list of OIDC scopes`,
+			},
+			"allowed_redirect_uris": {
+				Type:        framework.TypeCommaStringSlice,
+				Description: `Comma-separated list of allowed values for redirect_uri`,
+			},
 		},
 		ExistenceCheck: b.pathRoleExistenceCheck,
 		Callbacks: map[logical.Operation]framework.OperationFunc{
@@ -99,6 +122,8 @@ authenticate against this role`,
 }
 
 type jwtRole struct {
+	RoleType string `json:"role_type"`
+
 	// Policies that are to be required by the token to access this role
 	Policies []string `json:"policies"`
 
@@ -121,10 +146,14 @@ type jwtRole struct {
 	// Role binding properties
 	BoundAudiences              []string                      `json:"bound_audiences"`
 	BoundSubject                string                        `json:"bound_subject"`
+	BoundClaims                 map[string]interface{}        `json:"bound_claims"`
+	ClaimMappings               map[string]string             `json:"claim_mappings"`
 	BoundCIDRs                  []*sockaddr.SockAddrMarshaler `json:"bound_cidrs"`
 	UserClaim                   string                        `json:"user_claim"`
 	GroupsClaim                 string                        `json:"groups_claim"`
 	GroupsClaimDelimiterPattern string                        `json:"groups_claim_delimiter_pattern"`
+	OIDCScopes                  []string                      `json:"oidc_scopes"`
+	AllowedRedirectURIs         []string                      `json:"allowed_redirect_uris"`
 }
 
 // role takes a storage backend and the name and returns the role's storage
@@ -182,6 +211,7 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 	// Create a map of data to be returned
 	resp := &logical.Response{
 		Data: map[string]interface{}{
+			"role_type":                      role.RoleType,
 			"policies":                       role.Policies,
 			"num_uses":                       role.NumUses,
 			"period":                         int64(role.Period.Seconds()),
@@ -190,9 +220,12 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 			"bound_audiences":                role.BoundAudiences,
 			"bound_subject":                  role.BoundSubject,
 			"bound_cidrs":                    role.BoundCIDRs,
+			"bound_claims":                   role.BoundClaims,
+			"claim_mappings":                 role.ClaimMappings,
 			"user_claim":                     role.UserClaim,
 			"groups_claim":                   role.GroupsClaim,
 			"groups_claim_delimiter_pattern": role.GroupsClaimDelimiterPattern,
+			"allowed_redirect_uris":          role.AllowedRedirectURIs,
 		},
 	}
 
@@ -235,6 +268,15 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 		}
 		role = new(jwtRole)
 	}
+
+	roleType := data.Get("role_type").(string)
+	if roleType == "" {
+		roleType = "jwt"
+	}
+	if roleType != "jwt" && roleType != "oidc" {
+		return logical.ErrorResponse("invalid 'role_type': %s", roleType), nil
+	}
+	role.RoleType = roleType
 
 	if policiesRaw, ok := data.GetOk("policies"); ok {
 		role.Policies = policyutil.ParsePolicies(policiesRaw)
@@ -287,6 +329,29 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 		role.BoundCIDRs = parsedCIDRs
 	}
 
+	if boundClaimsRaw, ok := data.GetOk("bound_claims"); ok {
+		role.BoundClaims = boundClaimsRaw.(map[string]interface{})
+	}
+
+	if claimMappingsRaw, ok := data.GetOk("claim_mappings"); ok {
+		claimMappings := claimMappingsRaw.(map[string]string)
+
+		// sanity check mappings for duplicates and collision with reserved names
+		targets := make(map[string]bool)
+		for _, metadataKey := range claimMappings {
+			if strutil.StrListContains(reservedMetadata, metadataKey) {
+				return logical.ErrorResponse("metadata key '%s' is reserved and may not be a mapping destination", metadataKey), nil
+			}
+
+			if targets[metadataKey] {
+				return logical.ErrorResponse("multiple keys are mapped to metadata key '%s'", metadataKey), nil
+			}
+			targets[metadataKey] = true
+		}
+
+		role.ClaimMappings = claimMappings
+	}
+
 	if userClaim, ok := data.GetOk("user_claim"); ok {
 		role.UserClaim = userClaim.(string)
 	}
@@ -309,10 +374,22 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 		}
 	}
 
-	if len(role.BoundAudiences) == 0 &&
-		len(role.BoundCIDRs) == 0 &&
-		role.BoundSubject == "" {
-		return logical.ErrorResponse("must have at least one bound constraint when creating/updating a role"), nil
+	if oidcScopes, ok := data.GetOk("oidc_scopes"); ok {
+		role.OIDCScopes = oidcScopes.([]string)
+	}
+
+	if allowedRedirectURIs, ok := data.GetOk("allowed_redirect_uris"); ok {
+		role.AllowedRedirectURIs = allowedRedirectURIs.([]string)
+	}
+
+	// OIDC verifcation will enforce that the audience match the configured client_id.
+	// For other methods, require at least one bound constraint.
+	if roleType != "oidc" {
+		if len(role.BoundAudiences) == 0 &&
+			len(role.BoundCIDRs) == 0 &&
+			role.BoundSubject == "" {
+			return logical.ErrorResponse("must have at least one bound constraint when creating/updating a role"), nil
+		}
 	}
 
 	// Check that the TTL value provided is less than the MaxTTL.
