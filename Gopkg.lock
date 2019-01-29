@@ -179,10 +179,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5e7b650cfd75adf9ad5916710aef38aff372df30f2ab4cbe79c42baf403931b9"
+  digest = "1:9f6a44390c53817882331a618b78a4ff7bb6e6d979845a3163b14a339e761ad8"
   name = "github.com/hashicorp/vault"
   packages = [
     "api",
+    "helper/base62",
     "helper/certutil",
     "helper/cidrutil",
     "helper/compressutil",
@@ -445,6 +446,7 @@
     "github.com/hashicorp/go-cleanhttp",
     "github.com/hashicorp/go-hclog",
     "github.com/hashicorp/go-sockaddr",
+    "github.com/hashicorp/vault/helper/base62",
     "github.com/hashicorp/vault/helper/certutil",
     "github.com/hashicorp/vault/helper/cidrutil",
     "github.com/hashicorp/vault/helper/logging",
