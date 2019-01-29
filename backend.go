@@ -29,6 +29,7 @@ type jwtAuthBackend struct {
 	l            sync.RWMutex
 	provider     *oidc.Provider
 	cachedConfig *jwtConfig
+	oidcStates   map[string]*oidcState
 
 	providerCtx       context.Context
 	providerCtxCancel context.CancelFunc
@@ -37,6 +38,7 @@ type jwtAuthBackend struct {
 func backend(c *logical.BackendConfig) *jwtAuthBackend {
 	b := new(jwtAuthBackend)
 	b.providerCtx, b.providerCtxCancel = context.WithCancel(context.Background())
+	b.oidcStates = make(map[string]*oidcState)
 
 	b.Backend = &framework.Backend{
 		AuthRenew:   b.pathLoginRenew,
@@ -46,6 +48,7 @@ func backend(c *logical.BackendConfig) *jwtAuthBackend {
 		PathsSpecial: &logical.Paths{
 			Unauthenticated: []string{
 				"login",
+				"oidc/auth_url",
 			},
 			SealWrapStorage: []string{
 				"config",
@@ -58,9 +61,13 @@ func backend(c *logical.BackendConfig) *jwtAuthBackend {
 				pathRole(b),
 				pathConfig(b),
 			},
+			pathOIDC(b),
 		),
 		Clean: b.cleanup,
 	}
+
+	// Start a periodic cleanup of unused state tokens
+	b.stateGC()
 
 	return b
 }
