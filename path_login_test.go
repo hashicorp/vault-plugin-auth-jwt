@@ -264,9 +264,8 @@ func TestLogin_JWT(t *testing.T) {
 			t.Fatal(diff)
 		}
 
-		// check alias metadata
+		// check token metadata
 		metadata["role"] = "plugin-test"
-
 		if diff := deep.Equal(auth.Metadata, metadata); diff != nil {
 			t.Fatal(diff)
 		}
