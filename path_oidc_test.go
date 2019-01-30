@@ -38,9 +38,10 @@ func TestOIDC_AuthURL(t *testing.T) {
 
 	// set up test role
 	data = map[string]interface{}{
-		"role_type":       "oidc",
-		"user_claim":      "email",
-		"bound_audiences": "vault",
+		"role_type":             "oidc",
+		"user_claim":            "email",
+		"bound_audiences":       "vault",
+		"allowed_redirect_uris": []string{"https://example.com"},
 	}
 
 	req = &logical.Request{

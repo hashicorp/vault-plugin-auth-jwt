@@ -179,11 +179,10 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:9f6a44390c53817882331a618b78a4ff7bb6e6d979845a3163b14a339e761ad8"
+  digest = "1:5e7b650cfd75adf9ad5916710aef38aff372df30f2ab4cbe79c42baf403931b9"
   name = "github.com/hashicorp/vault"
   packages = [
     "api",
-    "helper/base62",
     "helper/certutil",
     "helper/cidrutil",
     "helper/compressutil",
@@ -252,6 +251,14 @@
   pruneopts = "UT"
   revision = "4dadeb3030eda0273a12382bb2348ffc7c9d1a39"
   version = "v1.0.0"
+
+[[projects]]
+  digest = "1:808cdddf087fb64baeae67b8dfaee2069034d9704923a3cb8bd96a995421a625"
+  name = "github.com/patrickmn/go-cache"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "a3647f8e31d79543b2d0f0ae2fe5c379d72cedc0"
+  version = "v2.1.0"
 
 [[projects]]
   digest = "1:e39a5ee8fcbec487f8fc68863ef95f2b025e0739b0e4aa55558a2b4cf8f0ecf0"
@@ -446,7 +453,7 @@
     "github.com/hashicorp/go-cleanhttp",
     "github.com/hashicorp/go-hclog",
     "github.com/hashicorp/go-sockaddr",
-    "github.com/hashicorp/vault/helper/base62",
+    "github.com/hashicorp/go-uuid",
     "github.com/hashicorp/vault/helper/certutil",
     "github.com/hashicorp/vault/helper/cidrutil",
     "github.com/hashicorp/vault/helper/logging",
@@ -457,6 +464,7 @@
     "github.com/hashicorp/vault/logical",
     "github.com/hashicorp/vault/logical/framework",
     "github.com/hashicorp/vault/logical/plugin",
+    "github.com/patrickmn/go-cache",
     "golang.org/x/oauth2",
     "gopkg.in/square/go-jose.v2",
     "gopkg.in/square/go-jose.v2/jwt",
