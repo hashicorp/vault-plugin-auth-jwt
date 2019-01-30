@@ -17,6 +17,9 @@ func TestConfig_JWT_Read(t *testing.T) {
 	data := map[string]interface{}{
 		"oidc_discovery_url":     "",
 		"oidc_discovery_ca_pem":  "",
+		"oidc_client_id":         "",
+		"oidc_client_secret":     "",
+		"default_role":           "",
 		"jwt_validation_pubkeys": []string{testJWTPubKey},
 		"jwt_supported_algs":     []string{},
 		"bound_issuer":           "http://vault.example.com/",
@@ -155,6 +158,52 @@ func TestConfig_OIDC_Write(t *testing.T) {
 
 	if diff := deep.Equal(expected, conf); diff != nil {
 		t.Fatal(diff)
+	}
+
+	// Verify OIDC config sanity:
+	//   - if providing client id/secret, discovery URL needs to be set
+	//   - both oidc client and secret should be provided if either one is
+	tests := []struct {
+		id   string
+		data map[string]interface{}
+	}{
+		{
+			"missing discovery URL",
+			map[string]interface{}{
+				"oidc_client_id":     "abc",
+				"oidc_client_secret": "def",
+			},
+		},
+		{
+			"missing secret",
+			map[string]interface{}{
+				"oidc_discovery_url": "https://team-vault.auth0.com/",
+				"oidc_client_id":     "abc",
+			},
+		},
+		{
+			"missing ID",
+			map[string]interface{}{
+				"oidc_discovery_url": "https://team-vault.auth0.com/",
+				"oidc_client_secret": "abc",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      configPath,
+			Storage:   storage,
+			Data:      test.data,
+		}
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatalf("test '%s', %v", test.id, err)
+		}
+		if !resp.IsError() {
+			t.Fatalf("test '%s', expected error", test.id)
+		}
 	}
 }
 
