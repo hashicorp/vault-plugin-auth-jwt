@@ -167,18 +167,28 @@ func (b *jwtAuthBackend) verifyState(state string) *oidcState {
 
 // stateGC will start a goroutine which periodically deletes all expired states
 // that were never removed via the normal request process.
-func (b *jwtAuthBackend) stateGC() {
+func (b *jwtAuthBackend) stateGC() chan<- struct{} {
+	doneCh := make(chan struct{})
+
 	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+
 		for {
-			now := time.Now()
-			b.l.Lock()
-			for k := range b.oidcStates {
-				if now.After(b.oidcStates[k].expiration) {
-					delete(b.oidcStates, k)
+			select {
+			case now := <-ticker.C:
+				b.l.Lock()
+				for k := range b.oidcStates {
+					if now.After(b.oidcStates[k].expiration) {
+						delete(b.oidcStates, k)
+					}
 				}
+				b.l.Unlock()
+			case <-doneCh:
+				return
 			}
-			b.l.Unlock()
-			time.Sleep(1 * time.Minute)
 		}
 	}()
+
+	return doneCh
 }

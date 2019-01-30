@@ -33,6 +33,7 @@ type jwtAuthBackend struct {
 
 	providerCtx       context.Context
 	providerCtxCancel context.CancelFunc
+	stateGCCancel     chan<- struct{}
 }
 
 func backend(c *logical.BackendConfig) *jwtAuthBackend {
@@ -67,7 +68,7 @@ func backend(c *logical.BackendConfig) *jwtAuthBackend {
 	}
 
 	// Start a periodic cleanup of unused state tokens
-	b.stateGC()
+	b.stateGCCancel = b.stateGC()
 
 	return b
 }
@@ -78,6 +79,7 @@ func (b *jwtAuthBackend) cleanup(_ context.Context) {
 		b.providerCtxCancel()
 	}
 	b.l.Unlock()
+	b.stateGCCancel <- struct{}{}
 }
 
 func (b *jwtAuthBackend) invalidate(ctx context.Context, key string) {
