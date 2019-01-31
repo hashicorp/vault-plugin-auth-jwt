@@ -59,17 +59,18 @@ func TestPath_Create(t *testing.T) {
 	}
 
 	expected := &jwtRole{
-		RoleType:       "jwt",
-		Policies:       []string{"test"},
-		Period:         3 * time.Second,
-		BoundSubject:   "testsub",
-		BoundAudiences: []string{"vault"},
-		UserClaim:      "user",
-		GroupsClaim:    "groups",
-		TTL:            1 * time.Second,
-		MaxTTL:         5 * time.Second,
-		NumUses:        12,
-		BoundCIDRs:     []*sockaddr.SockAddrMarshaler{&sockaddr.SockAddrMarshaler{expectedSockAddr}},
+		RoleType:            "jwt",
+		Policies:            []string{"test"},
+		Period:              3 * time.Second,
+		BoundSubject:        "testsub",
+		BoundAudiences:      []string{"vault"},
+		UserClaim:           "user",
+		GroupsClaim:         "groups",
+		TTL:                 1 * time.Second,
+		MaxTTL:              5 * time.Second,
+		NumUses:             12,
+		BoundCIDRs:          []*sockaddr.SockAddrMarshaler{&sockaddr.SockAddrMarshaler{expectedSockAddr}},
+		AllowedRedirectURIs: []string{},
 	}
 
 	req := &logical.Request{
@@ -266,7 +267,7 @@ func TestPath_Read(t *testing.T) {
 		"claim_mappings":                 map[string]string(nil),
 		"bound_subject":                  "testsub",
 		"bound_audiences":                []string{"vault"},
-		"allowed_redirect_uris":          []string(nil),
+		"allowed_redirect_uris":          []string{},
 		"user_claim":                     "user",
 		"groups_claim":                   "groups",
 		"groups_claim_delimiter_pattern": "",

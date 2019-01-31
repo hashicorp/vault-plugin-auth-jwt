@@ -3,10 +3,12 @@ package jwtauth
 import (
 	"context"
 	"sync"
+	"time"
 
 	oidc "github.com/coreos/go-oidc"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
+	cache "github.com/patrickmn/go-cache"
 )
 
 const (
@@ -29,6 +31,7 @@ type jwtAuthBackend struct {
 	l            sync.RWMutex
 	provider     *oidc.Provider
 	cachedConfig *jwtConfig
+	oidcStates   *cache.Cache
 
 	providerCtx       context.Context
 	providerCtxCancel context.CancelFunc
@@ -37,6 +40,7 @@ type jwtAuthBackend struct {
 func backend(c *logical.BackendConfig) *jwtAuthBackend {
 	b := new(jwtAuthBackend)
 	b.providerCtx, b.providerCtxCancel = context.WithCancel(context.Background())
+	b.oidcStates = cache.New(oidcStateTimeout, 1*time.Minute)
 
 	b.Backend = &framework.Backend{
 		AuthRenew:   b.pathLoginRenew,
@@ -46,6 +50,7 @@ func backend(c *logical.BackendConfig) *jwtAuthBackend {
 		PathsSpecial: &logical.Paths{
 			Unauthenticated: []string{
 				"login",
+				"oidc/auth_url",
 			},
 			SealWrapStorage: []string{
 				"config",
@@ -58,6 +63,7 @@ func backend(c *logical.BackendConfig) *jwtAuthBackend {
 				pathRole(b),
 				pathConfig(b),
 			},
+			pathOIDC(b),
 		),
 		Clean: b.cleanup,
 	}
