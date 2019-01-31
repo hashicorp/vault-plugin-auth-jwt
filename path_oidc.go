@@ -13,7 +13,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-var oidcStateTimeout = 2 * time.Minute
+var oidcStateTimeout = 10 * time.Minute
 
 // oidcState is created when an authURL is requested. The state identifier is
 // passed throughout the OAuth process.
