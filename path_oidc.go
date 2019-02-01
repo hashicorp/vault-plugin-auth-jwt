@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	oidc "github.com/coreos/go-oidc"
@@ -28,9 +29,12 @@ type oidcState struct {
 func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 	return []*framework.Path{
 		{
-			Pattern: `oidc/callback` + framework.MatchAllRegex("data"),
+			Pattern: `oidc/callback`,
 			Fields: map[string]*framework.FieldSchema{
-				"data": {
+				"state": {
+					Type: framework.TypeString,
+				},
+				"code": {
 					Type: framework.TypeString,
 				},
 			},
@@ -59,7 +63,7 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 }
 
 func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	state := b.verifyState(d.Raw["state"].(string))
+	state := b.verifyState(d.Get("state").(string))
 	if state == nil {
 		return logical.ErrorResponse("expired or missing OAuth state"), nil
 	}
@@ -94,7 +98,7 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		Scopes:       []string{oidc.ScopeOpenID},
 	}
 
-	oauth2Token, err := oauth2Config.Exchange(ctx, d.Raw["code"].(string))
+	oauth2Token, err := oauth2Config.Exchange(ctx, d.Get("code").(string))
 	if err != nil {
 		return nil, errwrap.Wrapf("error exchanging oidc code: {{err}}", err)
 	}
@@ -117,7 +121,11 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	if userinfo, err := provider.UserInfo(ctx, oauth2.StaticTokenSource(oauth2Token)); err == nil {
 		userinfo.Claims(&allClaims)
 	} else {
-		b.Logger().Info("error reading /userinfo endpoint", "error", err)
+		logFunc := b.Logger().Warn
+		if strings.Contains(err.Error(), "user info endpoint is not supported") {
+			logFunc = b.Logger().Info
+		}
+		logFunc("error reading /userinfo endpoint", "error", err)
 	}
 
 	if allClaims["nonce"] != state.nonce {

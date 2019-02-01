@@ -9,22 +9,21 @@ import (
 
 func TestGetClaim(t *testing.T) {
 	data := `
-{
-  "a": 42,
-  "b": "bar",
-  "c": {
-    "d": 95,
-    "e": [
-      "dog",
-  	  "cat",
-  	  "bird"
-    ],
-	"f": {
-	  "g": "zebra"
-	}
-  }
-}
-`
+		{
+		  "a": 42,
+		  "b": "bar",
+		  "c": {
+		    "d": 95,
+		    "e": [
+		      "dog",
+		  	  "cat",
+		  	  "bird"
+		    ],
+			"f": {
+			  "g": "zebra"
+			}
+		  }
+		}`
 	var claims map[string]interface{}
 	if err := json.Unmarshal([]byte(data), &claims); err != nil {
 		t.Fatal(err)
