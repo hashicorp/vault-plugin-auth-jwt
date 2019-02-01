@@ -2,7 +2,6 @@ package jwtauth
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -98,15 +97,20 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		Scopes:       []string{oidc.ScopeOpenID},
 	}
 
-	oauth2Token, err := oauth2Config.Exchange(ctx, d.Get("code").(string))
+	code := d.Get("code").(string)
+	if code == "" {
+		return logical.ErrorResponse("OAuth code parameter not provided"), nil
+	}
+
+	oauth2Token, err := oauth2Config.Exchange(ctx, code)
 	if err != nil {
-		return nil, errwrap.Wrapf("error exchanging oidc code: {{err}}", err)
+		return logical.ErrorResponse("error exchanging oidc code: %q", err.Error()), nil
 	}
 
 	// Extract the ID Token from OAuth2 token.
 	rawToken, ok := oauth2Token.Extra("id_token").(string)
 	if !ok {
-		return nil, errors.New("no id_token found in response")
+		return logical.ErrorResponse("no id_token found in response"), nil
 	}
 
 	// Parse and verify ID Token payload.

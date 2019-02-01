@@ -11,14 +11,30 @@ import (
 // If this string is a valid JSONPointer, it will be interpreted as such to locate
 // the claim. Otherwise, the claim string will be used directly.
 func getClaim(allClaims map[string]interface{}, claim string) interface{} {
+	var val interface{}
+	var err error
+
 	if !strings.HasPrefix(claim, "/") {
-		return allClaims[claim]
+		val = allClaims[claim]
+	} else {
+		val, err = pointerstructure.Get(allClaims, claim)
+		if err != nil {
+			return nil
+		}
 	}
 
-	val, err := pointerstructure.Get(allClaims, claim)
-	if err != nil {
-		return nil
-	}
+	// The claims unmarshalled by go-oidc don't use UseNumber, so there will
+	// be mismatches if they're coming in as float64 since Vault's config will
+	// be represented as json.Number. If the operator can coerce claims data to
+	// be in string form, there is no problem. Alternatively, we could try to
+	// intelligently convert float64 to json.Number, e.g.:
+	//
+	// switch v := val.(type) {
+	// case float64:
+	// 	val = json.Number(strconv.Itoa(int(v)))
+	// }
+	//
+	// Or we fork and/or PR go-oidc.
 
 	return val
 }

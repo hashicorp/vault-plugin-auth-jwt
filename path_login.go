@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	oidc "github.com/coreos/go-oidc"
@@ -207,16 +206,14 @@ func (b *jwtAuthBackend) verifyToken(ctx context.Context, config *jwtConfig, rol
 		return nil, errwrap.Wrapf("error getting provider for login operation: {{err}}", err)
 	}
 
-	var oidcConfig *oidc.Config
+	oidcConfig := &oidc.Config{
+		SupportedSigningAlgs: config.JWTSupportedAlgs,
+	}
+
 	if role.RoleType == "oidc" {
-		oidcConfig = &oidc.Config{
-			ClientID: config.OIDCClientID,
-		}
+		oidcConfig.ClientID = config.OIDCClientID
 	} else {
-		oidcConfig = &oidc.Config{
-			SkipClientIDCheck:    true,
-			SupportedSigningAlgs: config.JWTSupportedAlgs,
-		}
+		oidcConfig.SkipClientIDCheck = true
 	}
 	verifier := provider.Verifier(oidcConfig)
 
@@ -252,7 +249,7 @@ func (b *jwtAuthBackend) verifyToken(ctx context.Context, config *jwtConfig, rol
 				return nil, fmt.Errorf("claim is missing: %s", claim)
 			}
 
-			if !reflect.DeepEqual(expValue, actValue) {
+			if expValue != actValue {
 				return nil, fmt.Errorf("claim '%s' does not match associated bound claim", claim)
 			}
 		}
