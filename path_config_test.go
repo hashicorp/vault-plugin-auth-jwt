@@ -170,8 +170,9 @@ func TestConfig_OIDC_Write(t *testing.T) {
 		{
 			"missing discovery URL",
 			map[string]interface{}{
-				"oidc_client_id":     "abc",
-				"oidc_client_secret": "def",
+				"jwt_validation_pubkeys": []string{"a"},
+				"oidc_client_id":         "abc",
+				"oidc_client_secret":     "def",
 			},
 		},
 		{

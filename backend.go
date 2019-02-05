@@ -51,6 +51,9 @@ func backend(c *logical.BackendConfig) *jwtAuthBackend {
 			Unauthenticated: []string{
 				"login",
 				"oidc/auth_url",
+				"oidc/callback",
+				"ui", // TODO: remove when Vault UI is ready
+
 			},
 			SealWrapStorage: []string{
 				"config",
@@ -62,6 +65,7 @@ func backend(c *logical.BackendConfig) *jwtAuthBackend {
 				pathRoleList(b),
 				pathRole(b),
 				pathConfig(b),
+				pathUI(b), // TODO: remove when Vault UI is ready
 			},
 			pathOIDC(b),
 		),

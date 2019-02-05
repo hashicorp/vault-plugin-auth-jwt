@@ -2,12 +2,22 @@ package jwtauth
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/go-test/deep"
 	"github.com/hashicorp/vault/logical"
+	jose "gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 func TestOIDC_AuthURL(t *testing.T) {
@@ -33,7 +43,7 @@ func TestOIDC_AuthURL(t *testing.T) {
 
 	resp, err := b.HandleRequest(context.Background(), req)
 	if err != nil || (resp != nil && resp.IsError()) {
-		t.Fatalf("err:%s resp:%#v\n", err, resp)
+		t.Fatalf("err:%v resp:%#v\n", err, resp)
 	}
 
 	// set up test role
@@ -53,7 +63,7 @@ func TestOIDC_AuthURL(t *testing.T) {
 
 	resp, err = b.HandleRequest(context.Background(), req)
 	if err != nil || (resp != nil && resp.IsError()) {
-		t.Fatalf("err:%s resp:%#v\n", err, resp)
+		t.Fatalf("err:%v resp:%#v\n", err, resp)
 	}
 
 	t.Run("normal case", func(t *testing.T) {
@@ -74,7 +84,7 @@ func TestOIDC_AuthURL(t *testing.T) {
 
 			resp, err := b.HandleRequest(context.Background(), req)
 			if err != nil || (resp != nil && resp.IsError()) {
-				t.Fatalf("err:%s resp:%#v\n", err, resp)
+				t.Fatalf("err:%v resp:%#v\n", err, resp)
 			}
 
 			authURL := resp.Data["auth_url"].(string)
@@ -118,7 +128,7 @@ func TestOIDC_AuthURL(t *testing.T) {
 
 		resp, err := b.HandleRequest(context.Background(), req)
 		if err != nil || (resp != nil && resp.IsError()) {
-			t.Fatalf("err:%s resp:%#v\n", err, resp)
+			t.Fatalf("err:%v resp:%#v\n", err, resp)
 		}
 
 		authURL := resp.Data["auth_url"].(string)
@@ -143,7 +153,7 @@ func TestOIDC_AuthURL(t *testing.T) {
 
 	resp, err = b.HandleRequest(context.Background(), req)
 	if err != nil || (resp != nil && resp.IsError()) {
-		t.Fatalf("err:%s resp:%#v\n", err, resp)
+		t.Fatalf("err:%v resp:%#v\n", err, resp)
 	}
 
 	t.Run("valid redirect_uri", func(t *testing.T) {
@@ -162,7 +172,7 @@ func TestOIDC_AuthURL(t *testing.T) {
 
 		resp, err = b.HandleRequest(context.Background(), req)
 		if err != nil || (resp != nil && resp.IsError()) {
-			t.Fatalf("err:%s resp:%#v\n", err, resp)
+			t.Fatalf("err:%v resp:%#v\n", err, resp)
 		}
 
 		authURL := resp.Data["auth_url"].(string)
@@ -188,7 +198,7 @@ func TestOIDC_AuthURL(t *testing.T) {
 
 		resp, err = b.HandleRequest(context.Background(), req)
 		if err != nil || (resp != nil && resp.IsError()) {
-			t.Fatalf("err:%s resp:%#v", err, resp)
+			t.Fatalf("err:%v resp:%#v", err, resp)
 		}
 
 		authURL := resp.Data["auth_url"].(string)
@@ -196,4 +206,452 @@ func TestOIDC_AuthURL(t *testing.T) {
 			t.Fatalf(`expected: "", actual: %s`, authURL)
 		}
 	})
+}
+
+func TestOIDC_Callback(t *testing.T) {
+	getBackendAndServer := func(t *testing.T) (logical.Backend, logical.Storage, *oidcProvider) {
+		b, storage := getBackend(t)
+		s := newOIDCProvider(t)
+		s.clientID = "abc"
+		s.clientSecret = "def"
+
+		// Configure backend
+		data := map[string]interface{}{
+			"oidc_discovery_url": s.server.URL,
+			"oidc_client_id":     "abc",
+			"oidc_client_secret": "def",
+			"default_role":       "test",
+			"bound_issuer":       "http://vault.example.com/",
+			"jwt_supported_algs": []string{"ES256"},
+		}
+
+		// basic configuration
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      configPath,
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil || (resp != nil && resp.IsError()) {
+			t.Fatalf("err:%v resp:%#v\n", err, resp)
+		}
+
+		// set up test role
+		data = map[string]interface{}{
+			"role_type":             "oidc",
+			"user_claim":            "email",
+			"allowed_redirect_uris": []string{"https://example.com"},
+			"claim_mappings": map[string]string{
+				"COLOR":        "color",
+				"/nested/Size": "size",
+			},
+			"groups_claim": "/nested/Groups",
+			"ttl":          "3m",
+			"max_ttl":      "5m",
+			"bound_claims": map[string]interface{}{
+				"password":            "foo",
+				"sk":                  "42",
+				"/nested/secret_code": "bar",
+			},
+		}
+
+		req = &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "role/test",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err = b.HandleRequest(context.Background(), req)
+		if err != nil || (resp != nil && resp.IsError()) {
+			t.Fatalf("err:%v resp:%#v\n", err, resp)
+		}
+
+		return b, storage, s
+	}
+
+	t.Run("successful login", func(t *testing.T) {
+		b, storage, s := getBackendAndServer(t)
+		defer s.server.Close()
+
+		// get auth_url
+		data := map[string]interface{}{
+			"role":         "test",
+			"redirect_uri": "https://example.com",
+		}
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "oidc/auth_url",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil || (resp != nil && resp.IsError()) {
+			t.Fatalf("err:%v resp:%#v\n", err, resp)
+		}
+
+		authURL := resp.Data["auth_url"].(string)
+
+		state := getQueryParam(t, authURL, "state")
+		nonce := getQueryParam(t, authURL, "nonce")
+
+		// set provider claims that will be returned by the mock server
+		s.customClaims = map[string]interface{}{
+			"nonce": nonce,
+			"email": "bob@example.com",
+			"COLOR": "green",
+			"sk":    "42",
+			"nested": map[string]interface{}{
+				"Size":        "medium",
+				"Groups":      []string{"a", "b"},
+				"secret_code": "bar",
+			},
+			"password": "foo",
+		}
+
+		// set mock provider's expected code
+		s.code = "abc"
+
+		// invoke the callback, which will in to try to exchange the code
+		// with the mock provider.
+		req = &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "oidc/callback",
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"state": state,
+				"code":  "abc",
+			},
+		}
+
+		resp, err = b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expected := &logical.Auth{
+			LeaseOptions: logical.LeaseOptions{
+				Renewable: true,
+				TTL:       3 * time.Minute,
+				MaxTTL:    5 * time.Minute,
+			},
+			InternalData: map[string]interface{}{
+				"role": "test",
+			},
+			DisplayName: "bob@example.com",
+			Alias: &logical.Alias{
+				Name: "bob@example.com",
+				Metadata: map[string]string{
+					"color": "green",
+					"size":  "medium",
+				},
+			},
+			GroupAliases: []*logical.Alias{
+				{Name: "a"},
+				{Name: "b"},
+			},
+			Metadata: map[string]string{
+				"role":  "test",
+				"color": "green",
+				"size":  "medium",
+			},
+		}
+		auth := resp.Auth
+		if diff := deep.Equal(auth, expected); diff != nil {
+			t.Fatal(diff)
+		}
+	})
+
+	t.Run("missing state", func(t *testing.T) {
+		b, storage, s := getBackendAndServer(t)
+		defer s.server.Close()
+
+		req := &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "oidc/callback",
+			Storage:   storage,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp == nil || !strings.Contains(resp.Error().Error(), "expired or missing OAuth state") {
+			t.Fatalf("expected Oauth state error response, got: %#v", resp)
+		}
+	})
+
+	t.Run("unknown state", func(t *testing.T) {
+		b, storage, s := getBackendAndServer(t)
+		defer s.server.Close()
+
+		req := &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "oidc/callback",
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"state": "not_a_state",
+			},
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp == nil || !strings.Contains(resp.Error().Error(), "expired or missing OAuth state") {
+			t.Fatalf("expected Oauth state error response, got: %#v", resp)
+		}
+	})
+
+	t.Run("valid state, missing code", func(t *testing.T) {
+		b, storage, s := getBackendAndServer(t)
+		defer s.server.Close()
+
+		// get auth_url
+		data := map[string]interface{}{
+			"role":         "test",
+			"redirect_uri": "https://example.com",
+		}
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "oidc/auth_url",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil || (resp != nil && resp.IsError()) {
+			t.Fatalf("err:%v resp:%#v\n", err, resp)
+		}
+
+		authURL := resp.Data["auth_url"].(string)
+		state := getQueryParam(t, authURL, "state")
+
+		req = &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "oidc/callback",
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"state": state,
+			},
+		}
+		resp, err = b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if resp == nil || !strings.Contains(resp.Error().Error(), "code parameter not provided") {
+			t.Fatalf("expected OAuth core error response, got: %#v", resp)
+		}
+	})
+
+	t.Run("failed code exchange", func(t *testing.T) {
+		b, storage, s := getBackendAndServer(t)
+		defer s.server.Close()
+
+		// get auth_url
+		data := map[string]interface{}{
+			"role":         "test",
+			"redirect_uri": "https://example.com",
+		}
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "oidc/auth_url",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil || (resp != nil && resp.IsError()) {
+			t.Fatalf("err:%v resp:%#v\n", err, resp)
+		}
+
+		authURL := resp.Data["auth_url"].(string)
+		state := getQueryParam(t, authURL, "state")
+
+		// set mock provider's expected code
+		s.code = "abc"
+
+		req = &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "oidc/callback",
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"state": state,
+				"code":  "wrong_code",
+			},
+		}
+		resp, err = b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if resp == nil || !strings.Contains(resp.Error().Error(), "cannot fetch token") {
+			t.Fatalf("expected code exchange error response, got: %#v", resp)
+		}
+	})
+
+	t.Run("no response from provider", func(t *testing.T) {
+		b, storage, s := getBackendAndServer(t)
+
+		// get auth_url
+		data := map[string]interface{}{
+			"role":         "test",
+			"redirect_uri": "https://example.com",
+		}
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "oidc/auth_url",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil || (resp != nil && resp.IsError()) {
+			t.Fatalf("err:%v resp:%#v\n", err, resp)
+		}
+
+		authURL := resp.Data["auth_url"].(string)
+		state := getQueryParam(t, authURL, "state")
+
+		// close the server prematurely
+		s.server.Close()
+		s.code = "abc"
+
+		req = &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "oidc/callback",
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"state": state,
+				"code":  "abc",
+			},
+		}
+		resp, err = b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if resp == nil || !strings.Contains(resp.Error().Error(), "connection refused") {
+			t.Fatalf("expected code exchange error response, got: %#v", resp)
+		}
+	})
+}
+
+// oidcProvider is local server the mocks the basis endpoints used by the
+// OIDC callback process.
+type oidcProvider struct {
+	t            *testing.T
+	server       *httptest.Server
+	mode         string
+	clientID     string
+	clientSecret string
+	code         string
+	customClaims map[string]interface{}
+}
+
+func newOIDCProvider(t *testing.T) *oidcProvider {
+	o := new(oidcProvider)
+	o.t = t
+	o.server = httptest.NewServer(o)
+
+	return o
+}
+
+func (o *oidcProvider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.URL.Path {
+	case "/.well-known/openid-configuration":
+		w.Write([]byte(fmt.Sprintf(`
+			{
+				"issuer": "%s",
+				"authorization_endpoint": "%s/auth",
+				"token_endpoint": "%s/token",
+				"jwks_uri": "%s/certs"
+			}`,
+			o.server.URL,
+			o.server.URL,
+			o.server.URL,
+			o.server.URL,
+		)))
+	case "/certs":
+		a := getTestJWKS(o.t, ecdsaPubKey)
+		w.Write(a)
+
+	case "/token":
+		code := r.FormValue("code")
+
+		if code != o.code {
+			w.WriteHeader(401)
+			break
+		}
+
+		stdClaims := jwt.Claims{
+			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+			Issuer:    o.server.URL,
+			NotBefore: jwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
+			Expiry:    jwt.NewNumericDate(time.Now().Add(5 * time.Second)),
+			Audience:  jwt.Audience{o.clientID},
+		}
+		jwtData, _ := getTestJWT(o.t, ecdsaPrivKey, stdClaims, o.customClaims)
+		w.Write([]byte(fmt.Sprintf(`
+			{
+				"access_token":"%s",
+				"id_token":"%s"
+			}`,
+			jwtData,
+			jwtData,
+		)))
+
+	default:
+		o.t.Fatalf("unexpected path: %q", r.URL.Path)
+	}
+}
+
+func getQueryParam(t *testing.T, inputURL, param string) string {
+	t.Helper()
+
+	m, err := url.ParseQuery(inputURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, ok := m[param]
+	if !ok {
+		t.Fatalf("query param %q not found", param)
+	}
+	return v[0]
+}
+
+// getTestJWKS converts a pem-encoded public key into JWKS data suitable
+// for a verification endpoint response
+func getTestJWKS(t *testing.T, pubKey string) []byte {
+	t.Helper()
+
+	block, _ := pem.Decode([]byte(pubKey))
+	if block == nil {
+		t.Fatal("unable to decode public key")
+	}
+	input := block.Bytes
+
+	pub, err := x509.ParsePKIXPublicKey(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jwk := jose.JSONWebKey{
+		Key: pub,
+	}
+	jwks := jose.JSONWebKeySet{
+		Keys: []jose.JSONWebKey{jwk},
+	}
+
+	data, err := json.Marshal(jwks)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return data
 }

@@ -1,39 +1,55 @@
 package jwtauth
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/go-test/deep"
 )
 
 func TestGetClaim(t *testing.T) {
-	tests := []struct {
-		allClaims map[string]interface{}
-		claim     string
-		expected  interface{}
-	}{
-		{nil, "data", nil},
-		{map[string]interface{}{"data": "foo"}, "data", "foo"},
-		{map[string]interface{}{"data": "foo"}, "data2", nil},
-		{map[string]interface{}{"data": "foo"}, "/data", "foo"},
+	data := `
 		{
-			map[string]interface{}{"data": map[string]interface{}{
-				"foo": "bar",
-			}}, "/data/foo", "bar",
-		},
-		{
-			map[string]interface{}{"data": map[string]interface{}{
-				"foo": "bar",
-			}}, "/data/foo2", nil,
-		},
+		  "a": 42,
+		  "b": "bar",
+		  "c": {
+		    "d": 95,
+		    "e": [
+		      "dog",
+		  	  "cat",
+		  	  "bird"
+		    ],
+			"f": {
+			  "g": "zebra"
+			}
+		  }
+		}`
+	var claims map[string]interface{}
+	if err := json.Unmarshal([]byte(data), &claims); err != nil {
+		t.Fatal(err)
+	}
 
-		{map[string]interface{}{"data": "foo"}, `\`, nil},
+	tests := []struct {
+		claim string
+		value interface{}
+	}{
+		{"a", float64(42)},
+		{"/a", float64(42)},
+		{"b", "bar"},
+		{"/c/d", float64(95)},
+		{"/c/e/1", "cat"},
+		{"/c/f/g", "zebra"},
+		{"nope", nil},
+		{"/c/f/h", nil},
+		{"", nil},
+		{"\\", nil},
 	}
 
 	for _, test := range tests {
-		actual := getClaim(test.allClaims, test.claim)
-		if diff := deep.Equal(actual, test.expected); diff != nil {
-			t.Fatalf("invalid results for claim '%s': %v", test.claim, diff)
+		v := getClaim(claims, test.claim)
+
+		if diff := deep.Equal(v, test.value); diff != nil {
+			t.Fatal(diff)
 		}
 	}
 }

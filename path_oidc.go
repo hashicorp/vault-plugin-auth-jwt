@@ -3,9 +3,11 @@ package jwtauth
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	oidc "github.com/coreos/go-oidc"
+	"github.com/hashicorp/errwrap"
 	uuid "github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/helper/strutil"
 	"github.com/hashicorp/vault/logical"
@@ -26,6 +28,21 @@ type oidcState struct {
 func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 	return []*framework.Path{
 		{
+			Pattern: `oidc/callback`,
+			Fields: map[string]*framework.FieldSchema{
+				"state": {
+					Type: framework.TypeString,
+				},
+				"code": {
+					Type: framework.TypeString,
+				},
+			},
+
+			Callbacks: map[logical.Operation]framework.OperationFunc{
+				logical.ReadOperation: b.pathCallback,
+			},
+		},
+		{
 			Pattern: `oidc/auth_url`,
 			Fields: map[string]*framework.FieldSchema{
 				"role": {
@@ -42,6 +59,116 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 			},
 		},
 	}
+}
+
+func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	state := b.verifyState(d.Get("state").(string))
+	if state == nil {
+		return logical.ErrorResponse("expired or missing OAuth state"), nil
+	}
+
+	roleName := state.rolename
+	role, err := b.role(ctx, req.Storage, roleName)
+	if err != nil {
+		return nil, err
+	}
+	if role == nil {
+		return logical.ErrorResponse("role could not be found"), nil
+	}
+
+	config, err := b.config(ctx, req.Storage)
+	if err != nil {
+		return nil, err
+	}
+	if config == nil {
+		return logical.ErrorResponse("could not load configuration"), nil
+	}
+
+	provider, err := b.getProvider(ctx, config)
+	if err != nil {
+		return nil, errwrap.Wrapf("error getting provider for login operation: {{err}}", err)
+	}
+
+	var oauth2Config = oauth2.Config{
+		ClientID:     config.OIDCClientID,
+		ClientSecret: config.OIDCClientSecret,
+		RedirectURL:  state.redirectURI,
+		Endpoint:     provider.Endpoint(),
+		Scopes:       []string{oidc.ScopeOpenID},
+	}
+
+	code := d.Get("code").(string)
+	if code == "" {
+		return logical.ErrorResponse("OAuth code parameter not provided"), nil
+	}
+
+	oauth2Token, err := oauth2Config.Exchange(ctx, code)
+	if err != nil {
+		return logical.ErrorResponse("error exchanging oidc code: %q", err.Error()), nil
+	}
+
+	// Extract the ID Token from OAuth2 token.
+	rawToken, ok := oauth2Token.Extra("id_token").(string)
+	if !ok {
+		return logical.ErrorResponse("no id_token found in response"), nil
+	}
+
+	// Parse and verify ID Token payload.
+	allClaims, err := b.verifyToken(ctx, config, role, rawToken)
+	if err != nil {
+		return logical.ErrorResponse(err.Error()), nil
+	}
+
+	// Attempt to fetch information from the /userinfo endpoint and merge it with
+	// the existing claims data. A failure to fetch additional information from this
+	// endpoint will not invalidate the authorization flow.
+	if userinfo, err := provider.UserInfo(ctx, oauth2.StaticTokenSource(oauth2Token)); err == nil {
+		userinfo.Claims(&allClaims)
+	} else {
+		logFunc := b.Logger().Warn
+		if strings.Contains(err.Error(), "user info endpoint is not supported") {
+			logFunc = b.Logger().Info
+		}
+		logFunc("error reading /userinfo endpoint", "error", err)
+	}
+
+	if allClaims["nonce"] != state.nonce {
+		return logical.ErrorResponse("invalid ID token nonce"), nil
+	}
+	delete(allClaims, "nonce")
+
+	alias, groupAliases, err := b.createIdentity(allClaims, role)
+	if err != nil {
+		return logical.ErrorResponse(err.Error()), nil
+	}
+
+	tokenMetadata := map[string]string{"role": roleName}
+	for k, v := range alias.Metadata {
+		tokenMetadata[k] = v
+	}
+
+	resp := &logical.Response{
+		Auth: &logical.Auth{
+			Policies:     role.Policies,
+			DisplayName:  alias.Name,
+			Period:       role.Period,
+			NumUses:      role.NumUses,
+			Alias:        alias,
+			GroupAliases: groupAliases,
+			InternalData: map[string]interface{}{
+				"role": roleName,
+			},
+			Metadata: tokenMetadata,
+			LeaseOptions: logical.LeaseOptions{
+				Renewable: true,
+				TTL:       role.TTL,
+				MaxTTL:    role.MaxTTL,
+			},
+			BoundCIDRs: role.BoundCIDRs,
+		},
+	}
+
+	return resp, nil
 }
 
 // authURL returns a URL used for redirection to receive an authorization code.
