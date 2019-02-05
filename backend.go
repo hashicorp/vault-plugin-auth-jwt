@@ -53,7 +53,6 @@ func backend(c *logical.BackendConfig) *jwtAuthBackend {
 				"oidc/auth_url",
 				"oidc/callback",
 				"ui", // TODO: remove when Vault UI is ready
-
 			},
 			SealWrapStorage: []string{
 				"config",
