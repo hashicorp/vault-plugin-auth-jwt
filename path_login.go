@@ -244,7 +244,7 @@ func (b *jwtAuthBackend) verifyToken(ctx context.Context, config *jwtConfig, rol
 
 	if len(role.BoundClaims) > 0 {
 		for claim, expValue := range role.BoundClaims {
-			actValue := getClaim(allClaims, claim)
+			actValue := getClaim(b.Logger(), allClaims, claim)
 			if actValue == nil {
 				return nil, fmt.Errorf("claim is missing: %s", claim)
 			}
@@ -270,7 +270,7 @@ func (b *jwtAuthBackend) createIdentity(allClaims map[string]interface{}, role *
 		return nil, nil, fmt.Errorf("claim %q could not be converted to string", role.UserClaim)
 	}
 
-	metadata, err := extractMetadata(allClaims, role.ClaimMappings)
+	metadata, err := extractMetadata(b.Logger(), allClaims, role.ClaimMappings)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -283,7 +283,7 @@ func (b *jwtAuthBackend) createIdentity(allClaims map[string]interface{}, role *
 	var groupAliases []*logical.Alias
 
 	if role.GroupsClaim != "" {
-		groupsClaimRaw := getClaim(allClaims, role.GroupsClaim)
+		groupsClaimRaw := getClaim(b.Logger(), allClaims, role.GroupsClaim)
 
 		if groupsClaimRaw == nil {
 			return nil, nil, fmt.Errorf("%q claim not found in token", role.GroupsClaim)

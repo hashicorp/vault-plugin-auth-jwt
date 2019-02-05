@@ -80,3 +80,6 @@ ui/testem.log
 tmp/
 
 scripts/custom.sh
+
+# binary
+cmd/vault-plugin-auth-jwt/vault-plugin-auth-jwt

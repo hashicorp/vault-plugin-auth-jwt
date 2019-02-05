@@ -2,6 +2,7 @@ package jwtauth
 
 import (
 	"encoding/json"
+	"github.com/hashicorp/go-hclog"
 	"testing"
 
 	"github.com/go-test/deep"
@@ -46,7 +47,7 @@ func TestGetClaim(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		v := getClaim(claims, test.claim)
+		v := getClaim(hclog.NewNullLogger(), claims, test.claim)
 
 		if diff := deep.Equal(v, test.value); diff != nil {
 			t.Fatal(diff)
@@ -141,7 +142,7 @@ func TestExtractMetadata(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual, err := extractMetadata(test.allClaims, test.claimMappings)
+		actual, err := extractMetadata(hclog.NewNullLogger(), test.allClaims, test.claimMappings)
 		if (err != nil) != test.errExpected {
 			t.Fatalf("case '%s': expected error: %t, actual: %v", test.testCase, test.errExpected, err)
 		}
