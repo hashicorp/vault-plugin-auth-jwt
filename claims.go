@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	log "github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/pointerstructure"
 )
 
 // getClaim returns a claim value from allClaims given a provided claim string.
 // If this string is a valid JSONPointer, it will be interpreted as such to locate
 // the claim. Otherwise, the claim string will be used directly.
-func getClaim(allClaims map[string]interface{}, claim string) interface{} {
+func getClaim(logger log.Logger, allClaims map[string]interface{}, claim string) interface{} {
 	var val interface{}
 	var err error
 
@@ -19,6 +20,7 @@ func getClaim(allClaims map[string]interface{}, claim string) interface{} {
 	} else {
 		val, err = pointerstructure.Get(allClaims, claim)
 		if err != nil {
+			logger.Warn(fmt.Sprintf("unable to locate %s in claims: %s", claim, err.Error()))
 			return nil
 		}
 	}
@@ -47,10 +49,10 @@ func getClaim(allClaims map[string]interface{}, claim string) interface{} {
 //       "another_claim": "metadata_key2",
 //        ...
 //   }
-func extractMetadata(allClaims map[string]interface{}, claimMappings map[string]string) (map[string]string, error) {
+func extractMetadata(logger log.Logger, allClaims map[string]interface{}, claimMappings map[string]string) (map[string]string, error) {
 	metadata := make(map[string]string)
 	for source, target := range claimMappings {
-		if value := getClaim(allClaims, source); value != nil {
+		if value := getClaim(logger, allClaims, source); value != nil {
 			strValue, ok := value.(string)
 			if !ok {
 				return nil, fmt.Errorf("error converting claim '%s' to string", source)

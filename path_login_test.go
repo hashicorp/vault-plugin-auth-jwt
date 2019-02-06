@@ -630,7 +630,7 @@ func TestLogin_JWT(t *testing.T) {
 		if resp == nil || !resp.IsError() {
 			t.Fatal("expected error")
 		}
-		if resp.Error().Error() != "role 'plugin-test-bad' could not be found" {
+		if resp.Error().Error() != `role "plugin-test-bad" could not be found` {
 			t.Fatalf("unexpected error: %s", resp.Error())
 		}
 	}

@@ -61,7 +61,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		return nil, err
 	}
 	if role == nil {
-		return logical.ErrorResponse("role '%s' could not be found", roleName), nil
+		return logical.ErrorResponse("role %q could not be found", roleName), nil
 	}
 
 	token := d.Get("jwt").(string)
@@ -244,7 +244,7 @@ func (b *jwtAuthBackend) verifyToken(ctx context.Context, config *jwtConfig, rol
 
 	if len(role.BoundClaims) > 0 {
 		for claim, expValue := range role.BoundClaims {
-			actValue := getClaim(allClaims, claim)
+			actValue := getClaim(b.Logger(), allClaims, claim)
 			if actValue == nil {
 				return nil, fmt.Errorf("claim is missing: %s", claim)
 			}
@@ -270,7 +270,7 @@ func (b *jwtAuthBackend) createIdentity(allClaims map[string]interface{}, role *
 		return nil, nil, fmt.Errorf("claim %q could not be converted to string", role.UserClaim)
 	}
 
-	metadata, err := extractMetadata(allClaims, role.ClaimMappings)
+	metadata, err := extractMetadata(b.Logger(), allClaims, role.ClaimMappings)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -282,29 +282,31 @@ func (b *jwtAuthBackend) createIdentity(allClaims map[string]interface{}, role *
 
 	var groupAliases []*logical.Alias
 
-	if role.GroupsClaim != "" {
-		groupsClaimRaw := getClaim(allClaims, role.GroupsClaim)
+	if role.GroupsClaim == "" {
+		return alias, groupAliases, nil
+	}
 
-		if groupsClaimRaw == nil {
-			return nil, nil, fmt.Errorf("%q claim not found in token", role.GroupsClaim)
-		}
-		groups, ok := groupsClaimRaw.([]interface{})
+	groupsClaimRaw := getClaim(b.Logger(), allClaims, role.GroupsClaim)
 
+	if groupsClaimRaw == nil {
+		return nil, nil, fmt.Errorf("%q claim not found in token", role.GroupsClaim)
+	}
+	groups, ok := groupsClaimRaw.([]interface{})
+
+	if !ok {
+		return nil, nil, fmt.Errorf("%q claim could not be converted to string list", role.GroupsClaim)
+	}
+	for _, groupRaw := range groups {
+		group, ok := groupRaw.(string)
 		if !ok {
-			return nil, nil, fmt.Errorf("%q claim could not be converted to string list", role.GroupsClaim)
+			return nil, nil, fmt.Errorf("value %v in groups claim could not be parsed as string", groupRaw)
 		}
-		for _, groupRaw := range groups {
-			group, ok := groupRaw.(string)
-			if !ok {
-				return nil, nil, fmt.Errorf("value %v in groups claim could not be parsed as string", groupRaw)
-			}
-			if group == "" {
-				continue
-			}
-			groupAliases = append(groupAliases, &logical.Alias{
-				Name: group,
-			})
+		if group == "" {
+			continue
 		}
+		groupAliases = append(groupAliases, &logical.Alias{
+			Name: group,
+		})
 	}
 
 	return alias, groupAliases, nil
