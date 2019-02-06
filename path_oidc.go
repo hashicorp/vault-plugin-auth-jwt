@@ -123,7 +123,7 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	// the existing claims data. A failure to fetch additional information from this
 	// endpoint will not invalidate the authorization flow.
 	if userinfo, err := provider.UserInfo(ctx, oauth2.StaticTokenSource(oauth2Token)); err == nil {
-		userinfo.Claims(&allClaims)
+		_ = userinfo.Claims(&allClaims)
 	} else {
 		logFunc := b.Logger().Warn
 		if strings.Contains(err.Error(), "user info endpoint is not supported") {

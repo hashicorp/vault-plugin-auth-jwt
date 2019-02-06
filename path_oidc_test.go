@@ -546,7 +546,6 @@ func TestOIDC_Callback(t *testing.T) {
 type oidcProvider struct {
 	t            *testing.T
 	server       *httptest.Server
-	mode         string
 	clientID     string
 	clientSecret string
 	code         string

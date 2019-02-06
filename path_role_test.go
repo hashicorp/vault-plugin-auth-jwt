@@ -105,6 +105,9 @@ func TestPath_Create(t *testing.T) {
 	}
 
 	resp, err = b.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp != nil && !resp.IsError() {
 		t.Fatalf("expected error")
 	}
@@ -126,6 +129,9 @@ func TestPath_Create(t *testing.T) {
 	}
 
 	resp, err = b.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp != nil && !resp.IsError() {
 		t.Fatalf("expected error")
 	}
@@ -215,6 +221,9 @@ func TestPath_OIDCCreate(t *testing.T) {
 	}
 
 	resp, err = b.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp != nil && !resp.IsError() {
 		t.Fatalf("expected error")
 	}
@@ -236,6 +245,9 @@ func TestPath_OIDCCreate(t *testing.T) {
 	}
 
 	resp, err = b.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp != nil && !resp.IsError() {
 		t.Fatalf("expected error")
 	}

@@ -71,6 +71,9 @@ func TestConfig_JWT_Write(t *testing.T) {
 	}
 
 	resp, err := b.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp == nil || !resp.IsError() {
 		t.Fatal("expected error")
 	}
