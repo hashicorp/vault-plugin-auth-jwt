@@ -25,9 +25,9 @@ function doLogin() {
 }
 
 function oidcAuth(url) {
-	console.log(url)
+	console.log(url);
 	url = url.replace("vaultserver", window.location.origin);
-	console.log(url)
+	console.log(url);
 	location.replace(url);
 }
 

@@ -17,6 +17,12 @@ import (
 
 var oidcStateTimeout = 10 * time.Minute
 
+// OIDC error prefixes. This are searched for specifically by the UI, so any
+// changes to them must be aligned with a UI change.
+const errLoginFailed = "Vault login failed."
+const errNoResponse = "No response from provider."
+const errTokenVerification = "Token verification failed."
+
 // oidcState is created when an authURL is requested. The state identifier is
 // passed throughout the OAuth process.
 type oidcState struct {
@@ -38,8 +44,11 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 				},
 			},
 
-			Callbacks: map[logical.Operation]framework.OperationFunc{
-				logical.ReadOperation: b.pathCallback,
+			Operations: map[logical.Operation]framework.OperationHandler{
+				logical.ReadOperation: &framework.PathOperation{
+					Callback: b.pathCallback,
+					Summary:  "Callback endpoint to complete an OIDC login.",
+				},
 			},
 		},
 		{
@@ -54,8 +63,11 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 					Description: "The OAuth redirect_uri to use in the authorization URL.",
 				},
 			},
-			Callbacks: map[logical.Operation]framework.OperationFunc{
-				logical.UpdateOperation: b.authURL,
+			Operations: map[logical.Operation]framework.OperationHandler{
+				logical.UpdateOperation: &framework.PathOperation{
+					Callback: b.authURL,
+					Summary:  "Request an authorization URL to start an OIDC login flow.",
+				},
 			},
 		},
 	}
@@ -64,7 +76,7 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	state := b.verifyState(d.Get("state").(string))
 	if state == nil {
-		return logical.ErrorResponse("expired or missing OAuth state"), nil
+		return logical.ErrorResponse(errLoginFailed + " Expired or missing OAuth state."), nil
 	}
 
 	roleName := state.rolename
@@ -73,7 +85,7 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		return nil, err
 	}
 	if role == nil {
-		return logical.ErrorResponse("role could not be found"), nil
+		return logical.ErrorResponse(errLoginFailed + " Role could not be found"), nil
 	}
 
 	config, err := b.config(ctx, req.Storage)
@@ -81,12 +93,12 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		return nil, err
 	}
 	if config == nil {
-		return logical.ErrorResponse("could not load configuration"), nil
+		return logical.ErrorResponse(errLoginFailed + " Could not load configuration"), nil
 	}
 
 	provider, err := b.getProvider(ctx, config)
 	if err != nil {
-		return nil, errwrap.Wrapf("error getting provider for login operation: {{err}}", err)
+		return nil, errwrap.Wrapf(errLoginFailed+" Error getting provider for login operation: {{err}}", err)
 	}
 
 	var oauth2Config = oauth2.Config{
@@ -99,24 +111,24 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 
 	code := d.Get("code").(string)
 	if code == "" {
-		return logical.ErrorResponse("OAuth code parameter not provided"), nil
+		return logical.ErrorResponse(errLoginFailed + " OAuth code parameter not provided"), nil
 	}
 
 	oauth2Token, err := oauth2Config.Exchange(ctx, code)
 	if err != nil {
-		return logical.ErrorResponse("error exchanging oidc code: %q", err.Error()), nil
+		return logical.ErrorResponse(errLoginFailed+" Error exchanging oidc code: %q.", err.Error()), nil
 	}
 
 	// Extract the ID Token from OAuth2 token.
 	rawToken, ok := oauth2Token.Extra("id_token").(string)
 	if !ok {
-		return logical.ErrorResponse("no id_token found in response"), nil
+		return logical.ErrorResponse(errTokenVerification + " No id_token found in response."), nil
 	}
 
 	// Parse and verify ID Token payload.
 	allClaims, err := b.verifyToken(ctx, config, role, rawToken)
 	if err != nil {
-		return logical.ErrorResponse(err.Error()), nil
+		return logical.ErrorResponse("%s %s", errTokenVerification, err.Error()), nil
 	}
 
 	// Attempt to fetch information from the /userinfo endpoint and merge it with
@@ -133,7 +145,7 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	}
 
 	if allClaims["nonce"] != state.nonce {
-		return logical.ErrorResponse("invalid ID token nonce"), nil
+		return logical.ErrorResponse(errTokenVerification + " Invalid ID token nonce."), nil
 	}
 	delete(allClaims, "nonce")
 

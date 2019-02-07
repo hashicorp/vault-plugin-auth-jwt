@@ -18,7 +18,7 @@ const (
 
 // Factory is used by framework
 func Factory(ctx context.Context, c *logical.BackendConfig) (logical.Backend, error) {
-	b := backend(c)
+	b := backend()
 	if err := b.Setup(ctx, c); err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ type jwtAuthBackend struct {
 	providerCtxCancel context.CancelFunc
 }
 
-func backend(c *logical.BackendConfig) *jwtAuthBackend {
+func backend() *jwtAuthBackend {
 	b := new(jwtAuthBackend)
 	b.providerCtx, b.providerCtxCancel = context.WithCancel(context.Background())
 	b.oidcStates = cache.New(oidcStateTimeout, 1*time.Minute)
