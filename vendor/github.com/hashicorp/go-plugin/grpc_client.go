@@ -6,7 +6,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/hashicorp/go-plugin/internal/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -61,7 +60,7 @@ func newGRPCClient(doneCtx context.Context, c *Client) (*GRPCClient, error) {
 		Plugins:    c.config.Plugins,
 		doneCtx:    doneCtx,
 		broker:     broker,
-		controller: proto.NewGRPCControllerClient(conn),
+		controller: NewGRPCControllerClient(conn),
 	}
 
 	return cl, nil
@@ -75,13 +74,13 @@ type GRPCClient struct {
 	doneCtx context.Context
 	broker  *GRPCBroker
 
-	controller proto.GRPCControllerClient
+	controller GRPCControllerClient
 }
 
 // ClientProtocol impl.
 func (c *GRPCClient) Close() error {
 	c.broker.Close()
-	c.controller.Shutdown(c.doneCtx, &proto.Empty{})
+	c.controller.Shutdown(c.doneCtx, &Empty{})
 	return c.Conn.Close()
 }
 
