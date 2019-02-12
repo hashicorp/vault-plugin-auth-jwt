@@ -3,6 +3,8 @@ set -e
 
 MNT_PATH="jwt"
 PLUGIN_NAME="vault-plugin-auth-jwt"
+PLUGIN_CATALOG_NAME="jwt"
+
 #
 # Helper script for local development. Automatically builds and registers the
 # plugin. Requires `vault` is installed and available on $PATH.
@@ -54,12 +56,12 @@ go build -o "$SCRATCH/plugins/$PLUGIN_NAME" "./cmd/$PLUGIN_NAME"
 SHASUM=$(shasum -a 256 "$SCRATCH/plugins/$PLUGIN_NAME" | cut -d " " -f1)
 
 echo "    Registering plugin"
-vault write sys/plugins/catalog/$PLUGIN_NAME \
+vault write sys/plugins/catalog/$PLUGIN_CATALOG_NAME \
   sha_256="$SHASUM" \
   command="$PLUGIN_NAME"
 
 echo "    Mounting plugin"
-vault auth enable -path=$MNT_PATH -plugin-name=$PLUGIN_NAME plugin
+vault auth enable -path=$MNT_PATH -plugin-name=$PLUGIN_CATALOG_NAME -listing-visibility=unauth plugin
 
 if [ -e scripts/custom.sh ]
 then
