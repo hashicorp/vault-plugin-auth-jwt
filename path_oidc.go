@@ -211,9 +211,9 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 	roleName := d.Get("role").(string)
 	if roleName == "" {
 		roleName = config.DefaultRole
-		if roleName == "" {
-			return logical.ErrorResponse("missing role"), nil
-		}
+	}
+	if roleName == "" {
+		return logical.ErrorResponse("missing role"), nil
 	}
 
 	redirectURI := d.Get("redirect_uri").(string)
