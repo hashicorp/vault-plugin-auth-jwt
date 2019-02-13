@@ -35,9 +35,9 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 				Description: "The OAuth Client ID configured with your OIDC provider.",
 			},
 			"oidc_client_secret": {
-				Type: framework.TypeString,
-				// TODO: mark this field as sensitive once that FieldSchema change lands
-				Description: "The OAuth Client Secret configured with your OIDC provider.",
+				Type:             framework.TypeString,
+				Description:      "The OAuth Client Secret configured with your OIDC provider.",
+				DisplaySensitive: true,
 			},
 			"default_role": {
 				Type:        framework.TypeString,
@@ -57,9 +57,17 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 			},
 		},
 
-		Callbacks: map[logical.Operation]framework.OperationFunc{
-			logical.ReadOperation:   b.pathConfigRead,
-			logical.UpdateOperation: b.pathConfigWrite,
+		Operations: map[logical.Operation]framework.OperationHandler{
+			logical.ReadOperation: &framework.PathOperation{
+				Callback: b.pathConfigRead,
+				Summary:  "Read the current JWT authentication backend configuration.",
+			},
+
+			logical.UpdateOperation: &framework.PathOperation{
+				Callback:    b.pathConfigWrite,
+				Summary:     "Configure the JWT authentication backend.",
+				Description: confHelpDesc,
+			},
 		},
 
 		HelpSynopsis:    confHelpSyn,

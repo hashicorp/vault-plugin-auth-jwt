@@ -379,8 +379,8 @@ func TestOIDC_Callback(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if resp == nil || !strings.Contains(resp.Error().Error(), "expired or missing OAuth state") {
-			t.Fatalf("expected Oauth state error response, got: %#v", resp)
+		if resp == nil || !strings.Contains(resp.Error().Error(), "Expired or missing OAuth state") {
+			t.Fatalf("expected OAuth state error response, got: %#v", resp)
 		}
 	})
 
@@ -401,8 +401,8 @@ func TestOIDC_Callback(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if resp == nil || !strings.Contains(resp.Error().Error(), "expired or missing OAuth state") {
-			t.Fatalf("expected Oauth state error response, got: %#v", resp)
+		if resp == nil || !strings.Contains(resp.Error().Error(), "Expired or missing OAuth state") {
+			t.Fatalf("expected OAuth state error response, got: %#v", resp)
 		}
 	})
 

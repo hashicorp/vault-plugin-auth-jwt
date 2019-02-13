@@ -29,9 +29,14 @@ func pathLogin(b *jwtAuthBackend) *framework.Path {
 			},
 		},
 
-		Callbacks: map[logical.Operation]framework.OperationFunc{
-			logical.UpdateOperation:         b.pathLogin,
-			logical.AliasLookaheadOperation: b.pathLogin,
+		Operations: map[logical.Operation]framework.OperationHandler{
+			logical.UpdateOperation: &framework.PathOperation{
+				Callback: b.pathLogin,
+				Summary:  pathLoginHelpSyn,
+			},
+			logical.AliasLookaheadOperation: &framework.PathOperation{
+				Callback: b.pathLogin,
+			},
 		},
 
 		HelpSynopsis:    pathLoginHelpSyn,

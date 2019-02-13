@@ -68,7 +68,7 @@ func TestPath_Create(t *testing.T) {
 		TTL:                 1 * time.Second,
 		MaxTTL:              5 * time.Second,
 		NumUses:             12,
-		BoundCIDRs:          []*sockaddr.SockAddrMarshaler{&sockaddr.SockAddrMarshaler{expectedSockAddr}},
+		BoundCIDRs:          []*sockaddr.SockAddrMarshaler{{expectedSockAddr}},
 		AllowedRedirectURIs: []string{},
 	}
 

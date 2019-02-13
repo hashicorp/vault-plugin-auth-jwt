@@ -20,8 +20,12 @@ var reservedMetadata = []string{"role"}
 func pathRoleList(b *jwtAuthBackend) *framework.Path {
 	return &framework.Path{
 		Pattern: "role/?",
-		Callbacks: map[logical.Operation]framework.OperationFunc{
-			logical.ListOperation: b.pathRoleList,
+		Operations: map[logical.Operation]framework.OperationHandler{
+			logical.ListOperation: &framework.PathOperation{
+				Callback:    b.pathRoleList,
+				Summary:     strings.TrimSpace(roleHelp["role-list"][0]),
+				Description: strings.TrimSpace(roleHelp["role-list"][1]),
+			},
 		},
 		HelpSynopsis:    strings.TrimSpace(roleHelp["role-list"][0]),
 		HelpDescription: strings.TrimSpace(roleHelp["role-list"][1]),
@@ -74,11 +78,11 @@ TTL will be set to the value of this parameter.`,
 				Type:        framework.TypeCommaStringSlice,
 				Description: `Comma-separated list of 'aud' claims that are valid for login; any match is sufficient`,
 			},
-			"bound_claims": &framework.FieldSchema{
+			"bound_claims": {
 				Type:        framework.TypeMap,
 				Description: `Map of claims/values which must match for login`,
 			},
-			"claim_mappings": &framework.FieldSchema{
+			"claim_mappings": {
 				Type:        framework.TypeKVPairs,
 				Description: `Mappings of claims (key) that will be copied to a metadata field (value)`,
 			},
@@ -105,11 +109,28 @@ authenticate against this role`,
 			},
 		},
 		ExistenceCheck: b.pathRoleExistenceCheck,
-		Callbacks: map[logical.Operation]framework.OperationFunc{
-			logical.CreateOperation: b.pathRoleCreateUpdate,
-			logical.UpdateOperation: b.pathRoleCreateUpdate,
-			logical.ReadOperation:   b.pathRoleRead,
-			logical.DeleteOperation: b.pathRoleDelete,
+		Operations: map[logical.Operation]framework.OperationHandler{
+			logical.ReadOperation: &framework.PathOperation{
+				Callback: b.pathRoleRead,
+				Summary:  "Read an existing role.",
+			},
+
+			logical.UpdateOperation: &framework.PathOperation{
+				Callback:    b.pathRoleCreateUpdate,
+				Summary:     strings.TrimSpace(roleHelp["role"][0]),
+				Description: strings.TrimSpace(roleHelp["role"][1]),
+			},
+
+			logical.CreateOperation: &framework.PathOperation{
+				Callback:    b.pathRoleCreateUpdate,
+				Summary:     strings.TrimSpace(roleHelp["role"][0]),
+				Description: strings.TrimSpace(roleHelp["role"][1]),
+			},
+
+			logical.DeleteOperation: &framework.PathOperation{
+				Callback: b.pathRoleDelete,
+				Summary:  "Delete an existing role.",
+			},
 		},
 		HelpSynopsis:    strings.TrimSpace(roleHelp["role"][0]),
 		HelpDescription: strings.TrimSpace(roleHelp["role"][1]),
