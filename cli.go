@@ -53,7 +53,7 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 	}
 
 	// Set up callback handler
-	http.HandleFunc(fmt.Sprintf("/ui/vault/auth/%s/oidc/callback", mount), func(w http.ResponseWriter, req *http.Request) {
+	http.HandleFunc("/oidc/callback", func(w http.ResponseWriter, req *http.Request) {
 		var response string
 
 		query := req.URL.Query()
@@ -107,7 +107,7 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 func fetchAuthURL(c *api.Client, role, mount, port string) (string, error) {
 	data := map[string]interface{}{
 		"role":         role,
-		"redirect_uri": fmt.Sprintf("http://localhost:%s/ui/vault/auth/%s/oidc/callback", port, mount),
+		"redirect_uri": fmt.Sprintf("http://localhost:%s/oidc/callback", port),
 	}
 
 	secret, err := c.Logical().Write(fmt.Sprintf("auth/%s/oidc/auth_url", mount), data)
