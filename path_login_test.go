@@ -48,6 +48,7 @@ func setupBackend(t *testing.T, oidc, audience bool) (logical.Backend, logical.S
 	}
 
 	data = map[string]interface{}{
+		"role_type":     "jwt",
 		"bound_subject": "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
 		"user_claim":    "https://vault/user",
 		"groups_claim":  "https://vault/groups",
@@ -702,6 +703,7 @@ func TestLogin_NestedGroups(t *testing.T) {
 	}
 
 	data = map[string]interface{}{
+		"role_type":       "jwt",
 		"bound_audiences": "https://vault.plugin.auth.jwt.test",
 		"bound_subject":   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
 		"user_claim":      "https://vault/user",

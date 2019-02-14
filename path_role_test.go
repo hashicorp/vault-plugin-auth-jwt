@@ -40,6 +40,7 @@ func TestPath_Create(t *testing.T) {
 	b, storage := getBackend(t)
 
 	data := map[string]interface{}{
+		"role_type":       "jwt",
 		"bound_subject":   "testsub",
 		"bound_audiences": "vault",
 		"user_claim":      "user",
@@ -117,6 +118,7 @@ func TestPath_Create(t *testing.T) {
 
 	// Test no binding
 	data = map[string]interface{}{
+		"role_type":  "jwt",
 		"user_claim": "user",
 		"policies":   "test",
 	}
@@ -144,7 +146,6 @@ func TestPath_OIDCCreate(t *testing.T) {
 	b, storage := getBackend(t)
 
 	data := map[string]interface{}{
-		"role_type":       "oidc",
 		"bound_audiences": "vault",
 		"bound_claims": map[string]interface{}{
 			"foo": 10,
@@ -187,24 +188,28 @@ func TestPath_OIDCCreate(t *testing.T) {
 		NumUses:     12,
 	}
 
-	req := &logical.Request{
-		Operation: logical.CreateOperation,
-		Path:      "role/plugin-test",
-		Storage:   storage,
-		Data:      data,
-	}
+	// test both explicit and default role_type
+	for _, roleType := range []string{"", "oidc"} {
+		data["role_type"] = roleType
+		req := &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "role/plugin-test",
+			Storage:   storage,
+			Data:      data,
+		}
 
-	resp, err := b.HandleRequest(context.Background(), req)
-	if err != nil || (resp != nil && resp.IsError()) {
-		t.Fatalf("err:%s resp:%#v\n", err, resp)
-	}
-	actual, err := b.(*jwtAuthBackend).role(context.Background(), storage, "plugin-test")
-	if err != nil {
-		t.Fatal(err)
-	}
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil || (resp != nil && resp.IsError()) {
+			t.Fatalf("err:%s resp:%#v\n", err, resp)
+		}
+		actual, err := b.(*jwtAuthBackend).role(context.Background(), storage, "plugin-test")
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if diff := deep.Equal(expected, actual); diff != nil {
-		t.Fatal(diff)
+		if diff := deep.Equal(expected, actual); diff != nil {
+			t.Fatal(diff)
+		}
 	}
 
 	// Test invalid reserved metadata key 'role'
@@ -213,14 +218,14 @@ func TestPath_OIDCCreate(t *testing.T) {
 		"some_claim": "role",
 	}
 
-	req = &logical.Request{
+	req := &logical.Request{
 		Operation: logical.CreateOperation,
 		Path:      "role/test2",
 		Storage:   storage,
 		Data:      data,
 	}
 
-	resp, err = b.HandleRequest(context.Background(), req)
+	resp, err := b.HandleRequest(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,6 +265,7 @@ func TestPath_Read(t *testing.T) {
 	b, storage := getBackend(t)
 
 	data := map[string]interface{}{
+		"role_type":       "jwt",
 		"bound_subject":   "testsub",
 		"bound_audiences": "vault",
 		"user_claim":      "user",
@@ -324,6 +330,7 @@ func TestPath_Delete(t *testing.T) {
 	b, storage := getBackend(t)
 
 	data := map[string]interface{}{
+		"role_type":       "jwt",
 		"bound_subject":   "testsub",
 		"bound_audiences": "vault",
 		"user_claim":      "user",
