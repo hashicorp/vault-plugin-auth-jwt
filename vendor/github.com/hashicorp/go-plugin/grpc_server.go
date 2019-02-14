@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 
+	hclog "github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-plugin/internal/plugin"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
@@ -53,6 +54,8 @@ type GRPCServer struct {
 	config GRPCServerConfig
 	server *grpc.Server
 	broker *GRPCBroker
+
+	logger hclog.Logger
 }
 
 // ServerProtocol impl.
@@ -72,7 +75,7 @@ func (s *GRPCServer) Init() error {
 
 	// Register the broker service
 	brokerServer := newGRPCBrokerServer()
-	RegisterGRPCBrokerServer(s.server, brokerServer)
+	plugin.RegisterGRPCBrokerServer(s.server, brokerServer)
 	s.broker = newGRPCBroker(brokerServer, s.TLS)
 	go s.broker.Run()
 
@@ -80,7 +83,7 @@ func (s *GRPCServer) Init() error {
 	controllerServer := &grpcControllerServer{
 		server: s,
 	}
-	RegisterGRPCControllerServer(s.server, controllerServer)
+	plugin.RegisterGRPCControllerServer(s.server, controllerServer)
 
 	// Register all our plugins onto the gRPC server.
 	for k, raw := range s.Plugins {
@@ -127,7 +130,7 @@ func (s *GRPCServer) Serve(lis net.Listener) {
 	defer close(s.DoneCh)
 	err := s.server.Serve(lis)
 	if err != nil {
-		log.Println("[ERROR] grpc server returned:", err)
+		s.logger.Error("grpc server", "error", err)
 	}
 }
 

@@ -18,7 +18,6 @@ func TestConfig_JWT_Read(t *testing.T) {
 		"oidc_discovery_url":     "",
 		"oidc_discovery_ca_pem":  "",
 		"oidc_client_id":         "",
-		"oidc_client_secret":     "",
 		"default_role":           "",
 		"jwt_validation_pubkeys": []string{testJWTPubKey},
 		"jwt_supported_algs":     []string{},
