@@ -187,6 +187,11 @@ func (b *jwtAuthBackend) role(ctx context.Context, s logical.Storage, name strin
 		return nil, err
 	}
 
+	// Report legacy roles as type "jwt"
+	if role.RoleType == "" {
+		role.RoleType = "jwt"
+	}
+
 	return role, nil
 }
 
