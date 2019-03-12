@@ -138,6 +138,7 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	// endpoint will not invalidate the authorization flow.
 	if userinfo, err := provider.UserInfo(ctx, oauth2.StaticTokenSource(oauth2Token)); err == nil {
 		_ = userinfo.Claims(&allClaims)
+		b.Logger().Debug("oidc auth", "userinfo claims", userinfo)
 	} else {
 		logFunc := b.Logger().Warn
 		if strings.Contains(err.Error(), "user info endpoint is not supported") {

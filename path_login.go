@@ -231,6 +231,8 @@ func (b *jwtAuthBackend) verifyOIDCToken(ctx context.Context, config *jwtConfig,
 		return nil, errwrap.Wrapf("unable to successfully parse all claims from token: {{err}}", err)
 	}
 
+	b.Logger().Debug("oidc auth", "ID token claims", allClaims)
+
 	if role.BoundSubject != "" && role.BoundSubject != idToken.Subject {
 		return nil, errors.New("sub claim does not match bound subject")
 	}
