@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/go-test/deep"
+	"github.com/hashicorp/go-sockaddr"
+
 	"github.com/hashicorp/vault/logical"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
@@ -256,6 +258,7 @@ func TestOIDC_Callback(t *testing.T) {
 				"/nested/secret_code": "bar",
 				"temperature":         "76",
 			},
+			"bound_cidrs": "127.0.0.42",
 		}
 
 		req = &logical.Request{
@@ -326,6 +329,9 @@ func TestOIDC_Callback(t *testing.T) {
 				"state": state,
 				"code":  "abc",
 			},
+			Connection: &logical.Connection{
+				RemoteAddr: "127.0.0.42",
+			},
 		}
 
 		resp, err = b.HandleRequest(context.Background(), req)
@@ -333,7 +339,13 @@ func TestOIDC_Callback(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		sock, err := sockaddr.NewSockAddr("127.0.0.42")
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		expected := &logical.Auth{
+			BoundCIDRs: []*sockaddr.SockAddrMarshaler{{SockAddr: sock}},
 			LeaseOptions: logical.LeaseOptions{
 				Renewable: true,
 				TTL:       3 * time.Minute,
@@ -361,8 +373,9 @@ func TestOIDC_Callback(t *testing.T) {
 			},
 		}
 		auth := resp.Auth
-		if diff := deep.Equal(auth, expected); diff != nil {
-			t.Fatal(diff)
+
+		if !reflect.DeepEqual(auth, expected) {
+			t.Fatalf("expected: %v, auth: %v", expected, auth)
 		}
 	})
 
@@ -666,6 +679,55 @@ func TestOIDC_Callback(t *testing.T) {
 
 		if resp == nil || !strings.Contains(resp.Error().Error(), "connection refused") {
 			t.Fatalf("expected code exchange error response, got: %#v", resp)
+		}
+	})
+
+	t.Run("test bad address", func(t *testing.T) {
+		b, storage, s := getBackendAndServer(t)
+		defer s.server.Close()
+
+		s.code = "abc"
+
+		// get auth_url
+		data := map[string]interface{}{
+			"role":         "test",
+			"redirect_uri": "https://example.com",
+		}
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "oidc/auth_url",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil || (resp != nil && resp.IsError()) {
+			t.Fatalf("err:%v resp:%#v\n", err, resp)
+		}
+
+		authURL := resp.Data["auth_url"].(string)
+		state := getQueryParam(t, authURL, "state")
+
+		// request with invalid CIDR, which should fail
+		req = &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "oidc/callback",
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"state": state,
+				"code":  "abc",
+			},
+			Connection: &logical.Connection{
+				RemoteAddr: "127.0.0.99",
+			},
+		}
+		resp, err = b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if resp == nil || !strings.Contains(resp.Error().Error(), "invalid CIDR") {
+			t.Fatalf("expected invalid CIDR error, got : %v", *resp)
 		}
 	})
 }

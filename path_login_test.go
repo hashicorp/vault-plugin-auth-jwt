@@ -15,7 +15,7 @@ import (
 
 	"github.com/go-test/deep"
 	"github.com/hashicorp/vault/logical"
-	jose "gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
@@ -61,6 +61,7 @@ func setupBackend(t *testing.T, oidc, audience bool, boundClaims bool) (logical.
 			"first_name":   "name",
 			"/org/primary": "primary_org",
 		},
+		"bound_cidrs": "127.0.0.42",
 	}
 	if audience {
 		data["bound_audiences"] = []string{"https://vault.plugin.auth.jwt.test", "another_audience"}
@@ -232,6 +233,9 @@ func TestLogin_JWT(t *testing.T) {
 			Path:      "login",
 			Storage:   storage,
 			Data:      data,
+			Connection: &logical.Connection{
+				RemoteAddr: "127.0.0.42",
+			},
 		}
 
 		resp, err := b.HandleRequest(context.Background(), req)
@@ -665,6 +669,55 @@ func TestLogin_JWT(t *testing.T) {
 			t.Fatalf("expected error: %v", *resp)
 		}
 	}
+
+	// test invalid address
+	{
+		b, storage := setupBackend(t, false, false, false)
+
+		cl := jwt.Claims{
+			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+			Issuer:    "https://team-vault.auth0.com/",
+			NotBefore: jwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
+		}
+
+		privateCl := struct {
+			User   string   `json:"https://vault/user"`
+			Groups []string `json:"https://vault/groups"`
+		}{
+			"jeff",
+			[]string{"foo", "bar"},
+		}
+
+		jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
+
+		data := map[string]interface{}{
+			"role": "plugin-test",
+			"jwt":  jwtData,
+		}
+
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "login",
+			Storage:   storage,
+			Data:      data,
+			Connection: &logical.Connection{
+				RemoteAddr: "127.0.0.99",
+			},
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp == nil {
+			t.Fatal("got nil response")
+		}
+
+		if !strings.Contains(resp.Error().Error(), "invalid CIDR") {
+			t.Fatalf("expected invalid CIDR error, got : %v", *resp)
+		}
+	}
+
 	// test bad role name
 	{
 		jwtData, _ := getTestJWT(t, ecdsaPrivKey, jwt.Claims{}, struct{}{})
