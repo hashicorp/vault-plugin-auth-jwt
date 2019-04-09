@@ -96,8 +96,27 @@ func validateBoundClaims(logger log.Logger, boundClaims, allClaims map[string]in
 			return fmt.Errorf("claim %q is missing", claim)
 		}
 
-		if expValue != actValue {
-			return fmt.Errorf("claim %q does not match associated bound claim", claim)
+		var expVals []string
+
+		switch v := expValue.(type) {
+		case []string:
+			expVals = v
+		case string:
+			expVals = []string{v}
+		default:
+			return fmt.Errorf("bound claim not a string or []string: %v", expValue)
+		}
+
+		found := false
+		for _, v := range expVals {
+			if actValue == v {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return fmt.Errorf("claim %q does not match any associated bound claim values", claim)
 		}
 	}
 
