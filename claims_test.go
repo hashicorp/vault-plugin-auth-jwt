@@ -278,7 +278,7 @@ func TestValidateBoundClaims(t *testing.T) {
 		{
 			name: "valid - match alternates",
 			boundClaims: map[string]interface{}{
-				"email": []string{"a", "b", "c"},
+				"email": []interface{}{"a", "b", "c"},
 				"color": "green",
 			},
 			allClaims: map[string]interface{}{
@@ -290,7 +290,7 @@ func TestValidateBoundClaims(t *testing.T) {
 		{
 			name: "invalid - no match alternates",
 			boundClaims: map[string]interface{}{
-				"email": []string{"a", "b", "c"},
+				"email": []interface{}{"a", "b", "c"},
 				"color": "green",
 			},
 			allClaims: map[string]interface{}{

@@ -96,13 +96,13 @@ func validateBoundClaims(logger log.Logger, boundClaims, allClaims map[string]in
 			return fmt.Errorf("claim %q is missing", claim)
 		}
 
-		var expVals []string
+		var expVals []interface{}
 
 		switch v := expValue.(type) {
-		case []string:
+		case []interface{}:
 			expVals = v
 		case string:
-			expVals = []string{v}
+			expVals = []interface{}{v}
 		default:
 			return fmt.Errorf("bound claim not a string or []string: %v", expValue)
 		}
