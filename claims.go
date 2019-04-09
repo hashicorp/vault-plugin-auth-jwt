@@ -104,7 +104,7 @@ func validateBoundClaims(logger log.Logger, boundClaims, allClaims map[string]in
 		case string:
 			expVals = []interface{}{v}
 		default:
-			return fmt.Errorf("bound claim not a string or []string: %v", expValue)
+			return fmt.Errorf("bound claim not a string or list: %v", expValue)
 		}
 
 		found := false
