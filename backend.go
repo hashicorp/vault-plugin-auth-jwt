@@ -6,9 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/errwrap"
-
 	"github.com/coreos/go-oidc"
+	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/patrickmn/go-cache"

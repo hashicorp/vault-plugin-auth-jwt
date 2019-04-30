@@ -170,7 +170,7 @@ func TestOIDC_AuthURL(t *testing.T) {
 			Data:      data,
 		}
 
-		resp, err = b.HandleRequest(context.Background(), req)
+		resp, err := b.HandleRequest(context.Background(), req)
 		if err != nil || (resp != nil && resp.IsError()) {
 			t.Fatalf("err:%v resp:%#v\n", err, resp)
 		}
@@ -189,7 +189,7 @@ func TestOIDC_AuthURL(t *testing.T) {
 			"role":         "limited_uris",
 			"redirect_uri": "http://bitc0in-4-less.cx",
 		}
-		req = &logical.Request{
+		req := &logical.Request{
 			Operation: logical.UpdateOperation,
 			Path:      "oidc/auth_url",
 			Storage:   storage,

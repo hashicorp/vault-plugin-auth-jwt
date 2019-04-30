@@ -981,6 +981,58 @@ func TestLogin_NestedGroups(t *testing.T) {
 	}
 }
 
+func TestLogin_JWKS_Concurrent(t *testing.T) {
+	b, storage := setupBackend(t, false, false, true, false, false, true)
+
+	cl := jwt.Claims{
+		Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+		Issuer:    "https://team-vault.auth0.com/",
+		NotBefore: jwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
+		Audience:  jwt.Audience{"https://vault.plugin.auth.jwt.test"},
+	}
+
+	privateCl := struct {
+		User   string   `json:"https://vault/user"`
+		Groups []string `json:"https://vault/groups"`
+	}{
+		"jeff",
+		[]string{"foo", "bar"},
+	}
+
+	jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
+
+	data := map[string]interface{}{
+		"role": "plugin-test",
+		"jwt":  jwtData,
+	}
+
+	req := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      "login",
+		Storage:   storage,
+		Data:      data,
+	}
+
+	for i := 0; i < 100; i++ {
+		t.Run("", func(t *testing.T) {
+			t.Parallel()
+
+			for i := 0; i < 100; i++ {
+				resp, err := b.HandleRequest(context.Background(), req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if resp == nil {
+					t.Fatal("got nil response")
+				}
+				if resp.IsError() {
+					t.Fatalf("got error: %v", resp.Error())
+				}
+			}
+		})
+	}
+}
+
 const (
 	ecdsaPrivKey string = `-----BEGIN EC PRIVATE KEY-----
 MHcCAQEEIKfldwWLPYsHjRL9EVTsjSbzTtcGRu6icohNfIqcb6A+oAoGCCqGSM49
