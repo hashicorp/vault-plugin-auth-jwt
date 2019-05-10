@@ -198,6 +198,26 @@ func TestValidateBoundClaims(t *testing.T) {
 			errExpected: false,
 		},
 		{
+			name: "valid - match within list",
+			boundClaims: map[string]interface{}{
+				"foo": "a",
+			},
+			allClaims: map[string]interface{}{
+				"foo": `["a", "b"]`,
+			},
+			errExpected: false,
+		},
+		{
+			name: "invalid - no match within list",
+			boundClaims: map[string]interface{}{
+				"foo": "c",
+			},
+			allClaims: map[string]interface{}{
+				"foo": `["a", "b"]`,
+			},
+			errExpected: true,
+		},
+		{
 			name: "valid - extra data",
 			boundClaims: map[string]interface{}{
 				"foo": "a",

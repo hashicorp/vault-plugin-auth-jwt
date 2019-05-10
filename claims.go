@@ -1,6 +1,7 @@
 package jwtauth
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -107,11 +108,22 @@ func validateBoundClaims(logger log.Logger, boundClaims, allClaims map[string]in
 			return fmt.Errorf("bound claim is not a string or list: %v", expValue)
 		}
 
+		var actVals []string
+		actData := []byte(actValue.(string))
+
+		err := json.Unmarshal(actData, &actVals)
+		if err != nil {
+			actVals = []string{actValue.(string)}
+		}
+
+
 		found := false
 		for _, v := range expVals {
-			if actValue == v {
-				found = true
-				break
+			for _, av := range actVals {
+				if av == v {
+					found = true
+					break
+				}
 			}
 		}
 
