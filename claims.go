@@ -117,11 +117,13 @@ func validateBoundClaims(logger log.Logger, boundClaims, allClaims map[string]in
 		}
 
 		found := false
+
+	scan:
 		for _, v := range expVals {
 			for _, av := range actVals {
 				if av == v {
 					found = true
-					break
+					break scan
 				}
 			}
 		}
