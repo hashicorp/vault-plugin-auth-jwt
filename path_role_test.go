@@ -125,7 +125,7 @@ func TestPath_Create(t *testing.T) {
 
 	req = &logical.Request{
 		Operation: logical.CreateOperation,
-		Path:      "role/test2",
+		Path:      "role/test3",
 		Storage:   storage,
 		Data:      data,
 	}
@@ -151,7 +151,7 @@ func TestPath_Create(t *testing.T) {
 
 	req = &logical.Request{
 		Operation: logical.CreateOperation,
-		Path:      "role/test2",
+		Path:      "role/test4",
 		Storage:   storage,
 		Data:      data,
 	}
@@ -174,7 +174,7 @@ func TestPath_Create(t *testing.T) {
 
 	req = &logical.Request{
 		Operation: logical.CreateOperation,
-		Path:      "role/test2",
+		Path:      "role/test5",
 		Storage:   storage,
 		Data:      data,
 	}
@@ -197,7 +197,7 @@ func TestPath_Create(t *testing.T) {
 
 	req = &logical.Request{
 		Operation: logical.CreateOperation,
-		Path:      "role/test2",
+		Path:      "role/test6",
 		Storage:   storage,
 		Data:      data,
 	}
@@ -223,7 +223,7 @@ func TestPath_Create(t *testing.T) {
 
 	req = &logical.Request{
 		Operation: logical.CreateOperation,
-		Path:      "role/test2",
+		Path:      "role/test7",
 		Storage:   storage,
 		Data:      data,
 	}
