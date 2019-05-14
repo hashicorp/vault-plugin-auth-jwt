@@ -1,7 +1,6 @@
 package jwtauth
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -97,7 +96,16 @@ func validateBoundClaims(logger log.Logger, boundClaims, allClaims map[string]in
 			return fmt.Errorf("claim %q is missing", claim)
 		}
 
-		var expVals []interface{}
+		var actVals, expVals []interface{}
+
+		switch v := actValue.(type) {
+		case []interface{}:
+			actVals = v
+		case string:
+			actVals = []interface{}{v}
+		default:
+			return fmt.Errorf("received claim is not a string or list: %v", actValue)
+		}
 
 		switch v := expValue.(type) {
 		case []interface{}:
@@ -107,15 +115,6 @@ func validateBoundClaims(logger log.Logger, boundClaims, allClaims map[string]in
 		default:
 			return fmt.Errorf("bound claim is not a string or list: %v", expValue)
 		}
-
-		var actVals []string
-		actData := []byte(actValue.(string))
-
-		err := json.Unmarshal(actData, &actVals)
-		if err != nil {
-			actVals = []string{actValue.(string)}
-		}
-
 
 		found := false
 		for _, v := range expVals {
