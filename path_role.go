@@ -70,6 +70,18 @@ should never expire. The token should be renewed within the
 duration specified by this value. At each renewal, the token's
 TTL will be set to the value of this parameter.`,
 			},
+			"expiration_leeway": {
+				Type: framework.TypeDurationSecond,
+				Description: `Duration in seconds of leeway when validating expiration of a token to account for clock skew. 
+Defaults to 300 (5 minutes).`,
+				Default: "300",
+			},
+			"not_before_leeway": {
+				Type: framework.TypeDurationSecond,
+				Description: `Duration in seconds of leeway when validating not before values of a token to account for clock skew. 
+Defaults to 300 (5 minutes).`,
+				Default: "300",
+			},
 			"bound_subject": {
 				Type:        framework.TypeString,
 				Description: `The 'sub' claim that is valid for login. Optional.`,
@@ -151,6 +163,12 @@ type jwtRole struct {
 
 	// Duration after which an issued token should not be allowed to be renewed
 	MaxTTL time.Duration `json:"max_ttl"`
+
+	// Duration of leeway for expiration to account for clock skew
+	ExpirationLeeway time.Duration `json:"expiration_leeway"`
+
+	// Duration of leeway for not before to account for clock skew
+	NotBeforeLeeway time.Duration `json:"not_before_leeway"`
 
 	// Period, if set, indicates that the token generated using this role
 	// should never expire. The token should be renewed within the duration
@@ -237,6 +255,8 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 			"period":                int64(role.Period.Seconds()),
 			"ttl":                   int64(role.TTL.Seconds()),
 			"max_ttl":               int64(role.MaxTTL.Seconds()),
+			"expiration_leeway":     int64(role.ExpirationLeeway.Seconds()),
+			"not_before_leeway":     int64(role.NotBeforeLeeway.Seconds()),
 			"bound_audiences":       role.BoundAudiences,
 			"bound_subject":         role.BoundSubject,
 			"bound_cidrs":           role.BoundCIDRs,
@@ -331,6 +351,18 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 		role.MaxTTL = time.Duration(tokenMaxTTLRaw.(int)) * time.Second
 	} else if req.Operation == logical.CreateOperation {
 		role.MaxTTL = time.Duration(data.Get("max_ttl").(int)) * time.Second
+	}
+
+	if tokenExpLeewayRaw, ok := data.GetOk("expiration_leeway"); ok {
+		role.ExpirationLeeway = time.Duration(tokenExpLeewayRaw.(int)) * time.Second
+	} else if req.Operation == logical.CreateOperation {
+		role.ExpirationLeeway = time.Duration(data.Get("expiration_leeway").(int)) * time.Second
+	}
+
+	if tokenNotBeforeLeewayRaw, ok := data.GetOk("not_before_leeway"); ok {
+		role.NotBeforeLeeway = time.Duration(tokenNotBeforeLeewayRaw.(int)) * time.Second
+	} else if req.Operation == logical.CreateOperation {
+		role.NotBeforeLeeway = time.Duration(data.Get("not_before_leeway").(int)) * time.Second
 	}
 
 	if boundAudiences, ok := data.GetOk("bound_audiences"); ok {

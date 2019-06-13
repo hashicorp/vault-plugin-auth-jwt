@@ -129,7 +129,8 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			}
 		}
 
-		// We require notbefore or expiry; if only one is provided, we allow 5 minutes of leeway.
+		// We require notbefore or expiry; if only one is provided, we allow 5 minutes of leeway by default.
+		// Configurable by ExpirationLeeway and NotBeforeLeeway
 		if claims.IssuedAt == nil {
 			claims.IssuedAt = new(jwt.NumericDate)
 		}
@@ -147,13 +148,13 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			if *claims.NotBefore > *claims.IssuedAt {
 				latestStart = *claims.NotBefore
 			}
-			*claims.Expiry = latestStart + 300
+			*claims.Expiry = latestStart + jwt.NumericDate(role.ExpirationLeeway.Seconds())
 		}
 		if *claims.NotBefore == 0 {
 			if *claims.IssuedAt != 0 {
 				*claims.NotBefore = *claims.IssuedAt
 			} else {
-				*claims.NotBefore = *claims.Expiry - 300
+				*claims.NotBefore = *claims.Expiry - jwt.NumericDate(role.NotBeforeLeeway.Seconds())
 			}
 		}
 
