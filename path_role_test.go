@@ -68,8 +68,8 @@ func TestPath_Create(t *testing.T) {
 		GroupsClaim:         "groups",
 		TTL:                 1 * time.Second,
 		MaxTTL:              5 * time.Second,
-		ExpirationLeeway:    300 * time.Second,
-		NotBeforeLeeway:     300 * time.Second,
+		ExpirationLeeway:    0 * time.Second,
+		NotBeforeLeeway:     0 * time.Second,
 		NumUses:             12,
 		BoundCIDRs:          []*sockaddr.SockAddrMarshaler{{SockAddr: expectedSockAddr}},
 		AllowedRedirectURIs: []string(nil),
@@ -324,8 +324,8 @@ func TestPath_OIDCCreate(t *testing.T) {
 		GroupsClaim:      "groups",
 		TTL:              1 * time.Second,
 		MaxTTL:           5 * time.Second,
-		ExpirationLeeway: 300 * time.Second,
-		NotBeforeLeeway:  300 * time.Second,
+		ExpirationLeeway: 0 * time.Second,
+		NotBeforeLeeway:  0 * time.Second,
 		NumUses:          12,
 	}
 

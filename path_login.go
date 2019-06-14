@@ -148,13 +148,21 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			if *claims.NotBefore > *claims.IssuedAt {
 				latestStart = *claims.NotBefore
 			}
-			*claims.Expiry = latestStart + jwt.NumericDate(role.ExpirationLeeway.Seconds())
+			leeway := role.ExpirationLeeway.Seconds()
+			if role.ExpirationLeeway.Seconds() == 0 {
+				leeway = 300
+			}
+			*claims.Expiry = latestStart + jwt.NumericDate(leeway)
 		}
 		if *claims.NotBefore == 0 {
 			if *claims.IssuedAt != 0 {
 				*claims.NotBefore = *claims.IssuedAt
 			} else {
-				*claims.NotBefore = *claims.Expiry - jwt.NumericDate(role.NotBeforeLeeway.Seconds())
+				leeway := role.NotBeforeLeeway.Seconds()
+				if role.NotBeforeLeeway.Seconds() == 0 {
+					leeway = 300
+				}
+				*claims.NotBefore = *claims.Expiry - jwt.NumericDate(leeway)
 			}
 		}
 

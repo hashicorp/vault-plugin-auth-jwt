@@ -74,13 +74,11 @@ TTL will be set to the value of this parameter.`,
 				Type: framework.TypeDurationSecond,
 				Description: `Duration in seconds of leeway when validating expiration of a token to account for clock skew. 
 Defaults to 300 (5 minutes).`,
-				Default: "300",
 			},
 			"not_before_leeway": {
 				Type: framework.TypeDurationSecond,
 				Description: `Duration in seconds of leeway when validating not before values of a token to account for clock skew. 
 Defaults to 300 (5 minutes).`,
-				Default: "300",
 			},
 			"bound_subject": {
 				Type:        framework.TypeString,
