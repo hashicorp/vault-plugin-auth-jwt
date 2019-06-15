@@ -149,11 +149,12 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 				latestStart = *claims.NotBefore
 			}
 			leeway := role.ExpirationLeeway.Seconds()
-			if role.ExpirationLeeway.Seconds() == 0 {
+			if leeway == 0 {
 				leeway = 300
 			}
-			*claims.Expiry = latestStart + jwt.NumericDate(leeway)
+			*claims.Expiry = jwt.NumericDate(int64(latestStart) + int64(leeway))
 		}
+
 		if *claims.NotBefore == 0 {
 			if *claims.IssuedAt != 0 {
 				*claims.NotBefore = *claims.IssuedAt
@@ -162,7 +163,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 				if role.NotBeforeLeeway.Seconds() == 0 {
 					leeway = 300
 				}
-				*claims.NotBefore = *claims.Expiry - jwt.NumericDate(leeway)
+				*claims.NotBefore = jwt.NumericDate(int64(*claims.Expiry) - int64(leeway))
 			}
 		}
 
@@ -176,7 +177,9 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			Time:    time.Now(),
 		}
 
-		if err := claims.Validate(expected); err != nil {
+		// We bake leeway into expiration/not before, so we pass in a duration of 0
+		// to account for our implementation
+		if err := claims.ValidateWithLeeway(expected, 0); err != nil {
 			return logical.ErrorResponse(errwrap.Wrapf("error validating claims: {{err}}", err).Error()), nil
 		}
 

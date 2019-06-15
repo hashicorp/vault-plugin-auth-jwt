@@ -19,7 +19,7 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
-func setupBackend(t *testing.T, oidc, role_type_oidc, audience, boundClaims, boundCIDRs, jwks, customLeeway bool) (logical.Backend, logical.Storage) {
+func setupBackend(t *testing.T, oidc, role_type_oidc, audience, boundClaims, boundCIDRs, jwks bool, expLeeway, nbfLeeway string) (logical.Backend, logical.Storage) {
 	b, storage := getBackend(t)
 
 	var data map[string]interface{}
@@ -90,10 +90,15 @@ func setupBackend(t *testing.T, oidc, role_type_oidc, audience, boundClaims, bou
 	if boundCIDRs {
 		data["bound_cidrs"] = "127.0.0.42"
 	}
-	if customLeeway {
-		data["expiration_leeway"] = "60s"
-		data["not_before_leeway"] = "60s"
+
+	if expLeeway != "0" {
+		data["expiration_leeway"] = expLeeway
 	}
+
+	if nbfLeeway != "0" {
+		data["not_before_leeway"] = nbfLeeway
+	}
+
 
 	req = &logical.Request{
 		Operation: logical.CreateOperation,
@@ -175,7 +180,7 @@ func TestLogin_JWT(t *testing.T) {
 func testLogin_JWT(t *testing.T, jwks bool) {
 	// Test role_type oidc
 	{
-		b, storage := setupBackend(t, false, true, true, false, false, jwks, false)
+		b, storage := setupBackend(t, false, true, true, false, false, jwks, "0", "0")
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -223,7 +228,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 
 	// Test missing audience
 	{
-		b, storage := setupBackend(t, false, false, false, false, false, jwks, false)
+		b, storage := setupBackend(t, false, false, false, false, false, jwks, "0", "0")
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -273,7 +278,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 	{
 		// run test with and without bound_cidrs configured
 		for _, useBoundCIDRs := range []bool{false, true} {
-			b, storage := setupBackend(t, false, false, true, true, useBoundCIDRs, jwks, false)
+			b, storage := setupBackend(t, false, false, true, true, useBoundCIDRs, jwks, "0", "0")
 
 			cl := jwt.Claims{
 				Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -362,7 +367,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 		}
 	}
 
-	b, storage := setupBackend(t, false, false, true, true, false, jwks, false)
+	b, storage := setupBackend(t, false, false, true, true, false, jwks, "0", "0")
 
 	// test invalid bound claim
 	{
@@ -589,7 +594,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
 			Issuer:    "https://team-vault.auth0.com/",
-			NotBefore: jwt.NewNumericDate(time.Now().Add(-5 * time.Hour)),
+			NotBefore: jwt.NewNumericDate(time.Now().Add(-5 * time.Minute)),
 			Audience:  jwt.Audience{"https://vault.plugin.auth.jwt.test"},
 		}
 
@@ -632,7 +637,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 		cl := jwt.Claims{
 			Subject:  "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
 			Issuer:   "https://team-vault.auth0.com/",
-			Expiry:   jwt.NewNumericDate(time.Now().Add(5 * time.Hour)),
+			Expiry:   jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
 			Audience: jwt.Audience{"https://vault.plugin.auth.jwt.test"},
 		}
 
@@ -715,14 +720,109 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 		}
 	}
 
-	// test custom expiration/notbefore from issue time
+	// Test valid custom expiration leeway
 	{
-		b, storage := setupBackend(t, false, false, true, false, false, jwks, true)
+		b, storage := setupBackend(t, false, false, true, false, false, jwks, "60", "0")
+
+		cl := jwt.Claims{
+			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+			Issuer:    "https://team-vault.auth0.com/",
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now().Add(-1 * time.Minute)),
+			Audience:  jwt.Audience{"https://vault.plugin.auth.jwt.test"},
+		}
+
+		privateCl := struct {
+			User   string   `json:"https://vault/user"`
+			Groups []string `json:"https://vault/groups"`
+			Color  string   `json:"color"`
+		}{
+			"jeff",
+			[]string{"foo", "bar"},
+			"green",
+		}
+
+		jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
+
+		data := map[string]interface{}{
+			"role": "plugin-test",
+			"jwt":  jwtData,
+		}
+
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "login",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp == nil {
+			t.Fatal("got nil response")
+		}
+		if resp.IsError() {
+			t.Fatalf("unexpected error: %v", resp.Error())
+		}
+	}
+
+	// Test bad custom expiration leeway
+	{
+		b, storage := setupBackend(t, false, false, true, false, false, jwks, "30", "0")
+
+		cl := jwt.Claims{
+			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+			Issuer:    "https://team-vault.auth0.com/",
+			IssuedAt:  jwt.NewNumericDate(time.Now().Add(-1 * time.Minute)),
+			Audience:  jwt.Audience{"https://vault.plugin.auth.jwt.test"},
+		}
+
+		privateCl := struct {
+			User   string   `json:"https://vault/user"`
+			Groups []string `json:"https://vault/groups"`
+			Color  string   `json:"color"`
+		}{
+			"jeff",
+			[]string{"foo", "bar"},
+			"green",
+		}
+
+		jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
+
+		data := map[string]interface{}{
+			"role": "plugin-test",
+			"jwt":  jwtData,
+		}
+
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "login",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp == nil {
+			t.Fatal("got nil response")
+		}
+		if !resp.IsError() {
+			t.Fatalf("expected error: %v", *resp)
+		}
+	}
+
+	// Test valid custom not before leeway
+	{
+		b, storage := setupBackend(t, false, false, true, false, false, jwks, "0", "60")
 
 		cl := jwt.Claims{
 			Subject:  "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
 			Issuer:   "https://team-vault.auth0.com/",
-			IssuedAt: jwt.NewNumericDate(time.Now()),
+			Expiry:   jwt.NewNumericDate(time.Now().Add(1 * time.Minute)),
 			Audience: jwt.Audience{"https://vault.plugin.auth.jwt.test"},
 		}
 
@@ -759,6 +859,53 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 		}
 		if resp.IsError() {
 			t.Fatalf("unexpected error: %v", resp.Error())
+		}
+	}
+
+	// Test bad custom not before leeway
+	{
+		b, storage := setupBackend(t, false, false, true, false, false, jwks, "0", "30")
+
+		cl := jwt.Claims{
+			Subject:  "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+			Issuer:   "https://team-vault.auth0.com/",
+			Expiry:   jwt.NewNumericDate(time.Now().Add(1 * time.Minute)),
+			Audience: jwt.Audience{"https://vault.plugin.auth.jwt.test"},
+		}
+
+		privateCl := struct {
+			User   string   `json:"https://vault/user"`
+			Groups []string `json:"https://vault/groups"`
+			Color  string   `json:"color"`
+		}{
+			"jeff",
+			[]string{"foo", "bar"},
+			"green",
+		}
+
+		jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
+
+		data := map[string]interface{}{
+			"role": "plugin-test",
+			"jwt":  jwtData,
+		}
+
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "login",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp == nil {
+			t.Fatal("got nil response")
+		}
+		if !resp.IsError() {
+			t.Fatalf("expected error: %v", *resp)
 		}
 	}
 
@@ -799,7 +946,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 
 	// test invalid address
 	{
-		b, storage := setupBackend(t, false, false, false, false, true, jwks, false)
+		b, storage := setupBackend(t, false, false, false, false, true, jwks, "0","0")
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -875,7 +1022,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 }
 
 func TestLogin_OIDC(t *testing.T) {
-	b, storage := setupBackend(t, true, false, true, false, false, false, false)
+	b, storage := setupBackend(t, true, false, true, false, false, false, "0", "0")
 
 	jwtData := getTestOIDC(t)
 
@@ -1032,7 +1179,7 @@ func TestLogin_NestedGroups(t *testing.T) {
 }
 
 func TestLogin_JWKS_Concurrent(t *testing.T) {
-	b, storage := setupBackend(t, false, false, true, false, false, true, false)
+	b, storage := setupBackend(t, false, false, true, false, false, true, "0", "0")
 
 	cl := jwt.Claims{
 		Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
