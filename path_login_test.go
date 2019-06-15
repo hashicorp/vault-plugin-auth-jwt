@@ -19,7 +19,7 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
-func setupBackend(t *testing.T, oidc, role_type_oidc, audience, boundClaims, boundCIDRs, jwks bool, expLeeway, nbfLeeway string) (logical.Backend, logical.Storage) {
+func setupBackend(t *testing.T, oidc, role_type_oidc, audience, boundClaims, boundCIDRs, jwks bool, expLeeway, nbfLeeway int) (logical.Backend, logical.Storage) {
 	b, storage := getBackend(t)
 
 	var data map[string]interface{}
@@ -91,11 +91,11 @@ func setupBackend(t *testing.T, oidc, role_type_oidc, audience, boundClaims, bou
 		data["bound_cidrs"] = "127.0.0.42"
 	}
 
-	if expLeeway != "0" {
+	if expLeeway != 0 {
 		data["expiration_leeway"] = expLeeway
 	}
 
-	if nbfLeeway != "0" {
+	if nbfLeeway != 0 {
 		data["not_before_leeway"] = nbfLeeway
 	}
 
@@ -180,7 +180,7 @@ func TestLogin_JWT(t *testing.T) {
 func testLogin_JWT(t *testing.T, jwks bool) {
 	// Test role_type oidc
 	{
-		b, storage := setupBackend(t, false, true, true, false, false, jwks, "0", "0")
+		b, storage := setupBackend(t, false, true, true, false, false, jwks, 0, 0)
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -228,7 +228,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 
 	// Test missing audience
 	{
-		b, storage := setupBackend(t, false, false, false, false, false, jwks, "0", "0")
+		b, storage := setupBackend(t, false, false, false, false, false, jwks, 0, 0)
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -278,7 +278,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 	{
 		// run test with and without bound_cidrs configured
 		for _, useBoundCIDRs := range []bool{false, true} {
-			b, storage := setupBackend(t, false, false, true, true, useBoundCIDRs, jwks, "0", "0")
+			b, storage := setupBackend(t, false, false, true, true, useBoundCIDRs, jwks, 0, 0)
 
 			cl := jwt.Claims{
 				Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -367,7 +367,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 		}
 	}
 
-	b, storage := setupBackend(t, false, false, true, true, false, jwks, "0", "0")
+	b, storage := setupBackend(t, false, false, true, true, false, jwks, 0, 0)
 
 	// test invalid bound claim
 	{
@@ -722,7 +722,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 
 	// Test valid custom expiration leeway
 	{
-		b, storage := setupBackend(t, false, false, true, false, false, jwks, "60", "0")
+		b, storage := setupBackend(t, false, false, true, false, false, jwks, 60, 0)
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -770,7 +770,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 
 	// Test bad custom expiration leeway
 	{
-		b, storage := setupBackend(t, false, false, true, false, false, jwks, "30", "0")
+		b, storage := setupBackend(t, false, false, true, false, false, jwks, 30, 0)
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -817,7 +817,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 
 	// Test valid custom not before leeway
 	{
-		b, storage := setupBackend(t, false, false, true, false, false, jwks, "0", "60")
+		b, storage := setupBackend(t, false, false, true, false, false, jwks, 0, 60)
 
 		cl := jwt.Claims{
 			Subject:  "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -864,7 +864,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 
 	// Test bad custom not before leeway
 	{
-		b, storage := setupBackend(t, false, false, true, false, false, jwks, "0", "30")
+		b, storage := setupBackend(t, false, false, true, false, false, jwks, 0, 30)
 
 		cl := jwt.Claims{
 			Subject:  "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -946,7 +946,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 
 	// test invalid address
 	{
-		b, storage := setupBackend(t, false, false, false, false, true, jwks, "0","0")
+		b, storage := setupBackend(t, false, false, false, false, true, jwks, 0,0)
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -1022,7 +1022,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 }
 
 func TestLogin_OIDC(t *testing.T) {
-	b, storage := setupBackend(t, true, false, true, false, false, false, "0", "0")
+	b, storage := setupBackend(t, true, false, true, false, false, false, 0, 0)
 
 	jwtData := getTestOIDC(t)
 
@@ -1179,7 +1179,7 @@ func TestLogin_NestedGroups(t *testing.T) {
 }
 
 func TestLogin_JWKS_Concurrent(t *testing.T) {
-	b, storage := setupBackend(t, false, false, true, false, false, true, "0", "0")
+	b, storage := setupBackend(t, false, false, true, false, false, true, 0, 0)
 
 	cl := jwt.Claims{
 		Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
