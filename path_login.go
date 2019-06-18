@@ -143,6 +143,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		if *claims.IssuedAt == 0 && *claims.Expiry == 0 && *claims.NotBefore == 0 {
 			return logical.ErrorResponse("no issue time, notbefore, or expiration time encoded in token"), nil
 		}
+
 		if *claims.Expiry == 0 {
 			latestStart := *claims.IssuedAt
 			if *claims.NotBefore > *claims.IssuedAt {
@@ -178,8 +179,14 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		}
 
 		// We bake leeway into expiration/not before, so we pass in a duration of 0
-		// to account for our implementation
-		if err := claims.ValidateWithLeeway(expected, 0); err != nil {
+		// to account for our implementation.  Default to JWT's package of 1 minute
+		// if no leeways are configured
+		leeway := time.Second * 0
+		if role.ExpirationLeeway == 0 && role.NotBeforeLeeway == 0 {
+			leeway = jwt.DefaultLeeway
+		}
+
+		if err := claims.ValidateWithLeeway(expected, leeway); err != nil {
 			return logical.ErrorResponse(errwrap.Wrapf("error validating claims: {{err}}", err).Error()), nil
 		}
 

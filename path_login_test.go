@@ -909,6 +909,102 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 		}
 	}
 
+	// Test valid default leeway
+	{
+		b, storage := setupBackend(t, false, false, true, false, false, jwks, 0, 0)
+
+		cl := jwt.Claims{
+			Subject:  "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+			Issuer:   "https://team-vault.auth0.com/",
+			Expiry:   jwt.NewNumericDate(time.Now()),
+			NotBefore:   jwt.NewNumericDate(time.Now().Add(-1 * time.Minute)),
+			Audience: jwt.Audience{"https://vault.plugin.auth.jwt.test"},
+		}
+
+		privateCl := struct {
+			User   string   `json:"https://vault/user"`
+			Groups []string `json:"https://vault/groups"`
+			Color  string   `json:"color"`
+		}{
+			"jeff",
+			[]string{"foo", "bar"},
+			"green",
+		}
+
+		jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
+
+		data := map[string]interface{}{
+			"role": "plugin-test",
+			"jwt":  jwtData,
+		}
+
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "login",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp == nil {
+			t.Fatal("got nil response")
+		}
+		if resp.IsError() {
+			t.Fatalf("unexpected error: %v", resp.Error())
+		}
+	}
+
+	// Test bad default leeway
+	{
+		b, storage := setupBackend(t, false, false, true, false, false, jwks, 0, 0)
+
+		cl := jwt.Claims{
+			Subject:  "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+			Issuer:   "https://team-vault.auth0.com/",
+			Expiry:   jwt.NewNumericDate(time.Now().Add(-1 * time.Minute)),
+			NotBefore:   jwt.NewNumericDate(time.Now().Add(-2 * time.Minute)),
+			Audience: jwt.Audience{"https://vault.plugin.auth.jwt.test"},
+		}
+
+		privateCl := struct {
+			User   string   `json:"https://vault/user"`
+			Groups []string `json:"https://vault/groups"`
+			Color  string   `json:"color"`
+		}{
+			"jeff",
+			[]string{"foo", "bar"},
+			"green",
+		}
+
+		jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
+
+		data := map[string]interface{}{
+			"role": "plugin-test",
+			"jwt":  jwtData,
+		}
+
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "login",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp == nil {
+			t.Fatal("got nil response")
+		}
+		if !resp.IsError() || !strings.Contains(resp.Error().Error(), "token is expired") {
+			t.Fatalf("expected token is expired error, got : %v", *resp)
+		}
+	}
+
 	// test missing user value
 	{
 		cl := jwt.Claims{
