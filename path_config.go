@@ -35,11 +35,11 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 				Description: "The OAuth Client ID configured with your OIDC provider.",
 			},
 			"oidc_client_secret": {
-				Type:             framework.TypeString,
-				Description:      "The OAuth Client Secret configured with your OIDC provider.",
+				Type:        framework.TypeString,
+				Description: "The OAuth Client Secret configured with your OIDC provider.",
 				DisplayAttrs: &framework.DisplayAttributes{
 					Sensitive: true,
-				}
+				},
 			},
 			"jwks_url": {
 				Type:        framework.TypeString,
