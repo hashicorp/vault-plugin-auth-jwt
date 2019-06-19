@@ -81,9 +81,9 @@ Defaults to 150 (2.5 minutes).`,
 Defaults to 150 (2.5 minutes).`,
 			},
 			"clock_skew_leeway": {
-				Type: framework.TypeBool,
-				Description: `Boolean to add 60 seconds of leeway to all claims to account for clock skew. 
-Defaults to true.`,
+				Type: framework.TypeDurationSecond,
+				Description: `Duration in seconds of leeway when validating all claims to account for clock skew. 
+Defaults to 60 (1 minute).`,
 			},
 			"bound_subject": {
 				Type:        framework.TypeString,
@@ -173,8 +173,8 @@ type jwtRole struct {
 	// Duration of leeway for not before to account for clock skew
 	NotBeforeLeeway time.Duration `json:"not_before_leeway"`
 
-	// Boolean to add 1 minute of leeway to all claims to account for clock skew
-	ClockSkewLeeway bool `json:"clock_skew_leeway"`
+	// Duration of leeway for all claims to account for clock skew
+	ClockSkewLeeway time.Duration `json:"clock_skew_leeway"`
 
 	// Period, if set, indicates that the token generated using this role
 	// should never expire. The token should be renewed within the duration
@@ -263,7 +263,7 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 			"max_ttl":               int64(role.MaxTTL.Seconds()),
 			"expiration_leeway":     int64(role.ExpirationLeeway.Seconds()),
 			"not_before_leeway":     int64(role.NotBeforeLeeway.Seconds()),
-			"clock_skew_leeway":     role.ClockSkewLeeway,
+			"clock_skew_leeway":     int64(role.ClockSkewLeeway.Seconds()),
 			"bound_audiences":       role.BoundAudiences,
 			"bound_subject":         role.BoundSubject,
 			"bound_cidrs":           role.BoundCIDRs,
@@ -373,9 +373,9 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 	}
 
 	if tokenClockSkewLeeway, ok := data.GetOk("clock_skew_leeway"); ok {
-		role.ClockSkewLeeway = tokenClockSkewLeeway.(bool)
+		role.ClockSkewLeeway = time.Duration(tokenClockSkewLeeway.(int)) * time.Second
 	} else if req.Operation == logical.CreateOperation {
-		role.ClockSkewLeeway = true
+		role.ClockSkewLeeway = time.Duration(60 * time.Second)
 	}
 
 	if boundAudiences, ok := data.GetOk("bound_audiences"); ok {

@@ -19,7 +19,7 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
-func setupBackend(t *testing.T, oidc, role_type_oidc, audience, boundClaims, boundCIDRs, jwks, defaultLeeway bool, expLeeway, nbfLeeway int) (logical.Backend, logical.Storage) {
+func setupBackend(t *testing.T, oidc, role_type_oidc, audience, boundClaims, boundCIDRs, jwks bool, defaultLeeway, expLeeway, nbfLeeway int) (logical.Backend, logical.Storage) {
 	b, storage := getBackend(t)
 
 	var data map[string]interface{}
@@ -91,8 +91,8 @@ func setupBackend(t *testing.T, oidc, role_type_oidc, audience, boundClaims, bou
 		data["bound_cidrs"] = "127.0.0.42"
 	}
 
-	if !defaultLeeway {
-		data["clock_skew_leeway"] = false
+	if defaultLeeway >= 0 {
+		data["clock_skew_leeway"] = defaultLeeway
 	}
 
 	if expLeeway != 0 {
@@ -183,7 +183,7 @@ func TestLogin_JWT(t *testing.T) {
 func testLogin_JWT(t *testing.T, jwks bool) {
 	// Test role_type oidc
 	{
-		b, storage := setupBackend(t, false, true, true, false, false, jwks, false, 0, 0)
+		b, storage := setupBackend(t, false, true, true, false, false, jwks, 0, 0, 0)
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -231,7 +231,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 
 	// Test missing audience
 	{
-		b, storage := setupBackend(t, false, false, false, false, false, jwks, false, 0, 0)
+		b, storage := setupBackend(t, false, false, false, false, false, jwks, 0, 0, 0)
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -281,7 +281,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 	{
 		// run test with and without bound_cidrs configured
 		for _, useBoundCIDRs := range []bool{false, true} {
-			b, storage := setupBackend(t, false, false, true, true, useBoundCIDRs, jwks, false, 0, 0)
+			b, storage := setupBackend(t, false, false, true, true, useBoundCIDRs, jwks, 0, 0, 0)
 
 			cl := jwt.Claims{
 				Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -370,7 +370,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 		}
 	}
 
-	b, storage := setupBackend(t, false, false, true, true, false, jwks, false, 0, 0)
+	b, storage := setupBackend(t, false, false, true, true, false, jwks, 0, 0, 0)
 
 	// test invalid bound claim
 	{
@@ -629,7 +629,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 
 	// test invalid address
 	{
-		b, storage := setupBackend(t, false, false, false, false, true, jwks, false, 0, 0)
+		b, storage := setupBackend(t, false, false, false, false, true, jwks, 0, 0, 0)
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -717,56 +717,56 @@ func testLogin_ExpiryClaims(t *testing.T) {
 		IssuedAt      time.Time
 		NotBefore     time.Time
 		Expiration    time.Time
-		DefaultLeeway bool
+		DefaultLeeway int
 		ExpLeeway     int
 	}{
-		// iat, clock_skew_leeway (60s), auto expiration leeway (150s)
-		{"auto expire leeway using iat with clock_skew_leeway", true, false, time.Now(), time.Time{}, time.Time{}, true, 0},
-		{"auto expire leeway using iat with clock_skew_leeway", true, false, time.Now().Add(-209 * time.Second), time.Time{}, time.Time{}, true, 0},
-		{"expired auto expire leeway using iat with clock_skew_leeway", false, false, time.Now().Add(-210 * time.Second), time.Time{}, time.Time{}, true, 0},
-		{"expired auto expire leeway using iat with clock_skew_leeway", false, false, time.Now().Add(-500 * time.Second), time.Time{}, time.Time{}, true, 0},
+		// iat, default clock_skew_leeway (60s), auto expiration leeway (150s)
+		{"auto expire leeway using iat with clock_skew_leeway", true, false, time.Now(), time.Time{}, time.Time{}, -1, 0},
+		{"auto expire leeway using iat with clock_skew_leeway", true, false, time.Now().Add(-209 * time.Second), time.Time{}, time.Time{}, -1, 0},
+		{"expired auto expire leeway using iat with clock_skew_leeway", false, false, time.Now().Add(-210 * time.Second), time.Time{}, time.Time{}, -1, 0},
+		{"expired auto expire leeway using iat with clock_skew_leeway", false, false, time.Now().Add(-500 * time.Second), time.Time{}, time.Time{}, -1, 0},
 
 		// iat, no clock_skew_leeway (0s), auto expiration leeway (150s)
-		{"auto expire leeway using iat with no clock_skew_leeway", true, false, time.Now(), time.Time{}, time.Time{}, false, 0},
-		{"auto expire leeway using iat with no clock_skew_leeway", true, false, time.Now().Add(-149 * time.Second), time.Time{}, time.Time{}, false, 0},
-		{"expired auto expire leeway using iat with no clock_skew_leeway", false, false, time.Now().Add(-150 * time.Second), time.Time{}, time.Time{}, false, 0},
-		{"expired auto expire leeway using iat with no clock_skew_leeway", false, false, time.Now().Add(-500 * time.Second), time.Time{}, time.Time{}, false, 0},
+		{"auto expire leeway using iat with no clock_skew_leeway", true, false, time.Now(), time.Time{}, time.Time{}, 0, 0},
+		{"auto expire leeway using iat with no clock_skew_leeway", true, false, time.Now().Add(-149 * time.Second), time.Time{}, time.Time{}, 0, 0},
+		{"expired auto expire leeway using iat with no clock_skew_leeway", false, false, time.Now().Add(-150 * time.Second), time.Time{}, time.Time{}, 0, 0},
+		{"expired auto expire leeway using iat with no clock_skew_leeway", false, false, time.Now().Add(-500 * time.Second), time.Time{}, time.Time{}, 0, 0},
 
-		// nbf, clock_skew_leeway (60s), auto expiration leeway (150s)
-		{"auto expire leeway using nbf with clock_skew_leeway", true, false, time.Time{}, time.Now(), time.Time{}, true, 0},
-		{"auto expire leeway using nbf with clock_skew_leeway", true, false, time.Time{}, time.Now().Add(-209 * time.Second), time.Time{}, true, 0},
-		{"expired auto expire leeway using nbf with clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-210 * time.Second), time.Time{}, true, 0},
-		{"expired auto expire leeway using nbf with clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-500 * time.Second), time.Time{}, true, 0},
+		// nbf, default clock_skew_leeway (60s), auto expiration leeway (150s)
+		{"auto expire leeway using nbf with clock_skew_leeway", true, false, time.Time{}, time.Now(), time.Time{}, -1, 0},
+		{"auto expire leeway using nbf with clock_skew_leeway", true, false, time.Time{}, time.Now().Add(-209 * time.Second), time.Time{}, -1, 0},
+		{"expired auto expire leeway using nbf with clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-210 * time.Second), time.Time{}, -1, 0},
+		{"expired auto expire leeway using nbf with clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-500 * time.Second), time.Time{}, -1, 0},
 
 		// nbf, no clock_skew_leeway (0s), auto expiration leeway (150s)
-		{"auto expire leeway using nbf with no clock_skew_leeway", true, false, time.Time{}, time.Now(), time.Time{}, false, 0},
-		{"auto expire leeway using nbf with no clock_skew_leeway", true, false, time.Time{}, time.Now().Add(-149 * time.Second), time.Time{}, false, 0},
-		{"expired auto expire leeway using nbf with no clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-150 * time.Second), time.Time{}, false, 0},
-		{"expired auto expire leeway using nbf with no clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-210 * time.Second), time.Time{}, false, 0},
+		{"auto expire leeway using nbf with no clock_skew_leeway", true, false, time.Time{}, time.Now(), time.Time{}, 0, 0},
+		{"auto expire leeway using nbf with no clock_skew_leeway", true, false, time.Time{}, time.Now().Add(-149 * time.Second), time.Time{}, 0, 0},
+		{"expired auto expire leeway using nbf with no clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-150 * time.Second), time.Time{}, 0, 0},
+		{"expired auto expire leeway using nbf with no clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-210 * time.Second), time.Time{}, 0, 0},
 
-		// iat, clock_skew_leeway (60s), custom expiration leeway (10s)
-		{"custom expire leeway using iat with clock_skew_leeway", true, false, time.Now(), time.Time{}, time.Time{}, true, 0},
-		{"custom expire leeway using iat with clock_skew_leeway", true, false, time.Now().Add(-69 * time.Second), time.Time{}, time.Time{}, true, 10},
-		{"expired custom expire leeway using iat with clock_skew_leeway", false, false, time.Now().Add(-70 * time.Second), time.Time{}, time.Time{}, true, 10},
-		{"expired custom expire leeway using iat with clock_skew_leeway", false, false, time.Now().Add(-500 * time.Second), time.Time{}, time.Time{}, true, 10},
+		// iat, default clock_skew_leeway (60s), custom expiration leeway (10s)
+		{"custom expire leeway using iat with clock_skew_leeway", true, false, time.Now(), time.Time{}, time.Time{}, -1, 0},
+		{"custom expire leeway using iat with clock_skew_leeway", true, false, time.Now().Add(-69 * time.Second), time.Time{}, time.Time{}, -1, 10},
+		{"expired custom expire leeway using iat with clock_skew_leeway", false, false, time.Now().Add(-70 * time.Second), time.Time{}, time.Time{}, -1, 10},
+		{"expired custom expire leeway using iat with clock_skew_leeway", false, false, time.Now().Add(-500 * time.Second), time.Time{}, time.Time{}, -1, 10},
 
 		// iat, no clock_skew_leeway (0s), custom expiration leeway (10s)
-		{"custom expire leeway using iat with no clock_skew_leeway", true, false, time.Now(), time.Time{}, time.Time{}, false, 10},
-		{"custom expire leeway using iat with no clock_skew_leeway", true, false, time.Now().Add(-9 * time.Second), time.Time{}, time.Time{}, false, 10},
-		{"expired custom expire leeway using iat with no clock_skew_leeway", false, false, time.Now().Add(-10 * time.Second), time.Time{}, time.Time{}, false, 10},
-		{"expired custom expire leeway using iat with no clock_skew_leeway", false, false, time.Now().Add(-100 * time.Second), time.Time{}, time.Time{}, false, 10},
+		{"custom expire leeway using iat with no clock_skew_leeway", true, false, time.Now(), time.Time{}, time.Time{}, 0, 10},
+		{"custom expire leeway using iat with no clock_skew_leeway", true, false, time.Now().Add(-9 * time.Second), time.Time{}, time.Time{}, 0, 10},
+		{"expired custom expire leeway using iat with no clock_skew_leeway", false, false, time.Now().Add(-10 * time.Second), time.Time{}, time.Time{}, 0, 10},
+		{"expired custom expire leeway using iat with no clock_skew_leeway", false, false, time.Now().Add(-100 * time.Second), time.Time{}, time.Time{}, 0, 10},
 
-		// nbf, clock_skew_leeway (60s), custom expiration leeway (150s)
-		{"custom expire leeway using nbf with clock_skew_leeway", true, false, time.Time{}, time.Now(), time.Time{}, true, 10},
-		{"custom expire leeway using nbf with clock_skew_leeway", true, false, time.Time{}, time.Now().Add(-69 * time.Second), time.Time{}, true, 10},
-		{"expired custom expire leeway using nbf with clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-70 * time.Second), time.Time{}, true, 10},
-		{"expired custom expire leeway using nbf with clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-100 * time.Second), time.Time{}, true, 10},
+		// nbf, default clock_skew_leeway (60s), custom expiration leeway (150s)
+		{"custom expire leeway using nbf with clock_skew_leeway", true, false, time.Time{}, time.Now(), time.Time{}, -1, 10},
+		{"custom expire leeway using nbf with clock_skew_leeway", true, false, time.Time{}, time.Now().Add(-69 * time.Second), time.Time{}, -1, 10},
+		{"expired custom expire leeway using nbf with clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-70 * time.Second), time.Time{}, -1, 10},
+		{"expired custom expire leeway using nbf with clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-100 * time.Second), time.Time{}, -1, 10},
 
 		// nbf, no clock_skew_leeway (0s), custom custom expiration leeway (10)
-		{"custom expire leeway using nbf with no clock_skew_leeway", true, false, time.Time{}, time.Now(), time.Time{}, false, 10},
-		{"custom expire leeway using nbf with no clock_skew_leeway", true, false, time.Time{}, time.Now().Add(-9 * time.Second), time.Time{}, false, 10},
-		{"expired custom expire leeway using nbf with no clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-10 * time.Second), time.Time{}, false, 10},
-		{"expired custom expire leeway using nbf with no clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-100 * time.Second), time.Time{}, false, 10},
+		{"custom expire leeway using nbf with no clock_skew_leeway", true, false, time.Time{}, time.Now(), time.Time{}, 0, 10},
+		{"custom expire leeway using nbf with no clock_skew_leeway", true, false, time.Time{}, time.Now().Add(-9 * time.Second), time.Time{}, 0, 10},
+		{"expired custom expire leeway using nbf with no clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-10 * time.Second), time.Time{}, 0, 10},
+		{"expired custom expire leeway using nbf with no clock_skew_leeway", false, false, time.Time{}, time.Now().Add(-100 * time.Second), time.Time{}, 0, 10},
 	}
 
 	for i, tt := range tests {
@@ -797,43 +797,43 @@ func testLogin_NotBeforeClaims(t *testing.T) {
 		IssuedAt      time.Time
 		NotBefore     time.Time
 		Expiration    time.Time
-		DefaultLeeway bool
+		DefaultLeeway int
 		NBFLeeway     int
 	}{
 		// iat, clock_skew_leeway (60s), no nbf leeway (0)
-		{"no nbf leeway using exp with clock_skew_leeway", true, false, time.Now(), time.Time{}, time.Now(), true, 0},
-		{"no nbf leeway using iat with clock_skew_leeway", true, false, time.Now().Add(60 * time.Second), time.Time{}, time.Now(), true, 0},
-		{"not yet valid no nbf leeway using iat with clock_skew_leeway", false, false, time.Now().Add(61 * time.Second), time.Time{}, time.Now(), true, 0},
-		{"not yet valid no nbf leeway using iat with clock_skew_leeway", false, false, time.Now().Add(100 * time.Second), time.Time{}, time.Now(), true, 0},
+		{"no nbf leeway using exp with clock_skew_leeway", true, false, time.Now(), time.Time{}, time.Now(), -1, 0},
+		{"no nbf leeway using iat with clock_skew_leeway", true, false, time.Now().Add(60 * time.Second), time.Time{}, time.Now(), -1, 0},
+		{"not yet valid no nbf leeway using iat with clock_skew_leeway", false, false, time.Now().Add(61 * time.Second), time.Time{}, time.Now(), -1, 0},
+		{"not yet valid no nbf leeway using iat with clock_skew_leeway", false, false, time.Now().Add(100 * time.Second), time.Time{}, time.Now(), -1, 0},
 
 		// iat, no clock_skew_leeway (0s), no nbf leeway (0s)
-		{"no nbf leeway using iat with no clock_skew_leeway", true, false, time.Now(), time.Time{}, time.Time{}, false, 0},
-		{"not yet valid no nbf leeway using iat with no clock_skew_leeway", false, false, time.Now().Add(1 * time.Second), time.Time{}, time.Time{}, false, 0},
-		{"not yet valid no nbf leeway using iat with no clock_skew_leeway", false, false, time.Now().Add(60 * time.Second), time.Time{}, time.Time{}, false, 0},
+		{"no nbf leeway using iat with no clock_skew_leeway", true, false, time.Now(), time.Time{}, time.Time{}, 0, 0},
+		{"not yet valid no nbf leeway using iat with no clock_skew_leeway", false, false, time.Now().Add(1 * time.Second), time.Time{}, time.Time{}, 0, 0},
+		{"not yet valid no nbf leeway using iat with no clock_skew_leeway", false, false, time.Now().Add(60 * time.Second), time.Time{}, time.Time{}, 0, 0},
 
 		// exp, clock_skew_leeway (60s), auto nbf leeway (150s)
-		{"auto nbf leeway using exp with clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now(), true, 0},
-		{"auto nbf leeway using exp with clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now().Add(210 * time.Second), true, 0},
-		{"not yet valid auto nbf leeway using exp with clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(211 * time.Second), true, 0},
-		{"not yet valid auto nbf leeway using exp with clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(500 * time.Second), true, 0},
+		{"auto nbf leeway using exp with clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now(), -1, 0},
+		{"auto nbf leeway using exp with clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now().Add(210 * time.Second), -1, 0},
+		{"not yet valid auto nbf leeway using exp with clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(211 * time.Second), -1, 0},
+		{"not yet valid auto nbf leeway using exp with clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(500 * time.Second), -1, 0},
 
 		// exp, no clock_skew_leeway (0s), auto nbf leeway (150s)
-		{"auto nbf leeway using exp with no clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now().Add(1 * time.Second), false, 0},
-		{"auto nbf leeway using exp with no clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now().Add(150 * time.Second), false, 0},
-		{"not yet valid auto nbf leeway using exp with no clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(151 * time.Second), false, 0},
-		{"not yet valid auto nbf leeway using exp with no clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(500 * time.Second), false, 0},
+		{"auto nbf leeway using exp with no clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now().Add(1 * time.Second), 0, 0},
+		{"auto nbf leeway using exp with no clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now().Add(150 * time.Second), 0, 0},
+		{"not yet valid auto nbf leeway using exp with no clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(151 * time.Second), 0, 0},
+		{"not yet valid auto nbf leeway using exp with no clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(500 * time.Second), 0, 0},
 
 		// exp, clock_skew_leeway (60s), custom nbf leeway (10s)
-		{"custom nbf leeway using exp with clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now(), true, 10},
-		{"custom nbf leeway using exp with clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now().Add(70 * time.Second), true, 10},
-		{"not yet valid custom nbf leeway using exp with clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(71 * time.Second), true, 10},
-		{"not yet valid custom nbf leeway using exp with clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(500 * time.Second), true, 10},
+		{"custom nbf leeway using exp with clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now(), -1, 10},
+		{"custom nbf leeway using exp with clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now().Add(70 * time.Second), -1, 10},
+		{"not yet valid custom nbf leeway using exp with clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(71 * time.Second), -1, 10},
+		{"not yet valid custom nbf leeway using exp with clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(500 * time.Second), -1, 10},
 
 		// exp, no clock_skew_leeway (0s), custom nbf leeway (10s)
-		{"custom nbf leeway using exp with no clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now().Add(1 * time.Second), false, 10},
-		{"custom nbf leeway using exp with no clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now().Add(10 * time.Second), false, 10},
-		{"not yet valid custom nbf leeway using exp with no clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(11 * time.Second), false, 10},
-		{"not yet valid custom nbf leeway using exp with no clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(100 * time.Second), false, 10},
+		{"custom nbf leeway using exp with no clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now().Add(1 * time.Second), 0, 10},
+		{"custom nbf leeway using exp with no clock_skew_leeway", true, false, time.Time{}, time.Time{}, time.Now().Add(10 * time.Second), 0, 10},
+		{"not yet valid custom nbf leeway using exp with no clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(11 * time.Second), 0, 10},
+		{"not yet valid custom nbf leeway using exp with no clock_skew_leeway", false, false, time.Time{}, time.Time{}, time.Now().Add(100 * time.Second), 0, 10},
 	}
 
 	for i, tt := range tests {
@@ -894,7 +894,7 @@ func setupLogin(t *testing.T, iat, exp, nbf time.Time, b logical.Backend, storag
 }
 
 func TestLogin_OIDC(t *testing.T) {
-	b, storage := setupBackend(t, true, false, true, false, false, false, false, 0, 0)
+	b, storage := setupBackend(t, true, false, true, false, false, false, -1, 0, 0)
 
 	jwtData := getTestOIDC(t)
 
@@ -1051,7 +1051,7 @@ func TestLogin_NestedGroups(t *testing.T) {
 }
 
 func TestLogin_JWKS_Concurrent(t *testing.T) {
-	b, storage := setupBackend(t, false, false, true, false, false, true, false, 0, 0)
+	b, storage := setupBackend(t, false, false, true, false, false, true, -1, 0, 0)
 
 	cl := jwt.Claims{
 		Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",

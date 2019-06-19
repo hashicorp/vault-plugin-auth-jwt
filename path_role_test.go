@@ -70,7 +70,7 @@ func TestPath_Create(t *testing.T) {
 		MaxTTL:              5 * time.Second,
 		ExpirationLeeway:    0 * time.Second,
 		NotBeforeLeeway:     0 * time.Second,
-		ClockSkewLeeway:     true,
+		ClockSkewLeeway:     60 * time.Second,
 		NumUses:             12,
 		BoundCIDRs:          []*sockaddr.SockAddrMarshaler{{SockAddr: expectedSockAddr}},
 		AllowedRedirectURIs: []string(nil),
@@ -239,13 +239,14 @@ func TestPath_Create(t *testing.T) {
 		t.Fatalf("did not expect error")
 	}
 
-	// Test has expiration and not before custom leeways
+	// Test has expiration, not before custom leeways
 	data = map[string]interface{}{
 		"role_type":         "jwt",
 		"user_claim":        "user",
 		"policies":          "test",
 		"expiration_leeway": "5s",
 		"not_before_leeway": "5s",
+		"clock_skew_leeway": "5s",
 		"bound_claims": map[string]interface{}{
 			"foo": 10,
 			"bar": "baz",
@@ -281,12 +282,16 @@ func TestPath_Create(t *testing.T) {
 		t.Fatalf("not_before_leeway - expected: %s, got: %s", expectedDuration, actual.NotBeforeLeeway)
 	}
 
+	if actual.ClockSkewLeeway.String() != expectedDuration {
+		t.Fatalf("clock_skew_leeway - expected: %s, got: %s", expectedDuration, actual.ClockSkewLeeway)
+	}
+
 	// Test disabling clock skew leeway default
 	data = map[string]interface{}{
 		"role_type":         "jwt",
 		"user_claim":        "user",
 		"policies":          "test",
-		"clock_skew_leeway": false,
+		"clock_skew_leeway": "0",
 		"bound_claims": map[string]interface{}{
 			"foo": 10,
 			"bar": "baz",
@@ -313,8 +318,8 @@ func TestPath_Create(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if actual.ClockSkewLeeway {
-		t.Fatalf("clock_skew_leeway - expected: false, got: %v", actual.ClockSkewLeeway)
+	if actual.ClockSkewLeeway != 0 {
+		t.Fatalf("clock_skew_leeway - expected: 0, got: %v", actual.ClockSkewLeeway)
 	}
 }
 
@@ -363,7 +368,7 @@ func TestPath_OIDCCreate(t *testing.T) {
 		MaxTTL:           5 * time.Second,
 		ExpirationLeeway: 0 * time.Second,
 		NotBeforeLeeway:  0 * time.Second,
-		ClockSkewLeeway:  true,
+		ClockSkewLeeway:  60 * time.Second,
 		NumUses:          12,
 	}
 
@@ -501,7 +506,7 @@ func TestPath_Read(t *testing.T) {
 		"max_ttl":               "5s",
 		"expiration_leeway":     "500s",
 		"not_before_leeway":     "500s",
-		"clock_skew_leeway":     false,
+		"clock_skew_leeway":     "100s",
 	}
 
 	expected := map[string]interface{}{
@@ -521,7 +526,7 @@ func TestPath_Read(t *testing.T) {
 		"max_ttl":               int64(5),
 		"expiration_leeway":     int64(500),
 		"not_before_leeway":     int64(500),
-		"clock_skew_leeway":     false,
+		"clock_skew_leeway":     int64(100),
 	}
 
 	req := &logical.Request{

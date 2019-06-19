@@ -180,14 +180,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			Time:    time.Now(),
 		}
 
-		// Add 1 minute of leeway to all claims by default if ClockSkewLeeway if true.
-		// This is true by default.
-		var leeway time.Duration
-		if role.ClockSkewLeeway {
-			leeway = jwt.DefaultLeeway
-		}
-
-		if err := claims.ValidateWithLeeway(expected, leeway); err != nil {
+		if err := claims.ValidateWithLeeway(expected, role.ClockSkewLeeway); err != nil {
 			return logical.ErrorResponse(errwrap.Wrapf("error validating claims: {{err}}", err).Error()), nil
 		}
 
