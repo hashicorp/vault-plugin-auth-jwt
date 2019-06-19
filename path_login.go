@@ -15,6 +15,8 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
+const defaultCustomLeeway = 150
+
 func pathLogin(b *jwtAuthBackend) *framework.Path {
 	return &framework.Path{
 		Pattern: `login$`,
@@ -151,7 +153,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			}
 			leeway := role.ExpirationLeeway.Seconds()
 			if leeway == 0 {
-				leeway = 300
+				leeway = defaultCustomLeeway
 			}
 			*claims.Expiry = jwt.NumericDate(int64(latestStart) + int64(leeway))
 		}
@@ -162,7 +164,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			} else {
 				leeway := role.NotBeforeLeeway.Seconds()
 				if role.NotBeforeLeeway.Seconds() == 0 {
-					leeway = 300
+					leeway = defaultCustomLeeway
 				}
 				*claims.NotBefore = jwt.NumericDate(int64(*claims.Expiry) - int64(leeway))
 			}
@@ -178,11 +180,10 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			Time:    time.Now(),
 		}
 
-		// We bake leeway into expiration/not before, so we pass in a duration of 0
-		// to account for our implementation.  Default to JWT's package of 1 minute
-		// if no leeways are configured
-		leeway := time.Second * 0
-		if role.ExpirationLeeway == 0 && role.NotBeforeLeeway == 0 {
+		// Add 1 minute of leeway to all claims by default if ClockSkewLeeway if true.
+		// This is true by default.
+		var leeway time.Duration
+		if role.ClockSkewLeeway {
 			leeway = jwt.DefaultLeeway
 		}
 

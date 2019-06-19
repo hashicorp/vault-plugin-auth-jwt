@@ -70,6 +70,7 @@ func TestPath_Create(t *testing.T) {
 		MaxTTL:              5 * time.Second,
 		ExpirationLeeway:    0 * time.Second,
 		NotBeforeLeeway:     0 * time.Second,
+		ClockSkewLeeway:     true,
 		NumUses:             12,
 		BoundCIDRs:          []*sockaddr.SockAddrMarshaler{{SockAddr: expectedSockAddr}},
 		AllowedRedirectURIs: []string(nil),
@@ -279,6 +280,42 @@ func TestPath_Create(t *testing.T) {
 	if actual.NotBeforeLeeway.String() != expectedDuration {
 		t.Fatalf("not_before_leeway - expected: %s, got: %s", expectedDuration, actual.NotBeforeLeeway)
 	}
+
+	// Test disabling clock skew leeway default
+	data = map[string]interface{}{
+		"role_type":         "jwt",
+		"user_claim":        "user",
+		"policies":          "test",
+		"clock_skew_leeway": false,
+		"bound_claims": map[string]interface{}{
+			"foo": 10,
+			"bar": "baz",
+		},
+	}
+
+	req = &logical.Request{
+		Operation: logical.CreateOperation,
+		Path:      "role/test9",
+		Storage:   storage,
+		Data:      data,
+	}
+
+	resp, err = b.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp != nil && resp.IsError() {
+		t.Fatalf("did not expect error:%s", resp.Error().Error())
+	}
+
+	actual, err = b.(*jwtAuthBackend).role(context.Background(), storage, "test9")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if actual.ClockSkewLeeway {
+		t.Fatalf("clock_skew_leeway - expected: false, got: %v", actual.ClockSkewLeeway)
+	}
 }
 
 func TestPath_OIDCCreate(t *testing.T) {
@@ -326,6 +363,7 @@ func TestPath_OIDCCreate(t *testing.T) {
 		MaxTTL:           5 * time.Second,
 		ExpirationLeeway: 0 * time.Second,
 		NotBeforeLeeway:  0 * time.Second,
+		ClockSkewLeeway:  true,
 		NumUses:          12,
 	}
 
@@ -463,6 +501,7 @@ func TestPath_Read(t *testing.T) {
 		"max_ttl":               "5s",
 		"expiration_leeway":     "500s",
 		"not_before_leeway":     "500s",
+		"clock_skew_leeway":     false,
 	}
 
 	expected := map[string]interface{}{
@@ -482,6 +521,7 @@ func TestPath_Read(t *testing.T) {
 		"max_ttl":               int64(5),
 		"expiration_leeway":     int64(500),
 		"not_before_leeway":     int64(500),
+		"clock_skew_leeway":     false,
 	}
 
 	req := &logical.Request{
