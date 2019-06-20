@@ -58,7 +58,6 @@ func TestPath_Create(t *testing.T) {
 		t.Fatal(err)
 	}
 
-
 	expected := &jwtRole{
 		RoleType:            "jwt",
 		Policies:            []string{"test"},
@@ -69,9 +68,9 @@ func TestPath_Create(t *testing.T) {
 		GroupsClaim:         "groups",
 		TTL:                 1 * time.Second,
 		MaxTTL:              5 * time.Second,
-		ExpirationLeeway:    nil,
-		NotBeforeLeeway:     nil,
-		ClockSkewLeeway:     nil,
+		ExpirationLeeway:    0,
+		NotBeforeLeeway:     0,
+		ClockSkewLeeway:     0,
 		NumUses:             12,
 		BoundCIDRs:          []*sockaddr.SockAddrMarshaler{{SockAddr: expectedSockAddr}},
 		AllowedRedirectURIs: []string(nil),
@@ -319,7 +318,7 @@ func TestPath_Create(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if *actual.ClockSkewLeeway != 0 {
+	if actual.ClockSkewLeeway != 0 {
 		t.Fatalf("clock_skew_leeway - expected: 0, got: %v", actual.ClockSkewLeeway)
 	}
 }
@@ -339,13 +338,16 @@ func TestPath_OIDCCreate(t *testing.T) {
 			"foo": "a",
 			"bar": "b",
 		},
-		"user_claim":   "user",
-		"groups_claim": "groups",
-		"policies":     "test",
-		"period":       "3s",
-		"ttl":          "1s",
-		"num_uses":     12,
-		"max_ttl":      "5s",
+		"user_claim":        "user",
+		"groups_claim":      "groups",
+		"policies":          "test",
+		"period":            "3s",
+		"ttl":               "1s",
+		"num_uses":          12,
+		"max_ttl":           "5s",
+		"expiration_leeway": "300s",
+		"not_before_leeway": "300s",
+		"clock_skew_leeway": "1s",
 	}
 
 	expected := &jwtRole{
@@ -367,9 +369,9 @@ func TestPath_OIDCCreate(t *testing.T) {
 		GroupsClaim:      "groups",
 		TTL:              1 * time.Second,
 		MaxTTL:           5 * time.Second,
-		ExpirationLeeway: nil,
-		NotBeforeLeeway:  nil,
-		ClockSkewLeeway:  nil,
+		ExpirationLeeway: 300 * time.Second,
+		NotBeforeLeeway:  300 * time.Second,
+		ClockSkewLeeway:  1 * time.Second,
 		NumUses:          12,
 	}
 

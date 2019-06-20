@@ -149,29 +149,22 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			if *claims.NotBefore > *claims.IssuedAt {
 				latestStart = *claims.NotBefore
 			}
-			// Check if pointer is nil so we can set a proper default because zero is meaningful
-			var leeway time.Duration
-			if role.ExpirationLeeway == nil {
-				leeway = claimLeewayDefault
-			} else {
-				leeway = *role.ExpirationLeeway
+			leeway := role.ExpirationLeeway.Seconds()
+			if role.ExpirationLeeway.Seconds() == 0 {
+				leeway = claimDefaultLeeway
 			}
-
-			*claims.Expiry = jwt.NumericDate(int64(latestStart) + int64(leeway.Seconds()))
+			*claims.Expiry = jwt.NumericDate(int64(latestStart) + int64(leeway))
 		}
 
 		if *claims.NotBefore == 0 {
 			if *claims.IssuedAt != 0 {
 				*claims.NotBefore = *claims.IssuedAt
 			} else {
-				// Check if pointer is nil so we can set a proper default because zero is meaningful
-				var leeway time.Duration
-				if role.NotBeforeLeeway == nil {
-					leeway = claimLeewayDefault
-				} else {
-					leeway = *role.NotBeforeLeeway
+				leeway := role.NotBeforeLeeway.Seconds()
+				if role.NotBeforeLeeway.Seconds() == 0 {
+					leeway = claimDefaultLeeway
 				}
-				*claims.NotBefore = jwt.NumericDate(int64(*claims.Expiry) - int64(leeway.Seconds()))
+				*claims.NotBefore = jwt.NumericDate(int64(*claims.Expiry) - int64(leeway))
 			}
 		}
 
@@ -185,12 +178,9 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			Time:    time.Now(),
 		}
 
-		// Check if pointer is nil so we can set a proper default because zero is meaningful
-		var cksLeeway time.Duration
-		if role.ClockSkewLeeway == nil {
+		cksLeeway := role.ClockSkewLeeway
+		if role.ClockSkewLeeway.Seconds() == 0 {
 			cksLeeway = jwt.DefaultLeeway
-		} else {
-			cksLeeway = *role.ClockSkewLeeway
 		}
 
 		if err := claims.ValidateWithLeeway(expected, cksLeeway); err != nil {
