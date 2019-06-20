@@ -18,6 +18,8 @@ import (
 
 var reservedMetadata = []string{"role"}
 
+const claimLeewayDefault = time.Duration(150 * time.Second)
+
 func pathRoleList(b *jwtAuthBackend) *framework.Path {
 	return &framework.Path{
 		Pattern: "role/?",
@@ -75,13 +77,13 @@ TTL will be set to the value of this parameter.`,
 				Type: framework.TypeDurationSecond,
 				Description: `Duration in seconds of leeway when validating expiration of a token to account for clock skew. 
 Defaults to 150 (2.5 minutes).`,
-				Default: 150,
+				Default: claimLeewayDefault,
 			},
 			"not_before_leeway": {
 				Type: framework.TypeDurationSecond,
 				Description: `Duration in seconds of leeway when validating not before values of a token to account for clock skew. 
 Defaults to 150 (2.5 minutes).`,
-				Default: 150,
+				Default: claimLeewayDefault,
 			},
 			"clock_skew_leeway": {
 				Type: framework.TypeDurationSecond,
@@ -172,13 +174,13 @@ type jwtRole struct {
 	MaxTTL time.Duration `json:"max_ttl"`
 
 	// Duration of leeway for expiration to account for clock skew
-	ExpirationLeeway time.Duration `json:"expiration_leeway"`
+	ExpirationLeeway *time.Duration `json:"expiration_leeway"`
 
 	// Duration of leeway for not before to account for clock skew
-	NotBeforeLeeway time.Duration `json:"not_before_leeway"`
+	NotBeforeLeeway *time.Duration `json:"not_before_leeway"`
 
 	// Duration of leeway for all claims to account for clock skew
-	ClockSkewLeeway time.Duration `json:"clock_skew_leeway"`
+	ClockSkewLeeway *time.Duration `json:"clock_skew_leeway"`
 
 	// Period, if set, indicates that the token generated using this role
 	// should never expire. The token should be renewed within the duration
@@ -364,22 +366,41 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 		role.MaxTTL = time.Duration(data.Get("max_ttl").(int)) * time.Second
 	}
 
-	if tokenExpLeewayRaw, ok := data.GetOk("expiration_leeway"); ok {
-		role.ExpirationLeeway = time.Duration(tokenExpLeewayRaw.(int)) * time.Second
-	} else if req.Operation == logical.CreateOperation {
-		role.ExpirationLeeway = time.Duration(data.Get("expiration_leeway").(int)) * time.Second
+
+	if tokenExpLeewayRaw, ok := data.Raw["expiration_leeway"]; ok {
+		leeway, err := parseutil.ParseDurationSecond(tokenExpLeewayRaw)
+		if err != nil {
+			return logical.ErrorResponse("could not parse 'expiration_leeway': %s", err), nil
+		}
+		if leeway < 0 {
+			role.ExpirationLeeway = nil
+		} else {
+			role.ExpirationLeeway = &leeway
+		}
 	}
 
-	if tokenNotBeforeLeewayRaw, ok := data.GetOk("not_before_leeway"); ok {
-		role.NotBeforeLeeway = time.Duration(tokenNotBeforeLeewayRaw.(int)) * time.Second
-	} else if req.Operation == logical.CreateOperation {
-		role.NotBeforeLeeway = time.Duration(data.Get("not_before_leeway").(int)) * time.Second
+	if tokenNotBeforeLeewayRaw, ok := data.Raw["not_before_leeway"]; ok {
+		leeway, err := parseutil.ParseDurationSecond(tokenNotBeforeLeewayRaw)
+		if err != nil {
+			return logical.ErrorResponse("could not parse 'not_before_leeway': %s", err), nil
+		}
+		if leeway < 0 {
+			role.NotBeforeLeeway = nil
+		} else {
+			role.NotBeforeLeeway = &leeway
+		}
 	}
 
-	if tokenClockSkewLeeway, ok := data.GetOk("clock_skew_leeway"); ok {
-		role.ClockSkewLeeway = time.Duration(tokenClockSkewLeeway.(int)) * time.Second
-	} else if req.Operation == logical.CreateOperation {
-		role.ClockSkewLeeway = time.Duration(data.Get("clock_skew_leeway").(int)) * time.Second
+	if tokenClockSkewLeeway, ok := data.Raw["clock_skew_leeway"]; ok {
+		leeway, err := parseutil.ParseDurationSecond(tokenClockSkewLeeway)
+		if err != nil {
+			return logical.ErrorResponse("could not parse 'clock_skew_leeway': %s", err), nil
+		}
+		if leeway < 0 {
+			role.ClockSkewLeeway = nil
+		} else {
+			role.ClockSkewLeeway = &leeway
+		}
 	}
 
 	if boundAudiences, ok := data.GetOk("bound_audiences"); ok {
