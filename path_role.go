@@ -379,7 +379,7 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 	if tokenClockSkewLeeway, ok := data.GetOk("clock_skew_leeway"); ok {
 		role.ClockSkewLeeway = time.Duration(tokenClockSkewLeeway.(int)) * time.Second
 	} else if req.Operation == logical.CreateOperation {
-		role.ClockSkewLeeway = data.Get("clock_skew_leeway").(time.Duration)
+		role.ClockSkewLeeway = time.Duration(data.Get("clock_skew_leeway").(int)) * time.Second
 	}
 
 	if boundAudiences, ok := data.GetOk("bound_audiences"); ok {
