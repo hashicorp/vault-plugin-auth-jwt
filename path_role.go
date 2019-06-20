@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gopkg.in/square/go-jose.v2/jwt"
 	"strings"
 	"time"
 
-	sockaddr "github.com/hashicorp/go-sockaddr"
+	"github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/parseutil"
 	"github.com/hashicorp/vault/sdk/helper/policyutil"
@@ -74,16 +75,19 @@ TTL will be set to the value of this parameter.`,
 				Type: framework.TypeDurationSecond,
 				Description: `Duration in seconds of leeway when validating expiration of a token to account for clock skew. 
 Defaults to 150 (2.5 minutes).`,
+				Default: 150,
 			},
 			"not_before_leeway": {
 				Type: framework.TypeDurationSecond,
 				Description: `Duration in seconds of leeway when validating not before values of a token to account for clock skew. 
 Defaults to 150 (2.5 minutes).`,
+				Default: 150,
 			},
 			"clock_skew_leeway": {
 				Type: framework.TypeDurationSecond,
 				Description: `Duration in seconds of leeway when validating all claims to account for clock skew. 
 Defaults to 60 (1 minute).`,
+				Default: jwt.DefaultLeeway,
 			},
 			"bound_subject": {
 				Type:        framework.TypeString,
@@ -375,7 +379,7 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 	if tokenClockSkewLeeway, ok := data.GetOk("clock_skew_leeway"); ok {
 		role.ClockSkewLeeway = time.Duration(tokenClockSkewLeeway.(int)) * time.Second
 	} else if req.Operation == logical.CreateOperation {
-		role.ClockSkewLeeway = time.Duration(60 * time.Second)
+		role.ClockSkewLeeway = data.Get("clock_skew_leeway").(time.Duration)
 	}
 
 	if boundAudiences, ok := data.GetOk("bound_audiences"); ok {

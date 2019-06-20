@@ -15,8 +15,6 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
-const defaultCustomLeeway = 150
-
 func pathLogin(b *jwtAuthBackend) *framework.Path {
 	return &framework.Path{
 		Pattern: `login$`,
@@ -151,22 +149,14 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			if *claims.NotBefore > *claims.IssuedAt {
 				latestStart = *claims.NotBefore
 			}
-			leeway := role.ExpirationLeeway.Seconds()
-			if leeway == 0 {
-				leeway = defaultCustomLeeway
-			}
-			*claims.Expiry = jwt.NumericDate(int64(latestStart) + int64(leeway))
+			*claims.Expiry = jwt.NumericDate(int64(latestStart) + int64(role.ExpirationLeeway.Seconds()))
 		}
 
 		if *claims.NotBefore == 0 {
 			if *claims.IssuedAt != 0 {
 				*claims.NotBefore = *claims.IssuedAt
 			} else {
-				leeway := role.NotBeforeLeeway.Seconds()
-				if role.NotBeforeLeeway.Seconds() == 0 {
-					leeway = defaultCustomLeeway
-				}
-				*claims.NotBefore = jwt.NumericDate(int64(*claims.Expiry) - int64(leeway))
+				*claims.NotBefore = jwt.NumericDate(int64(*claims.Expiry) - int64(role.NotBeforeLeeway.Seconds()))
 			}
 		}
 
