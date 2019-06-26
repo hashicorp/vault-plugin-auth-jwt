@@ -760,7 +760,9 @@ func testLogin_ExpiryClaims(t *testing.T, jwks bool) {
 
 		// nbf, clock_skew_leeway (10s), no expiration leeway (0s)
 		{"no expire leeway using nbf with clock_skew_leeway", true, jwks, time.Time{}, time.Now().Add(-5 * time.Second), time.Time{}, 10, -1},
+		{"no expire leeway using nbf with clock_skew_leeway", true, jwks, time.Time{}, time.Now().Add(-5 * time.Second), time.Time{}, 10, -100},
 		{"expired no expire leeway using nbf with clock_skew_leeway", false, jwks, time.Time{}, time.Now().Add(-15 * time.Second), time.Time{}, 10, -1},
+		{"expired no expire leeway using nbf with clock_skew_leeway", false, jwks, time.Time{}, time.Now().Add(-15 * time.Second), time.Time{}, 10, -100},
 	}
 
 	for i, tt := range tests {
@@ -828,7 +830,9 @@ func testLogin_NotBeforeClaims(t *testing.T, jwks bool) {
 
 		// exp, no clock_skew_leeway (0s), custom nbf leeway (5s)
 		{"custom nbf leeway using exp with no clock_skew_leeway", true, jwks, time.Time{}, time.Time{}, time.Now().Add(3 * time.Second), -1, 5},
+		{"custom nbf leeway using exp with no clock_skew_leeway", true, jwks, time.Time{}, time.Time{}, time.Now().Add(3 * time.Second), -100, 5},
 		{"not yet valid custom nbf leeway using exp with no clock_skew_leeway", false, jwks, time.Time{}, time.Time{}, time.Now().Add(7 * time.Second), -1, 5},
+		{"not yet valid custom nbf leeway using exp with no clock_skew_leeway", false, jwks, time.Time{}, time.Time{}, time.Now().Add(7 * time.Second), -100, 5},
 	}
 
 	for i, tt := range tests {
