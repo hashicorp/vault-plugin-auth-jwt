@@ -168,6 +168,8 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	if role.VerboseOIDCLogging {
 		if c, err := json.Marshal(allClaims); err == nil {
 			b.Logger().Debug("OIDC provider response", "claims", string(c))
+		} else {
+			b.Logger().Debug("OIDC provider response", "marshalling error", err.Error())
 		}
 	}
 

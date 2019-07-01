@@ -131,6 +131,9 @@ authenticate against this role`,
 			},
 			"verbose_oidc_logging": {
 				Type: framework.TypeBool,
+				Description: `Log received OIDC tokens and claims when debug-level logging is active. 
+Not recommended in production since sensitive information may be present 
+in OIDC responses.`,
 			},
 		},
 		ExistenceCheck: b.pathRoleExistenceCheck,
@@ -469,10 +472,15 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 		return logical.ErrorResponse("ttl should not be greater than max_ttl"), nil
 	}
 
-	var resp *logical.Response
+	resp := &logical.Response{}
 	if role.MaxTTL > b.System().MaxLeaseTTL() {
-		resp = &logical.Response{}
 		resp.AddWarning("max_ttl is greater than the system or backend mount's maximum TTL value; issued tokens' max TTL value will be truncated")
+	}
+
+	if role.VerboseOIDCLogging {
+		resp.AddWarning(`verbose_oidc_logging has been enabled for this role. ` +
+			`This is not recommended in production since sensitive information ` +
+			`may be present in OIDC responses.`)
 	}
 
 	// Store the entry.
