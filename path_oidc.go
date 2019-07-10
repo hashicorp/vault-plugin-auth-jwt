@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/vault/sdk/helper/consts"
+
 	"github.com/hashicorp/vault/sdk/helper/cidrutil"
 	"github.com/hashicorp/vault/sdk/helper/strutil"
 
@@ -78,6 +80,12 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 }
 
 func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+
+	// Because the state is cached, only process OIDC logins on the cluster leader
+	if b.shouldForwardRequest() {
+		return nil, logical.ErrReadOnly
+	}
+
 	state := b.verifyState(d.Get("state").(string))
 	if state == nil {
 		return logical.ErrorResponse(errLoginFailed + " Expired or missing OAuth state."), nil
@@ -218,6 +226,11 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	logger := b.Logger()
 
+	// Because the state is cached, only process logins on the cluster leader
+	if b.shouldForwardRequest() {
+		return nil, logical.ErrReadOnly
+	}
+
 	// default response for most error/invalid conditions
 	resp := &logical.Response{
 		Data: map[string]interface{}{
@@ -357,4 +370,11 @@ func validRedirect(uri string, allowed []string) bool {
 	}
 
 	return false
+}
+
+func (b *jwtAuthBackend) shouldForwardRequest() bool {
+	replState := b.System().ReplicationState()
+
+	return replState.HasState(consts.ReplicationPerformanceSecondary) ||
+		replState.HasState(consts.ReplicationPerformanceStandby)
 }
