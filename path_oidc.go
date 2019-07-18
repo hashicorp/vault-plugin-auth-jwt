@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/vault/helper/namespace"
 	"github.com/hashicorp/vault/sdk/helper/cidrutil"
 	"github.com/hashicorp/vault/sdk/helper/strutil"
 
@@ -218,6 +219,11 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	logger := b.Logger()
 
+	ns, err := namespace.FromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// default response for most error/invalid conditions
 	resp := &logical.Response{
 		Data: map[string]interface{}{
@@ -281,7 +287,7 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 		Scopes:       scopes,
 	}
 
-	stateID, nonce, err := b.createState(roleName, redirectURI)
+	stateID, nonce, err := b.createState(roleName, redirectURI, ns.Path)
 	if err != nil {
 		logger.Warn("error generating OAuth state", "error", err)
 		return resp, nil
@@ -295,14 +301,14 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 // createState make an expiring state object, associated with a random state ID
 // that is passed throughout the OAuth process. A nonce is also included in the
 // auth process, and for simplicity will be identical in length/format as the state ID.
-func (b *jwtAuthBackend) createState(rolename, redirectURI string) (string, string, error) {
+func (b *jwtAuthBackend) createState(rolename, redirectURI, namespace string) (string, string, error) {
 	// Get enough bytes for 2 160-bit IDs (per rfc6749#section-10.10)
 	bytes, err := uuid.GenerateRandomBytes(2 * 20)
 	if err != nil {
 		return "", "", err
 	}
 
-	stateID := fmt.Sprintf("%x", bytes[:20])
+	stateID := fmt.Sprintf("%x-%s", bytes[:20], namespace)
 	nonce := fmt.Sprintf("%x", bytes[20:])
 
 	b.oidcStates.SetDefault(stateID, &oidcState{
