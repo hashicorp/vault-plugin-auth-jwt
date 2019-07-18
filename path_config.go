@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/hashicorp/vault/helper/namespace"
+
 	"github.com/coreos/go-oidc"
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/go-cleanhttp"
@@ -120,6 +122,11 @@ func (b *jwtAuthBackend) config(ctx context.Context, s logical.Storage) (*jwtCon
 }
 
 func (b *jwtAuthBackend) pathConfigRead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	ns, err := namespace.FromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	_ = ns
 	config, err := b.config(ctx, req.Storage)
 	if err != nil {
 		return nil, err

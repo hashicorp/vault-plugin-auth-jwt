@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/vault/helper/namespace"
+
 	"github.com/hashicorp/vault/sdk/helper/cidrutil"
 	"github.com/hashicorp/vault/sdk/helper/strutil"
 
@@ -219,6 +220,7 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	logger := b.Logger()
 
+	//ns := namespace.Namespace{Path: "ns1"}
 	ns, err := namespace.FromContext(ctx)
 	if err != nil {
 		return nil, err
