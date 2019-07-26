@@ -21,7 +21,7 @@ jobs:
           name: "Move to GOPATH"
           command: |
             mkdir -p $GOPATH/src/github.com/hashicorp/vault-plugin-auth-jwt
-            mv /home/circleci/src/github.com/hashicorp/vault-plugin-auth-kerberos/* $GOPATH/src/github.com/hashicorp/vault-plugin-auth-jwt
+            mv /home/circleci/src/github.com/hashicorp/vault-plugin-auth-jwt/* $GOPATH/src/github.com/hashicorp/vault-plugin-auth-jwt
       - run:
           name: "Run Tests"
           command: |
