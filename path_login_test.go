@@ -836,7 +836,6 @@ func testLogin_ExpiryClaims(t *testing.T, jwks bool) {
 			defaultLeeway: tt.DefaultLeeway,
 			expLeeway:     tt.ExpLeeway,
 		}
-		//b, storage := setupBackend(t, false, false, true, false, false, tt.JWKS, tt.DefaultLeeway, tt.ExpLeeway, 0, "")
 		b, storage := setupBackend(t, cfg)
 		req := setupLogin(t, tt.IssuedAt, tt.Expiration, tt.NotBefore, b, storage)
 

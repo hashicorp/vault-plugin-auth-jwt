@@ -423,10 +423,10 @@ func Test_normalizeList(t *testing.T) {
 	for _, tt := range tests {
 		normalized, ok := normalizeList(tt.raw)
 		if !reflect.DeepEqual(normalized, tt.normalized) {
-			t.Errorf("normalizeList() got = %v, want %v", normalized, tt.normalized)
+			t.Errorf("normalizeList() got normalized = %v, want %v", normalized, tt.normalized)
 		}
 		if ok != tt.ok {
-			t.Errorf("normalizeList() got1 = %v, want %v", ok, tt.ok)
+			t.Errorf("normalizeList() got ok = %v, want %v", ok, tt.ok)
 		}
 	}
 }
