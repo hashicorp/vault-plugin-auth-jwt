@@ -101,19 +101,19 @@ func validateBoundClaims(logger log.Logger, boundClaims, allClaims map[string]in
 		switch v := actValue.(type) {
 		case []interface{}:
 			actVals = v
-		case string:
+		case string, bool:
 			actVals = []interface{}{v}
 		default:
-			return fmt.Errorf("received claim is not a string or list: %v", actValue)
+			return fmt.Errorf("received claim is not a string, boolean or list: %v", actValue)
 		}
 
 		switch v := expValue.(type) {
 		case []interface{}:
 			expVals = v
-		case string:
+		case string, bool:
 			expVals = []interface{}{v}
 		default:
-			return fmt.Errorf("bound claim is not a string or list: %v", expValue)
+			return fmt.Errorf("bound claim is not a string, boolean or list: %v", expValue)
 		}
 
 		found := false
