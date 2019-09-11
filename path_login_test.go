@@ -19,23 +19,52 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
-func setupBackend(t *testing.T, oidc, role_type_oidc, audience, boundClaims, boundCIDRs, jwks bool, defaultLeeway, expLeeway, nbfLeeway int) (logical.Backend, logical.Storage) {
+type testConfig struct {
+	oidc           bool
+	role_type_oidc bool
+	audience       bool
+	boundClaims    bool
+	boundCIDRs     bool
+	jwks           bool
+	defaultLeeway  int
+	expLeeway      int
+	nbfLeeway      int
+	groupsClaim    string
+}
+
+type closeableBackend struct {
+	logical.Backend
+
+	closeServerFunc func()
+}
+
+func setupBackend(t *testing.T, cfg testConfig) (closeableBackend, logical.Storage) {
+	cb := closeableBackend{
+		closeServerFunc: func() {},
+	}
+
 	b, storage := getBackend(t)
 
+	if cfg.groupsClaim == "" {
+		cfg.groupsClaim = "https://vault/groups"
+	}
+
 	var data map[string]interface{}
-	if oidc {
+	if cfg.oidc {
 		data = map[string]interface{}{
 			"bound_issuer":       "https://team-vault.auth0.com/",
 			"oidc_discovery_url": "https://team-vault.auth0.com/",
 		}
 	} else {
-		if !jwks {
+		if !cfg.jwks {
 			data = map[string]interface{}{
 				"bound_issuer":           "https://team-vault.auth0.com/",
 				"jwt_validation_pubkeys": ecdsaPubKey,
 			}
 		} else {
 			p := newOIDCProvider(t)
+			cb.closeServerFunc = p.server.Close
+
 			cert, err := p.getTLSCert()
 			if err != nil {
 				t.Fatal(err)
@@ -64,7 +93,7 @@ func setupBackend(t *testing.T, oidc, role_type_oidc, audience, boundClaims, bou
 		"role_type":     "jwt",
 		"bound_subject": "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
 		"user_claim":    "https://vault/user",
-		"groups_claim":  "https://vault/groups",
+		"groups_claim":  cfg.groupsClaim,
 		"policies":      "test",
 		"period":        "3s",
 		"ttl":           "1s",
@@ -75,25 +104,25 @@ func setupBackend(t *testing.T, oidc, role_type_oidc, audience, boundClaims, bou
 			"/org/primary": "primary_org",
 		},
 	}
-	if role_type_oidc {
+	if cfg.role_type_oidc {
 		data["role_type"] = "oidc"
 		data["allowed_redirect_uris"] = "http://127.0.0.1"
 	}
-	if audience {
+	if cfg.audience {
 		data["bound_audiences"] = []string{"https://vault.plugin.auth.jwt.test", "another_audience"}
 	}
-	if boundClaims {
+	if cfg.boundClaims {
 		data["bound_claims"] = map[string]interface{}{
 			"color": "green",
 		}
 	}
-	if boundCIDRs {
+	if cfg.boundCIDRs {
 		data["bound_cidrs"] = "127.0.0.42"
 	}
 
-	data["clock_skew_leeway"] = defaultLeeway
-	data["expiration_leeway"] = expLeeway
-	data["not_before_leeway"] = nbfLeeway
+	data["clock_skew_leeway"] = cfg.defaultLeeway
+	data["expiration_leeway"] = cfg.expLeeway
+	data["not_before_leeway"] = cfg.nbfLeeway
 
 	req = &logical.Request{
 		Operation: logical.CreateOperation,
@@ -107,7 +136,9 @@ func setupBackend(t *testing.T, oidc, role_type_oidc, audience, boundClaims, bou
 		t.Fatalf("err:%s resp:%#v\n", err, resp)
 	}
 
-	return b, storage
+	cb.Backend = b
+
+	return cb, storage
 }
 
 func getTestJWT(t *testing.T, privKey string, cl jwt.Claims, privateCl interface{}) (string, *ecdsa.PrivateKey) {
@@ -175,7 +206,12 @@ func TestLogin_JWT(t *testing.T) {
 func testLogin_JWT(t *testing.T, jwks bool) {
 	// Test role_type oidc
 	{
-		b, storage := setupBackend(t, false, true, true, false, false, jwks, 0, 0, 0)
+		cfg := testConfig{
+			role_type_oidc: true,
+			audience:       true,
+			jwks:           jwks,
+		}
+		b, storage := setupBackend(t, cfg)
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -226,7 +262,11 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 
 	// Test missing audience
 	{
-		b, storage := setupBackend(t, false, false, false, false, false, jwks, 0, 0, 0)
+
+		cfg := testConfig{
+			jwks: jwks,
+		}
+		b, storage := setupBackend(t, cfg)
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -279,7 +319,13 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 	{
 		// run test with and without bound_cidrs configured
 		for _, useBoundCIDRs := range []bool{false, true} {
-			b, storage := setupBackend(t, false, false, true, true, useBoundCIDRs, jwks, 0, 0, 0)
+			cfg := testConfig{
+				audience:    true,
+				boundClaims: true,
+				boundCIDRs:  useBoundCIDRs,
+				jwks:        jwks,
+			}
+			b, storage := setupBackend(t, cfg)
 
 			cl := jwt.Claims{
 				Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -368,7 +414,12 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 		}
 	}
 
-	b, storage := setupBackend(t, false, false, true, true, false, jwks, 0, 0, 0)
+	cfg := testConfig{
+		audience:    true,
+		boundClaims: true,
+		jwks:        jwks,
+	}
+	b, storage := setupBackend(t, cfg)
 
 	// test invalid bound claim
 	{
@@ -645,7 +696,11 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 
 	// test invalid address
 	{
-		b, storage := setupBackend(t, false, false, false, false, true, jwks, 0, 0, 0)
+		cfg := testConfig{
+			boundCIDRs: true,
+			jwks:       jwks,
+		}
+		b, storage := setupBackend(t, cfg)
 
 		cl := jwt.Claims{
 			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
@@ -789,7 +844,13 @@ func testLogin_ExpiryClaims(t *testing.T, jwks bool) {
 	}
 
 	for i, tt := range tests {
-		b, storage := setupBackend(t, false, false, true, false, false, tt.JWKS, tt.DefaultLeeway, tt.ExpLeeway, 0)
+		cfg := testConfig{
+			audience:      true,
+			jwks:          tt.JWKS,
+			defaultLeeway: tt.DefaultLeeway,
+			expLeeway:     tt.ExpLeeway,
+		}
+		b, storage := setupBackend(t, cfg)
 		req := setupLogin(t, tt.IssuedAt, tt.Expiration, tt.NotBefore, b, storage)
 
 		resp, err := b.HandleRequest(context.Background(), req)
@@ -805,6 +866,7 @@ func testLogin_ExpiryClaims(t *testing.T, jwks bool) {
 		} else if !tt.Valid && !resp.IsError() {
 			t.Fatalf("[test %d: %s jws: %v] expected token expired error, got : %v", i, tt.Context, tt.JWKS, *resp)
 		}
+		b.closeServerFunc()
 	}
 }
 
@@ -859,7 +921,14 @@ func testLogin_NotBeforeClaims(t *testing.T, jwks bool) {
 	}
 
 	for i, tt := range tests {
-		b, storage := setupBackend(t, false, false, true, false, false, tt.JWKS, tt.DefaultLeeway, 0, tt.NBFLeeway)
+		cfg := testConfig{
+			audience:      true,
+			jwks:          tt.JWKS,
+			defaultLeeway: tt.DefaultLeeway,
+			expLeeway:     0,
+			nbfLeeway:     tt.NBFLeeway,
+		}
+		b, storage := setupBackend(t, cfg)
 		req := setupLogin(t, tt.IssuedAt, tt.Expiration, tt.NotBefore, b, storage)
 
 		resp, err := b.HandleRequest(context.Background(), req)
@@ -875,6 +944,7 @@ func testLogin_NotBeforeClaims(t *testing.T, jwks bool) {
 		} else if !tt.Valid && !resp.IsError() {
 			t.Fatalf("[test %d: %s jws: %v] expected token not valid yet error, got : %v", i, tt.Context, *resp, tt.JWKS)
 		}
+		b.closeServerFunc()
 	}
 }
 
@@ -919,7 +989,12 @@ func setupLogin(t *testing.T, iat, exp, nbf time.Time, b logical.Backend, storag
 }
 
 func TestLogin_OIDC(t *testing.T) {
-	b, storage := setupBackend(t, true, false, true, false, false, false, -1, 0, 0)
+	cfg := testConfig{
+		oidc:          true,
+		audience:      true,
+		defaultLeeway: -1,
+	}
+	b, storage := setupBackend(t, cfg)
 
 	jwtData := getTestOIDC(t)
 
@@ -1081,8 +1156,58 @@ func TestLogin_NestedGroups(t *testing.T) {
 	}
 }
 
+func TestLogin_OIDC_StringGroupClaim(t *testing.T) {
+	cfg := testConfig{
+		oidc:          true,
+		audience:      true,
+		jwks:          false,
+		defaultLeeway: -1,
+		groupsClaim:   "https://vault/groups/string",
+	}
+	b, storage := setupBackend(t, cfg)
+
+	jwtData := getTestOIDC(t)
+
+	data := map[string]interface{}{
+		"role": "plugin-test",
+		"jwt":  jwtData,
+	}
+
+	req := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      "login",
+		Storage:   storage,
+		Data:      data,
+		Connection: &logical.Connection{
+			RemoteAddr: "127.0.0.1",
+		},
+	}
+
+	resp, err := b.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp == nil {
+		t.Fatal("got nil response")
+	}
+	if resp.IsError() {
+		t.Fatalf("got error: %v", resp.Error())
+	}
+
+	auth := resp.Auth
+	switch {
+	case len(auth.GroupAliases) != 1 || auth.GroupAliases[0].Name != "just_a_string":
+		t.Fatal(auth.GroupAliases)
+	}
+}
+
 func TestLogin_JWKS_Concurrent(t *testing.T) {
-	b, storage := setupBackend(t, false, false, true, false, false, true, -1, 0, 0)
+	cfg := testConfig{
+		audience:      true,
+		jwks:          true,
+		defaultLeeway: -1,
+	}
+	b, storage := setupBackend(t, cfg)
 
 	cl := jwt.Claims{
 		Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
