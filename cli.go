@@ -136,8 +136,8 @@ func fetchAuthURL(c *api.Client, role, mount, port string, callbackHost string) 
 	return authURL, nil
 }
 
-// isWsl tests if the binary is being run in Windows Subsystem for Linux
-func isWsl() bool {
+// isWSL tests if the binary is being run in Windows Subsystem for Linux
+func isWSL() bool {
 	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
 		return false
 	}
@@ -156,7 +156,7 @@ func openURL(url string) error {
 	var args []string
 
 	switch {
-	case "windows" == runtime.GOOS || isWsl():
+	case "windows" == runtime.GOOS || isWSL():
 		cmd = "cmd.exe"
 		args = []string{"/c", "start"}
 		url = strings.Replace(url, "&", "^&", -1)
