@@ -143,7 +143,7 @@ func isWSL() bool {
 	}
 	data, err := ioutil.ReadFile("/proc/version")
 	if err != nil {
-		fmt.Println("unable to read /proc/version")
+		fmt.Fprintf(os.Stderr, "Unable to read /proc/version.\n")
 		return false
 	}
 	return strings.Contains(strings.ToLower(string(data)), "microsoft")
