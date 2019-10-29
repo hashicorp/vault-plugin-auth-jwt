@@ -344,7 +344,7 @@ func (b *jwtAuthBackend) createIdentity(allClaims map[string]interface{}, role *
 		// return nil, nil, fmt.Errorf("%q claim not found in token", role.GroupsClaim)
 		azureClaimSourcesURL := getClaimSources(b.Logger(), allClaims, b.cachedConfig)
 		if azureClaimSourcesURL == "" {
-			return nil, nil, fmt.Errorf("_claim_sources is empty")
+			return nil, nil, fmt.Errorf("%q claim not found in token: %v", role.GroupsClaim, err)
 		}
 
 		azureGroups, err := getAzureGroups(b.Logger(), azureClaimSourcesURL, b.cachedConfig)
