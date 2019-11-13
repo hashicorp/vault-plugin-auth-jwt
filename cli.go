@@ -20,7 +20,6 @@ const defaultMount = "oidc"
 const defaultPort = "8250"
 const defaultCallbackHost = "localhost"
 const defaultCallbackMethod = "http"
-const defaultCallbackPort = "8250"
 
 var errorRegex = regexp.MustCompile(`(?s)Errors:.*\* *(.*)`)
 
@@ -59,14 +58,14 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 		callbackMethod = defaultCallbackMethod
 	}
 
-	callbackport, ok := m["callbackport"]
+	callbackPort, ok := m["callbackport"]
 	if !ok {
-		callbackport = defaultCallbackPort
+		callbackPort = port
 	}
 
 	role := m["role"]
 
-	authURL, err := fetchAuthURL(c, role, mount, callbackport, callbackMethod, callbackHost)
+	authURL, err := fetchAuthURL(c, role, mount, callbackPort, callbackMethod, callbackHost)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +249,7 @@ Configuration:
 	  Optional callback host adddress to use in OIDC redirect_uri (default: localhost).
 
   callbackport=<string>
-      Optional port to to use in OIDC redirect_uri (default: 8250).
+      Optional port to to use in OIDC redirect_uri (default: the value set for port).
 `
 
 	return strings.TrimSpace(help)
