@@ -177,20 +177,20 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		logFunc("error reading /userinfo endpoint", "error", err)
 	}
 
-	if role.VerboseOIDCLogging {
-		if c, err := json.Marshal(allClaims); err == nil {
-			b.Logger().Debug("OIDC provider response", "claims", string(c))
-		} else {
-			b.Logger().Debug("OIDC provider response", "marshalling error", err.Error())
-		}
-	}
-
 	if config.OIDCDiscoveryURL == "https://accounts.google.com" && config.ParsedGSuiteServiceAccount != nil {
 		// GSuite does not return group memberships in /userinfo, fetch using their API
 		if groups, err := b.fetchGoogleGroups(oidcCtx, config.ParsedGSuiteServiceAccount, allClaims["sub"].(string)); err == nil {
 			allClaims["groups"] = groups
 		} else {
 			b.Logger().Warn("error reading gsuite groups /list endpoint", "error", err)
+		}
+	}
+
+	if role.VerboseOIDCLogging {
+		if c, err := json.Marshal(allClaims); err == nil {
+			b.Logger().Debug("OIDC provider response", "claims", string(c))
+		} else {
+			b.Logger().Debug("OIDC provider response", "marshalling error", err.Error())
 		}
 	}
 
