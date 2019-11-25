@@ -68,16 +68,16 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 				Type:        framework.TypeString,
 				Description: "The value against which to match the 'iss' claim in a JWT. Optional.",
 			},
-			"service_account": {
+			"gsuite_service_account": {
 				Type:        framework.TypeString,
 				Description: "Service account JSON file with the following scope: https://www.googleapis.com/auth/admin.directory.group.readonly",
 				DisplayAttrs: &framework.DisplayAttributes{
 					Sensitive: true,
 				},
 			},
-			"admin_impersonate": {
+			"gsuite_admin_impersonate": {
 				Type:        framework.TypeString,
-				Description: "A G Suite admin user email the service account will impersonate to fetch groups",
+				Description: "A GSuite admin user email the service account will impersonate to fetch groups",
 			},
 		},
 
@@ -128,13 +128,13 @@ func (b *jwtAuthBackend) config(ctx context.Context, s logical.Storage) (*jwtCon
 		result.ParsedJWTPubKeys = append(result.ParsedJWTPubKeys, key)
 	}
 
-	if len(result.ServiceAccount) != 0 {
-		googleConfig, err := google.JWTConfigFromJSON([]byte(result.ServiceAccount), admin.AdminDirectoryGroupReadonlyScope)
+	if len(result.GSuiteServiceAccount) != 0 {
+		googleConfig, err := google.JWTConfigFromJSON([]byte(result.GSuiteServiceAccount), admin.AdminDirectoryGroupReadonlyScope)
 		if err != nil {
-			return nil, errwrap.Wrapf("error parsing service account file: {{err}}", err)
+			return nil, errwrap.Wrapf("error parsing gsuite service account file: {{err}}", err)
 		}
-		googleConfig.Subject = result.AdminImpersonate
-		result.ParsedServiceAccount = googleConfig
+		googleConfig.Subject = result.GSuiteAdminImpersonate
+		result.ParsedGSuiteServiceAccount = googleConfig
 	}
 
 	b.cachedConfig = result
@@ -153,17 +153,17 @@ func (b *jwtAuthBackend) pathConfigRead(ctx context.Context, req *logical.Reques
 
 	resp := &logical.Response{
 		Data: map[string]interface{}{
-			"oidc_discovery_url":     config.OIDCDiscoveryURL,
-			"oidc_discovery_ca_pem":  config.OIDCDiscoveryCAPEM,
-			"oidc_client_id":         config.OIDCClientID,
-			"default_role":           config.DefaultRole,
-			"jwt_validation_pubkeys": config.JWTValidationPubKeys,
-			"jwt_supported_algs":     config.JWTSupportedAlgs,
-			"jwks_url":               config.JWKSURL,
-			"jwks_ca_pem":            config.JWKSCAPEM,
-			"bound_issuer":           config.BoundIssuer,
-			"service_account":        config.ServiceAccount,
-			"admin_impersonate":      config.AdminImpersonate,
+			"oidc_discovery_url":       config.OIDCDiscoveryURL,
+			"oidc_discovery_ca_pem":    config.OIDCDiscoveryCAPEM,
+			"oidc_client_id":           config.OIDCClientID,
+			"default_role":             config.DefaultRole,
+			"jwt_validation_pubkeys":   config.JWTValidationPubKeys,
+			"jwt_supported_algs":       config.JWTSupportedAlgs,
+			"jwks_url":                 config.JWKSURL,
+			"jwks_ca_pem":              config.JWKSCAPEM,
+			"bound_issuer":             config.BoundIssuer,
+			"gsuite_service_account":   config.GSuiteServiceAccount,
+			"gsuite_admin_impersonate": config.GSuiteAdminImpersonate,
 		},
 	}
 
@@ -172,18 +172,18 @@ func (b *jwtAuthBackend) pathConfigRead(ctx context.Context, req *logical.Reques
 
 func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	config := &jwtConfig{
-		OIDCDiscoveryURL:     d.Get("oidc_discovery_url").(string),
-		OIDCDiscoveryCAPEM:   d.Get("oidc_discovery_ca_pem").(string),
-		OIDCClientID:         d.Get("oidc_client_id").(string),
-		OIDCClientSecret:     d.Get("oidc_client_secret").(string),
-		JWKSURL:              d.Get("jwks_url").(string),
-		JWKSCAPEM:            d.Get("jwks_ca_pem").(string),
-		DefaultRole:          d.Get("default_role").(string),
-		JWTValidationPubKeys: d.Get("jwt_validation_pubkeys").([]string),
-		JWTSupportedAlgs:     d.Get("jwt_supported_algs").([]string),
-		BoundIssuer:          d.Get("bound_issuer").(string),
-		ServiceAccount:       d.Get("service_account").(string),
-		AdminImpersonate:     d.Get("admin_impersonate").(string),
+		OIDCDiscoveryURL:       d.Get("oidc_discovery_url").(string),
+		OIDCDiscoveryCAPEM:     d.Get("oidc_discovery_ca_pem").(string),
+		OIDCClientID:           d.Get("oidc_client_id").(string),
+		OIDCClientSecret:       d.Get("oidc_client_secret").(string),
+		JWKSURL:                d.Get("jwks_url").(string),
+		JWKSCAPEM:              d.Get("jwks_ca_pem").(string),
+		DefaultRole:            d.Get("default_role").(string),
+		JWTValidationPubKeys:   d.Get("jwt_validation_pubkeys").([]string),
+		JWTSupportedAlgs:       d.Get("jwt_supported_algs").([]string),
+		BoundIssuer:            d.Get("bound_issuer").(string),
+		GSuiteServiceAccount:   d.Get("gsuite_service_account").(string),
+		GSuiteAdminImpersonate: d.Get("gsuite_admin_impersonate").(string),
 	}
 
 	// Run checks on values
@@ -242,12 +242,12 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 			}
 		}
 
-	case len(config.ServiceAccount) != 0:
-		if _, err := google.JWTConfigFromJSON([]byte(config.ServiceAccount)); err != nil {
-			return logical.ErrorResponse(errwrap.Wrapf("error parsing service account file: {{err}}", err).Error()), nil
+	case len(config.GSuiteServiceAccount) != 0:
+		if _, err := google.JWTConfigFromJSON([]byte(config.GSuiteServiceAccount)); err != nil {
+			return logical.ErrorResponse(errwrap.Wrapf("error parsing gsuite service account file: {{err}}", err).Error()), nil
 		}
-		if len(config.AdminImpersonate) == 0 {
-			return logical.ErrorResponse("an admin email must be provided for service account impersonation"), nil
+		if len(config.GSuiteAdminImpersonate) == 0 {
+			return logical.ErrorResponse("a gsuite admin email must be provided for service account impersonation"), nil
 		}
 
 	default:
@@ -328,11 +328,11 @@ type jwtConfig struct {
 	BoundIssuer          string   `json:"bound_issuer"`
 	DefaultRole          string   `json:"default_role"`
 
-	ServiceAccount   string `json:"service_account"`
-	AdminImpersonate string `json:"admin_impersonate"`
+	GSuiteServiceAccount       string      `json:"service_account"`
+	GSuiteAdminImpersonate     string      `json:"admin_impersonate"`
+	ParsedGSuiteServiceAccount *jwt.Config `json:"-"`
 
-	ParsedJWTPubKeys     []interface{} `json:"-"`
-	ParsedServiceAccount *jwt.Config   `json:"-"`
+	ParsedJWTPubKeys []interface{} `json:"-"`
 }
 
 const (
