@@ -16,6 +16,9 @@ import (
 	"github.com/hashicorp/vault/sdk/helper/certutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"golang.org/x/oauth2/jwt"
+	admin "google.golang.org/api/admin/directory/v1"
 )
 
 func pathConfig(b *jwtAuthBackend) *framework.Path {
@@ -64,6 +67,17 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 			"bound_issuer": {
 				Type:        framework.TypeString,
 				Description: "The value against which to match the 'iss' claim in a JWT. Optional.",
+			},
+			"service_account": {
+				Type:        framework.TypeString,
+				Description: "Service account JSON file with the following scope: https://www.googleapis.com/auth/admin.directory.group.readonly",
+				DisplayAttrs: &framework.DisplayAttributes{
+					Sensitive: true,
+				},
+			},
+			"admin_impersonate": {
+				Type:        framework.TypeString,
+				Description: "A G Suite admin user email the service account will impersonate to fetch groups",
 			},
 		},
 
@@ -114,6 +128,15 @@ func (b *jwtAuthBackend) config(ctx context.Context, s logical.Storage) (*jwtCon
 		result.ParsedJWTPubKeys = append(result.ParsedJWTPubKeys, key)
 	}
 
+	if len(result.ServiceAccount) != 0 {
+		googleConfig, err := google.JWTConfigFromJSON([]byte(result.ServiceAccount), admin.AdminDirectoryGroupReadonlyScope)
+		if err != nil {
+			return nil, errwrap.Wrapf("error parsing service account file: {{err}}", err)
+		}
+		googleConfig.Subject = result.AdminImpersonate
+		result.ParsedServiceAccount = googleConfig
+	}
+
 	b.cachedConfig = result
 
 	return result, nil
@@ -139,6 +162,8 @@ func (b *jwtAuthBackend) pathConfigRead(ctx context.Context, req *logical.Reques
 			"jwks_url":               config.JWKSURL,
 			"jwks_ca_pem":            config.JWKSCAPEM,
 			"bound_issuer":           config.BoundIssuer,
+			"service_account":        config.ServiceAccount,
+			"admin_impersonate":      config.AdminImpersonate,
 		},
 	}
 
@@ -157,6 +182,8 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		JWTValidationPubKeys: d.Get("jwt_validation_pubkeys").([]string),
 		JWTSupportedAlgs:     d.Get("jwt_supported_algs").([]string),
 		BoundIssuer:          d.Get("bound_issuer").(string),
+		ServiceAccount:       d.Get("service_account").(string),
+		AdminImpersonate:     d.Get("admin_impersonate").(string),
 	}
 
 	// Run checks on values
@@ -213,6 +240,14 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 			if _, err := certutil.ParsePublicKeyPEM([]byte(v)); err != nil {
 				return logical.ErrorResponse(errwrap.Wrapf("error parsing public key: {{err}}", err).Error()), nil
 			}
+		}
+
+	case len(config.ServiceAccount) != 0:
+		if _, err := google.JWTConfigFromJSON([]byte(config.ServiceAccount)); err != nil {
+			return logical.ErrorResponse(errwrap.Wrapf("error parsing service account file: {{err}}", err).Error()), nil
+		}
+		if len(config.AdminImpersonate) == 0 {
+			return logical.ErrorResponse("an admin email must be provided for service account impersonation"), nil
 		}
 
 	default:
@@ -293,7 +328,11 @@ type jwtConfig struct {
 	BoundIssuer          string   `json:"bound_issuer"`
 	DefaultRole          string   `json:"default_role"`
 
-	ParsedJWTPubKeys []interface{} `json:"-"`
+	ServiceAccount   string `json:"service_account"`
+	AdminImpersonate string `json:"admin_impersonate"`
+
+	ParsedJWTPubKeys     []interface{} `json:"-"`
+	ParsedServiceAccount *jwt.Config   `json:"-"`
 }
 
 const (

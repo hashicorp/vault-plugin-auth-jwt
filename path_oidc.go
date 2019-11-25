@@ -17,6 +17,9 @@ import (
 	"github.com/hashicorp/vault/sdk/helper/strutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/jwt"
+	admin "google.golang.org/api/admin/directory/v1"
+	"google.golang.org/api/option"
 )
 
 var oidcStateTimeout = 10 * time.Minute
@@ -185,6 +188,12 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		}
 	}
 
+	if groups, err := b.fetchGoogleGroups(oidcCtx, config.ParsedServiceAccount, allClaims["sub"].(string)); err == nil {
+		allClaims["groups"] = groups
+	} else {
+		b.Logger().Warn("error reading groups /list endpoint", "error", err)
+	}
+
 	if err := validateBoundClaims(b.Logger(), role.BoundClaims, allClaims); err != nil {
 		return logical.ErrorResponse("error validating claims: %s", err.Error()), nil
 	}
@@ -225,6 +234,35 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	}
 
 	return resp, nil
+}
+
+func (b *jwtAuthBackend) fetchGoogleGroups(ctx context.Context, config *jwt.Config, subject string) ([]interface{}, error) {
+	var userGroups []interface{}
+	var nextPageToken string
+
+	adminService, err := admin.NewService(ctx, option.WithHTTPClient(config.Client(ctx)))
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		groupsResponse, err := adminService.Groups.List().Context(ctx).PageToken(nextPageToken).UserKey(subject).Do()
+		if err != nil {
+			return nil, err
+		}
+
+		for _, group := range groupsResponse.Groups {
+			userGroups = append(userGroups, group.Email)
+		}
+
+		if groupsResponse.NextPageToken == "" {
+			break
+		}
+
+		nextPageToken = groupsResponse.NextPageToken
+	}
+
+	return userGroups, nil
 }
 
 // authURL returns a URL used for redirection to receive an authorization code.
