@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"reflect"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -15,11 +17,16 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/fatih/color"
 )
 
 // TimeFormat to use for logging. This is a version of RFC3339 that contains
 // contains millisecond precision
 const TimeFormat = "2006-01-02T15:04:05.000Z0700"
+
+// errJsonUnsupportedTypeMsg is included in log json entries, if an arg cannot be serialized to json
+const errJsonUnsupportedTypeMsg = "logging contained values that don't serialize to json"
 
 var (
 	_levelToBracket = map[Level]string{
@@ -28,6 +35,14 @@ var (
 		Info:  "[INFO] ",
 		Warn:  "[WARN] ",
 		Error: "[ERROR]",
+	}
+
+	_levelToColor = map[Level]*color.Color{
+		Debug: color.New(color.FgHiWhite),
+		Trace: color.New(color.FgHiGreen),
+		Info:  color.New(color.FgHiBlue),
+		Warn:  color.New(color.FgHiYellow),
+		Error: color.New(color.FgHiRed),
 	}
 )
 
@@ -53,6 +68,16 @@ type intLogger struct {
 
 // New returns a configured logger.
 func New(opts *LoggerOptions) Logger {
+	return newLogger(opts)
+}
+
+// NewSinkAdapter returns a SinkAdapter with configured settings
+// defined by LoggerOptions
+func NewSinkAdapter(opts *LoggerOptions) SinkAdapter {
+	return newLogger(opts)
+}
+
+func newLogger(opts *LoggerOptions) *intLogger {
 	if opts == nil {
 		opts = &LoggerOptions{}
 	}
@@ -78,9 +103,11 @@ func New(opts *LoggerOptions) Logger {
 		name:       opts.Name,
 		timeFormat: TimeFormat,
 		mutex:      mutex,
-		writer:     newWriter(output),
+		writer:     newWriter(output, opts.Color),
 		level:      new(int32),
 	}
+
+	l.setColorization(opts)
 
 	if opts.TimeFormat != "" {
 		l.timeFormat = opts.TimeFormat
@@ -93,7 +120,7 @@ func New(opts *LoggerOptions) Logger {
 
 // Log a message and a set of key/value pairs if the given level is at
 // or more severe that the threshold configured in the Logger.
-func (l *intLogger) Log(level Level, msg string, args ...interface{}) {
+func (l *intLogger) Log(name string, level Level, msg string, args ...interface{}) {
 	if level < Level(atomic.LoadInt32(l.level)) {
 		return
 	}
@@ -104,9 +131,9 @@ func (l *intLogger) Log(level Level, msg string, args ...interface{}) {
 	defer l.mutex.Unlock()
 
 	if l.json {
-		l.logJSON(t, level, msg, args...)
+		l.logJSON(t, name, level, msg, args...)
 	} else {
-		l.log(t, level, msg, args...)
+		l.log(t, name, level, msg, args...)
 	}
 
 	l.writer.Flush(level)
@@ -141,8 +168,10 @@ func trimCallerPath(path string) string {
 	return path[idx+1:]
 }
 
+var logImplFile = regexp.MustCompile(`github.com/hashicorp/go-hclog/.+logger.go$`)
+
 // Non-JSON logging format function
-func (l *intLogger) log(t time.Time, level Level, msg string, args ...interface{}) {
+func (l *intLogger) log(t time.Time, name string, level Level, msg string, args ...interface{}) {
 	l.writer.WriteString(t.Format(l.timeFormat))
 	l.writer.WriteByte(' ')
 
@@ -153,8 +182,18 @@ func (l *intLogger) log(t time.Time, level Level, msg string, args ...interface{
 		l.writer.WriteString("[?????]")
 	}
 
+	offset := 3
 	if l.caller {
-		if _, file, line, ok := runtime.Caller(3); ok {
+		// Check if the caller is inside our package and inside
+		// a logger implementation file
+		if _, file, _, ok := runtime.Caller(3); ok {
+			match := logImplFile.MatchString(file)
+			if match {
+				offset = 4
+			}
+		}
+
+		if _, file, line, ok := runtime.Caller(offset); ok {
 			l.writer.WriteByte(' ')
 			l.writer.WriteString(trimCallerPath(file))
 			l.writer.WriteByte(':')
@@ -165,8 +204,8 @@ func (l *intLogger) log(t time.Time, level Level, msg string, args ...interface{
 
 	l.writer.WriteByte(' ')
 
-	if l.name != "" {
-		l.writer.WriteString(l.name)
+	if name != "" {
+		l.writer.WriteString(name)
 		l.writer.WriteString(": ")
 	}
 
@@ -295,40 +334,8 @@ func (l *intLogger) renderSlice(v reflect.Value) string {
 }
 
 // JSON logging function
-func (l *intLogger) logJSON(t time.Time, level Level, msg string, args ...interface{}) {
-	vals := map[string]interface{}{
-		"@message":   msg,
-		"@timestamp": t.Format("2006-01-02T15:04:05.000000Z07:00"),
-	}
-
-	var levelStr string
-	switch level {
-	case Error:
-		levelStr = "error"
-	case Warn:
-		levelStr = "warn"
-	case Info:
-		levelStr = "info"
-	case Debug:
-		levelStr = "debug"
-	case Trace:
-		levelStr = "trace"
-	default:
-		levelStr = "all"
-	}
-
-	vals["@level"] = levelStr
-
-	if l.name != "" {
-		vals["@module"] = l.name
-	}
-
-	if l.caller {
-		if _, file, line, ok := runtime.Caller(3); ok {
-			vals["@caller"] = fmt.Sprintf("%s:%d", file, line)
-		}
-	}
-
+func (l *intLogger) logJSON(t time.Time, name string, level Level, msg string, args ...interface{}) {
+	vals := l.jsonMapEntry(t, name, level, msg)
 	args = append(l.implied, args...)
 
 	if args != nil && len(args) > 0 {
@@ -369,33 +376,74 @@ func (l *intLogger) logJSON(t time.Time, level Level, msg string, args ...interf
 
 	err := json.NewEncoder(l.writer).Encode(vals)
 	if err != nil {
-		panic(err)
+		if _, ok := err.(*json.UnsupportedTypeError); ok {
+			plainVal := l.jsonMapEntry(t, name, level, msg)
+			plainVal["@warn"] = errJsonUnsupportedTypeMsg
+
+			json.NewEncoder(l.writer).Encode(plainVal)
+		}
 	}
+}
+
+func (l intLogger) jsonMapEntry(t time.Time, name string, level Level, msg string) map[string]interface{} {
+	vals := map[string]interface{}{
+		"@message":   msg,
+		"@timestamp": t.Format("2006-01-02T15:04:05.000000Z07:00"),
+	}
+
+	var levelStr string
+	switch level {
+	case Error:
+		levelStr = "error"
+	case Warn:
+		levelStr = "warn"
+	case Info:
+		levelStr = "info"
+	case Debug:
+		levelStr = "debug"
+	case Trace:
+		levelStr = "trace"
+	default:
+		levelStr = "all"
+	}
+
+	vals["@level"] = levelStr
+
+	if name != "" {
+		vals["@module"] = name
+	}
+
+	if l.caller {
+		if _, file, line, ok := runtime.Caller(4); ok {
+			vals["@caller"] = fmt.Sprintf("%s:%d", file, line)
+		}
+	}
+	return vals
 }
 
 // Emit the message and args at DEBUG level
 func (l *intLogger) Debug(msg string, args ...interface{}) {
-	l.Log(Debug, msg, args...)
+	l.Log(l.Name(), Debug, msg, args...)
 }
 
 // Emit the message and args at TRACE level
 func (l *intLogger) Trace(msg string, args ...interface{}) {
-	l.Log(Trace, msg, args...)
+	l.Log(l.Name(), Trace, msg, args...)
 }
 
 // Emit the message and args at INFO level
 func (l *intLogger) Info(msg string, args ...interface{}) {
-	l.Log(Info, msg, args...)
+	l.Log(l.Name(), Info, msg, args...)
 }
 
 // Emit the message and args at WARN level
 func (l *intLogger) Warn(msg string, args ...interface{}) {
-	l.Log(Warn, msg, args...)
+	l.Log(l.Name(), Warn, msg, args...)
 }
 
 // Emit the message and args at ERROR level
 func (l *intLogger) Error(msg string, args ...interface{}) {
-	l.Log(Error, msg, args...)
+	l.Log(l.Name(), Error, msg, args...)
 }
 
 // Indicate that the logger would emit TRACE level logs
@@ -507,5 +555,34 @@ func (l *intLogger) StandardLogger(opts *StandardLoggerOptions) *log.Logger {
 }
 
 func (l *intLogger) StandardWriter(opts *StandardLoggerOptions) io.Writer {
-	return &stdlogAdapter{l, opts.InferLevels}
+	return &stdlogAdapter{
+		log:         l,
+		inferLevels: opts.InferLevels,
+		forceLevel:  opts.ForceLevel,
+	}
+}
+
+// checks if the underlying io.Writer is a file, and
+// panics if not. For use by colorization.
+func (l *intLogger) checkWriterIsFile() *os.File {
+	fi, ok := l.writer.w.(*os.File)
+	if !ok {
+		panic("Cannot enable coloring of non-file Writers")
+	}
+	return fi
+}
+
+// Accept implements the SinkAdapter interface
+func (i *intLogger) Accept(name string, level Level, msg string, args ...interface{}) {
+	i.Log(name, level, msg, args...)
+}
+
+// ImpliedArgs returns the loggers implied args
+func (i *intLogger) ImpliedArgs() []interface{} {
+	return i.implied
+}
+
+// Name returns the loggers name
+func (i *intLogger) Name() string {
+	return i.name
 }

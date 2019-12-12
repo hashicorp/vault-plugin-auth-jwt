@@ -27,7 +27,7 @@ var (
 	LogErrors = false
 
 	// CompareUnexportedFields causes unexported struct fields, like s in
-	// T{s int}, to be comparsed when true.
+	// T{s int}, to be compared when true.
 	CompareUnexportedFields = false
 )
 
@@ -57,6 +57,9 @@ var errorType = reflect.TypeOf((*error)(nil)).Elem()
 //
 // If a type has an Equal method, like time.Equal, it is called to check for
 // equality.
+//
+// When comparing a struct, if a field has the tag `deep:"-"` then it will be
+// ignored.
 func Equal(a, b interface{}) []string {
 	aVal := reflect.ValueOf(a)
 	bVal := reflect.ValueOf(b)
@@ -99,7 +102,7 @@ func (c *cmp) equals(a, b reflect.Value, level int) {
 		return
 	}
 
-	// If differenet types, they can't be equal
+	// If different types, they can't be equal
 	aType := a.Type()
 	bType := b.Type()
 	if aType != bType {
@@ -112,32 +115,33 @@ func (c *cmp) equals(a, b reflect.Value, level int) {
 	aKind := a.Kind()
 	bKind := b.Kind()
 
+	// Do a and b have underlying elements? Yes if they're ptr or interface.
+	aElem := aKind == reflect.Ptr || aKind == reflect.Interface
+	bElem := bKind == reflect.Ptr || bKind == reflect.Interface
+
 	// If both types implement the error interface, compare the error strings.
 	// This must be done before dereferencing because the interface is on a
-	// pointer receiver.
+	// pointer receiver. Re https://github.com/go-test/deep/issues/31, a/b might
+	// be primitive kinds; see TestErrorPrimitiveKind.
 	if aType.Implements(errorType) && bType.Implements(errorType) {
-		if a.Elem().IsValid() && b.Elem().IsValid() { // both err != nil
+		if (!aElem || !a.IsNil()) && (!bElem || !b.IsNil()) {
 			aString := a.MethodByName("Error").Call(nil)[0].String()
 			bString := b.MethodByName("Error").Call(nil)[0].String()
 			if aString != bString {
 				c.saveDiff(aString, bString)
+				return
 			}
-			return
 		}
 	}
 
 	// Dereference pointers and interface{}
-	if aElem, bElem := (aKind == reflect.Ptr || aKind == reflect.Interface),
-		(bKind == reflect.Ptr || bKind == reflect.Interface); aElem || bElem {
-
+	if aElem || bElem {
 		if aElem {
 			a = a.Elem()
 		}
-
 		if bElem {
 			b = b.Elem()
 		}
-
 		c.equals(a, b, level+1)
 		return
 	}
@@ -185,6 +189,10 @@ func (c *cmp) equals(a, b reflect.Value, level int) {
 		for i := 0; i < a.NumField(); i++ {
 			if aType.Field(i).PkgPath != "" && !CompareUnexportedFields {
 				continue // skip unexported field, e.g. s in type T struct {s string}
+			}
+
+			if aType.Field(i).Tag.Get("deep") == "-" {
+				continue // field wants to be ignored
 			}
 
 			c.push(aType.Field(i).Name) // push field name to buff
@@ -282,12 +290,13 @@ func (c *cmp) equals(a, b reflect.Value, level int) {
 			return
 		}
 
-		if a.Pointer() == b.Pointer() {
+		aLen := a.Len()
+		bLen := b.Len()
+
+		if a.Pointer() == b.Pointer() && aLen == bLen {
 			return
 		}
 
-		aLen := a.Len()
-		bLen := b.Len()
 		n := aLen
 		if bLen > aLen {
 			n = bLen
