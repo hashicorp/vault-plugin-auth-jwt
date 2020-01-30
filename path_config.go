@@ -110,10 +110,6 @@ func (b *jwtAuthBackend) config(ctx context.Context, s logical.Storage) (*jwtCon
 		return nil, err
 	}
 
-	if config.OIDCResponseMode == "" {
-		config.OIDCResponseMode = "query"
-	}
-
 	for _, v := range config.JWTValidationPubKeys {
 		key, err := certutil.ParsePublicKeyPEM([]byte(v))
 		if err != nil {
@@ -238,9 +234,7 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	}
 
 	switch config.OIDCResponseMode {
-	case "":
-		config.OIDCResponseMode = "query"
-	case "query", "form_post":
+	case "", "query", "form_post":
 	default:
 		return logical.ErrorResponse("invalid response_mode: %q", config.OIDCResponseMode), nil
 	}
