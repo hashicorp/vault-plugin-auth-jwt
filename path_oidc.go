@@ -308,7 +308,15 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 		return resp, nil
 	}
 
-	resp.Data["auth_url"] = oauth2Config.AuthCodeURL(stateID, oidc.Nonce(nonce))
+	authCodeOpts := []oauth2.AuthCodeOption{
+		oidc.Nonce(nonce),
+	}
+
+	if config.OIDCResponseMode == "form_post" {
+		authCodeOpts = append(authCodeOpts, oauth2.SetAuthURLParam("response_mode", "form_post"))
+	}
+
+	resp.Data["auth_url"] = oauth2Config.AuthCodeURL(stateID, authCodeOpts...)
 
 	return resp, nil
 }

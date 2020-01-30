@@ -41,6 +41,10 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 					Sensitive: true,
 				},
 			},
+			"oidc_response_mode": {
+				Type:        framework.TypeString,
+				Description: "The response mode to be used in the OAuth2 request. Allowed values are 'query' and 'form_post'.",
+			},
 			"jwks_url": {
 				Type:        framework.TypeString,
 				Description: `JWKS URL to use to authenticate signatures. Cannot be used with "oidc_discovery_url" or "jwt_validation_pubkeys".`,
@@ -101,22 +105,26 @@ func (b *jwtAuthBackend) config(ctx context.Context, s logical.Storage) (*jwtCon
 		return nil, nil
 	}
 
-	result := &jwtConfig{}
-	if err := entry.DecodeJSON(result); err != nil {
+	config := &jwtConfig{}
+	if err := entry.DecodeJSON(config); err != nil {
 		return nil, err
 	}
 
-	for _, v := range result.JWTValidationPubKeys {
+	if config.OIDCResponseMode == "" {
+		config.OIDCResponseMode = "query"
+	}
+
+	for _, v := range config.JWTValidationPubKeys {
 		key, err := certutil.ParsePublicKeyPEM([]byte(v))
 		if err != nil {
 			return nil, errwrap.Wrapf("error parsing public key: {{err}}", err)
 		}
-		result.ParsedJWTPubKeys = append(result.ParsedJWTPubKeys, key)
+		config.ParsedJWTPubKeys = append(config.ParsedJWTPubKeys, key)
 	}
 
-	b.cachedConfig = result
+	b.cachedConfig = config
 
-	return result, nil
+	return config, nil
 }
 
 func (b *jwtAuthBackend) pathConfigRead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
@@ -133,6 +141,7 @@ func (b *jwtAuthBackend) pathConfigRead(ctx context.Context, req *logical.Reques
 			"oidc_discovery_url":     config.OIDCDiscoveryURL,
 			"oidc_discovery_ca_pem":  config.OIDCDiscoveryCAPEM,
 			"oidc_client_id":         config.OIDCClientID,
+			"oidc_response_mode":     config.OIDCResponseMode,
 			"default_role":           config.DefaultRole,
 			"jwt_validation_pubkeys": config.JWTValidationPubKeys,
 			"jwt_supported_algs":     config.JWTSupportedAlgs,
@@ -151,6 +160,7 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		OIDCDiscoveryCAPEM:   d.Get("oidc_discovery_ca_pem").(string),
 		OIDCClientID:         d.Get("oidc_client_id").(string),
 		OIDCClientSecret:     d.Get("oidc_client_secret").(string),
+		OIDCResponseMode:     d.Get("oidc_response_mode").(string),
 		JWKSURL:              d.Get("jwks_url").(string),
 		JWKSCAPEM:            d.Get("jwks_ca_pem").(string),
 		DefaultRole:          d.Get("default_role").(string),
@@ -227,6 +237,14 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		}
 	}
 
+	switch config.OIDCResponseMode {
+	case "":
+		config.OIDCResponseMode = "query"
+	case "query", "form_post":
+	default:
+		return logical.ErrorResponse("invalid response_mode: %q", config.OIDCResponseMode), nil
+	}
+
 	entry, err := logical.StorageEntryJSON(configPath, config)
 	if err != nil {
 		return nil, err
@@ -286,6 +304,7 @@ type jwtConfig struct {
 	OIDCDiscoveryCAPEM   string   `json:"oidc_discovery_ca_pem"`
 	OIDCClientID         string   `json:"oidc_client_id"`
 	OIDCClientSecret     string   `json:"oidc_client_secret"`
+	OIDCResponseMode     string   `json:"oidc_response_mode"`
 	JWKSURL              string   `json:"jwks_url"`
 	JWKSCAPEM            string   `json:"jwks_ca_pem"`
 	JWTValidationPubKeys []string `json:"jwt_validation_pubkeys"`
