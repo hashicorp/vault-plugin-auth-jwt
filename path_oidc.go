@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/kalafut/q"
 
 	"github.com/coreos/go-oidc"
 	"github.com/hashicorp/errwrap"
@@ -74,10 +77,37 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 				},
 			},
 		},
+		{
+			Pattern: `oidc/form_post`,
+			Fields: map[string]*framework.FieldSchema{
+				"role": {
+					Type:        framework.TypeLowerCaseString,
+					Description: "The role to issue an OIDC authorization URL against.",
+				},
+				"redirect_uri": {
+					Type:        framework.TypeString,
+					Description: "The OAuth redirect_uri to use in the authorization URL.",
+				},
+			},
+			Operations: map[logical.Operation]framework.OperationHandler{
+				logical.UpdateOperation: &framework.PathOperation{
+					Callback: b.formPost,
+				},
+				logical.ReadOperation: &framework.PathOperation{
+					Callback: b.formPost,
+				},
+			},
+		},
 	}
 }
 
 func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	q.Q(d)
+	oldDataRaw, _ := b.oidcStates.Get("state")
+	oldData := oldDataRaw.(*framework.FieldData)
+	rawToken := oldData.Get("id_token").(string)
+	ok := true
+	var err error
 
 	// Because the state is cached, don't process OIDC logins on perf standbys
 	if b.System().ReplicationState().HasState(consts.ReplicationPerformanceStandby) {
@@ -134,21 +164,22 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		Scopes:       []string{oidc.ScopeOpenID},
 	}
 
-	code := d.Get("code").(string)
-	if code == "" {
-		return logical.ErrorResponse(errLoginFailed + " OAuth code parameter not provided"), nil
-	}
+	//code := d.Get("code").(string)
+	//if code == "" {
+	//	return logical.ErrorResponse(errLoginFailed + " OAuth code parameter not provided"), nil
+	//}
 
-	oauth2Token, err := oauth2Config.Exchange(oidcCtx, code)
-	if err != nil {
-		return logical.ErrorResponse(errLoginFailed+" Error exchanging oidc code: %q.", err.Error()), nil
-	}
+	//oauth2Token, err := oauth2Config.Exchange(oidcCtx, code)
+	//if err != nil {
+	//	return logical.ErrorResponse(errLoginFailed+" Error exchanging oidc code: %q.", err.Error()), nil
+	//}
 
-	// Extract the ID Token from OAuth2 token.
-	rawToken, ok := oauth2Token.Extra("id_token").(string)
-	if !ok {
-		return logical.ErrorResponse(errTokenVerification + " No id_token found in response."), nil
-	}
+	//// Extract the ID Token from OAuth2 token.
+	//rawToken, ok = oauth2Token.Extra("id_token").(string)
+	//if !ok {
+	//	return logical.ErrorResponse(errTokenVerification + " No id_token found in response."), nil
+	//}
+TOKEN:
 	if role.VerboseOIDCLogging {
 		b.Logger().Debug("OIDC provider response", "ID token", rawToken)
 	}
@@ -167,15 +198,15 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	// Attempt to fetch information from the /userinfo endpoint and merge it with
 	// the existing claims data. A failure to fetch additional information from this
 	// endpoint will not invalidate the authorization flow.
-	if userinfo, err := provider.UserInfo(oidcCtx, oauth2.StaticTokenSource(oauth2Token)); err == nil {
-		_ = userinfo.Claims(&allClaims)
-	} else {
-		logFunc := b.Logger().Warn
-		if strings.Contains(err.Error(), "user info endpoint is not supported") {
-			logFunc = b.Logger().Info
-		}
-		logFunc("error reading /userinfo endpoint", "error", err)
-	}
+	//if userinfo, err := provider.UserInfo(oidcCtx, oauth2.StaticTokenSource(oauth2Token)); err == nil {
+	//	_ = userinfo.Claims(&allClaims)
+	//} else {
+	//	logFunc := b.Logger().Warn
+	//	if strings.Contains(err.Error(), "user info endpoint is not supported") {
+	//		logFunc = b.Logger().Info
+	//	}
+	//	logFunc("error reading /userinfo endpoint", "error", err)
+	//}
 
 	if role.VerboseOIDCLogging {
 		if c, err := json.Marshal(allClaims); err == nil {
@@ -222,6 +253,33 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 
 	resp := &logical.Response{
 		Auth: auth,
+	}
+
+	return resp, nil
+}
+
+func (b *jwtAuthBackend) formPost(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	q.Q(d)
+	id, err := uuid.GenerateUUID()
+	if err != nil {
+		return nil, err
+	}
+	b.oidcStates.SetDefault(id, d)
+	script := fmt.Sprintf(`
+<html>
+<body>
+Yay!
+<script>
+window.localStorage.setItem("oidcState", JSON.stringify({"path":"abc","code":"%s", "state":"%s"}));
+</script>
+</body>
+</html>`, id, id)
+	resp := &logical.Response{
+		Data: map[string]interface{}{
+			logical.HTTPContentType: "text/html",
+			logical.HTTPRawBody:     []byte(script),
+			logical.HTTPStatusCode:  http.StatusOK,
+		},
 	}
 
 	return resp, nil
@@ -283,6 +341,7 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 		logger.Warn("unauthorized redirect_uri", "redirect_uri", redirectURI)
 		return resp, nil
 	}
+	q.Q(redirectURI)
 
 	provider, err := b.getProvider(config)
 	if err != nil {
@@ -293,6 +352,7 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 	// "openid" is a required scope for OpenID Connect flows
 	scopes := append([]string{oidc.ScopeOpenID}, role.OIDCScopes...)
 
+	redirectURI = "http://127.0.0.1:8200/v1/auth/oidc/oidc/form_post"
 	// Configure an OpenID Connect aware OAuth2 client
 	oauth2Config := oauth2.Config{
 		ClientID:     config.OIDCClientID,
@@ -308,7 +368,14 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 		return resp, nil
 	}
 
-	resp.Data["auth_url"] = oauth2Config.AuthCodeURL(stateID, oidc.Nonce(nonce))
+	authCodeOpts := []oauth2.AuthCodeOption{
+		oidc.Nonce(nonce),
+		oauth2.SetAuthURLParam("response_mode", "form_post"),
+	}
+
+	s := oauth2Config.AuthCodeURL(stateID, authCodeOpts...)
+	s = strings.Replace(s, "code", "code id_token", 1)
+	resp.Data["auth_url"] = s
 
 	return resp, nil
 }
