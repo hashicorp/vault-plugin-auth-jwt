@@ -3,13 +3,12 @@ package jwtauth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/kalafut/q"
 
 	"github.com/coreos/go-oidc"
 	"github.com/hashicorp/errwrap"
@@ -36,6 +35,7 @@ type oidcState struct {
 	rolename    string
 	nonce       string
 	redirectURI string
+	id_token    string
 }
 
 func pathOIDC(b *jwtAuthBackend) []*framework.Path {
@@ -49,10 +49,17 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 				"code": {
 					Type: framework.TypeString,
 				},
+				"id_token": {
+					Type: framework.TypeString,
+				},
 			},
 
 			Operations: map[logical.Operation]framework.OperationHandler{
 				logical.ReadOperation: &framework.PathOperation{
+					Callback: b.pathCallback,
+					Summary:  "Callback endpoint to complete an OIDC login.",
+				},
+				logical.UpdateOperation: &framework.PathOperation{
 					Callback: b.pathCallback,
 					Summary:  "Callback endpoint to complete an OIDC login.",
 				},
@@ -77,44 +84,54 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 				},
 			},
 		},
-		{
-			Pattern: `oidc/form_post`,
-			Fields: map[string]*framework.FieldSchema{
-				"role": {
-					Type:        framework.TypeLowerCaseString,
-					Description: "The role to issue an OIDC authorization URL against.",
-				},
-				"redirect_uri": {
-					Type:        framework.TypeString,
-					Description: "The OAuth redirect_uri to use in the authorization URL.",
-				},
-			},
-			Operations: map[logical.Operation]framework.OperationHandler{
-				logical.UpdateOperation: &framework.PathOperation{
-					Callback: b.formPost,
-				},
-				logical.ReadOperation: &framework.PathOperation{
-					Callback: b.formPost,
-				},
-			},
-		},
 	}
 }
 
 func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	q.Q(d)
-	oldDataRaw, _ := b.oidcStates.Get("state")
-	oldData := oldDataRaw.(*framework.FieldData)
-	rawToken := oldData.Get("id_token").(string)
-	ok := true
-	var err error
-
 	// Because the state is cached, don't process OIDC logins on perf standbys
 	if b.System().ReplicationState().HasState(consts.ReplicationPerformanceStandby) {
 		return nil, logical.ErrReadOnly
 	}
 
-	state := b.verifyState(d.Get("state").(string))
+	stateID := d.Get("state").(string)
+
+	// Check for an id_token being provided directly
+	if req.Operation == logical.UpdateOperation {
+		id_token := d.Get("id_token").(string)
+		if id_token == "" {
+			return logical.ErrorResponse(errLoginFailed + " id_token missing."), nil
+		}
+
+		if err := b.amendState(stateID, id_token); err != nil {
+			return logical.ErrorResponse(errLoginFailed + " Expired or missing OAuth state."), nil
+		}
+		// TODO figure out this hardcoded path
+		script := fmt.Sprintf(`
+<html>
+<body>
+Yay!
+<script>
+window.localStorage.setItem("oidcState", JSON.stringify({"path":"oidc","code":"id_token", "state":"%s"}));
+</script>
+</body>
+</html>`, stateID)
+		resp := &logical.Response{
+			Data: map[string]interface{}{
+				logical.HTTPContentType: "text/html",
+				logical.HTTPRawBody:     []byte(script),
+				logical.HTTPStatusCode:  http.StatusOK,
+			},
+		}
+
+		return resp, nil
+	}
+
+	code := d.Get("code").(string)
+	if code == "" {
+		return logical.ErrorResponse(errLoginFailed + " OAuth code parameter not provided"), nil
+	}
+
+	state := b.verifyState(stateID)
 	if state == nil {
 		return logical.ErrorResponse(errLoginFailed + " Expired or missing OAuth state."), nil
 	}
@@ -164,22 +181,25 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		Scopes:       []string{oidc.ScopeOpenID},
 	}
 
-	//code := d.Get("code").(string)
-	//if code == "" {
-	//	return logical.ErrorResponse(errLoginFailed + " OAuth code parameter not provided"), nil
-	//}
+	var rawToken string
+	//var token *oauth2.Token
 
-	//oauth2Token, err := oauth2Config.Exchange(oidcCtx, code)
-	//if err != nil {
-	//	return logical.ErrorResponse(errLoginFailed+" Error exchanging oidc code: %q.", err.Error()), nil
-	//}
+	if code == "id_token" {
+		rawToken = state.id_token
+	} else {
+		oauth2Token, err := oauth2Config.Exchange(oidcCtx, code)
+		if err != nil {
+			return logical.ErrorResponse(errLoginFailed+" Error exchanging oidc code: %q.", err.Error()), nil
+		}
 
-	//// Extract the ID Token from OAuth2 token.
-	//rawToken, ok = oauth2Token.Extra("id_token").(string)
-	//if !ok {
-	//	return logical.ErrorResponse(errTokenVerification + " No id_token found in response."), nil
-	//}
-TOKEN:
+		// Extract the ID Token from OAuth2 token.
+		var ok bool
+		rawToken, ok = oauth2Token.Extra("id_token").(string)
+		if !ok {
+			return logical.ErrorResponse(errTokenVerification + " No id_token found in response."), nil
+		}
+	}
+
 	if role.VerboseOIDCLogging {
 		b.Logger().Debug("OIDC provider response", "ID token", rawToken)
 	}
@@ -258,33 +278,6 @@ TOKEN:
 	return resp, nil
 }
 
-func (b *jwtAuthBackend) formPost(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	q.Q(d)
-	id, err := uuid.GenerateUUID()
-	if err != nil {
-		return nil, err
-	}
-	b.oidcStates.SetDefault(id, d)
-	script := fmt.Sprintf(`
-<html>
-<body>
-Yay!
-<script>
-window.localStorage.setItem("oidcState", JSON.stringify({"path":"abc","code":"%s", "state":"%s"}));
-</script>
-</body>
-</html>`, id, id)
-	resp := &logical.Response{
-		Data: map[string]interface{}{
-			logical.HTTPContentType: "text/html",
-			logical.HTTPRawBody:     []byte(script),
-			logical.HTTPStatusCode:  http.StatusOK,
-		},
-	}
-
-	return resp, nil
-}
-
 // authURL returns a URL used for redirection to receive an authorization code.
 // This path requires a role name, or that a default_role has been configured.
 // Because this endpoint is unauthenticated, the response to invalid or non-OIDC
@@ -341,7 +334,6 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 		logger.Warn("unauthorized redirect_uri", "redirect_uri", redirectURI)
 		return resp, nil
 	}
-	q.Q(redirectURI)
 
 	provider, err := b.getProvider(config)
 	if err != nil {
@@ -352,7 +344,7 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 	// "openid" is a required scope for OpenID Connect flows
 	scopes := append([]string{oidc.ScopeOpenID}, role.OIDCScopes...)
 
-	redirectURI = "http://127.0.0.1:8200/v1/auth/oidc/oidc/form_post"
+	redirectURI = "http://127.0.0.1:8200/v1/auth/oidc/oidc/callback"
 	// Configure an OpenID Connect aware OAuth2 client
 	oauth2Config := oauth2.Config{
 		ClientID:     config.OIDCClientID,
@@ -378,7 +370,11 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 		authCodeOpts = append(authCodeOpts, oauth2.SetAuthURLParam("response_mode", "form_post"))
 	}
 
-	resp.Data["auth_url"] = oauth2Config.AuthCodeURL(stateID, authCodeOpts...)
+	// TODO: gate this on some type of "include id_token" config
+	urlStr := oauth2Config.AuthCodeURL(stateID, authCodeOpts...)
+	//urlStr = strings.Replace(urlStr, "response_type=code", "response_type=code+id_token", 1)
+	urlStr = strings.Replace(urlStr, "response_type=code", "response_type=id_token", 1)
+	resp.Data["auth_url"] = urlStr
 
 	return resp, nil
 }
@@ -403,6 +399,20 @@ func (b *jwtAuthBackend) createState(rolename, redirectURI string) (string, stri
 	})
 
 	return stateID, nonce, nil
+}
+
+func (b *jwtAuthBackend) amendState(stateID, id_token string) error {
+	stateRaw, ok := b.oidcStates.Get(stateID)
+	if !ok {
+		return errors.New("OIDC state not found")
+	}
+
+	state := stateRaw.(*oidcState)
+	state.id_token = id_token
+
+	b.oidcStates.SetDefault(stateID, state)
+
+	return nil
 }
 
 // verifyState tests whether the provided state ID is valid and returns the
