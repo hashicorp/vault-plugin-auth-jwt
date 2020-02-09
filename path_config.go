@@ -14,8 +14,17 @@ import (
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/certutil"
+	"github.com/hashicorp/vault/sdk/helper/strutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"golang.org/x/oauth2"
+)
+
+const (
+	responseTypeCode        = "code"          // Authorization code flow
+	responseTypeIDToken     = "id_token"      // ID Token for form post
+	responseTypeCodeIDToken = "code id_token" // Authorization code and ID Token for form post
+	responseModeQuery       = "query"         // Response as a redirect with query parameters
+	responseModeFormPost    = "form_post"     // Response as an HTML Form
 )
 
 func pathConfig(b *jwtAuthBackend) *framework.Path {
@@ -44,6 +53,10 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 			"oidc_response_mode": {
 				Type:        framework.TypeString,
 				Description: "The response mode to be used in the OAuth2 request. Allowed values are 'query' and 'form_post'.",
+			},
+			"oidc_response_type": {
+				Type:        framework.TypeString,
+				Description: "The response types to request. Allowed values are 'code' and 'code id_token'.",
 			},
 			"jwks_url": {
 				Type:        framework.TypeString,
@@ -138,6 +151,7 @@ func (b *jwtAuthBackend) pathConfigRead(ctx context.Context, req *logical.Reques
 			"oidc_discovery_ca_pem":  config.OIDCDiscoveryCAPEM,
 			"oidc_client_id":         config.OIDCClientID,
 			"oidc_response_mode":     config.OIDCResponseMode,
+			"oidc_response_type":     config.OIDCResponseType,
 			"default_role":           config.DefaultRole,
 			"jwt_validation_pubkeys": config.JWTValidationPubKeys,
 			"jwt_supported_algs":     config.JWTSupportedAlgs,
@@ -157,6 +171,7 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		OIDCClientID:         d.Get("oidc_client_id").(string),
 		OIDCClientSecret:     d.Get("oidc_client_secret").(string),
 		OIDCResponseMode:     d.Get("oidc_response_mode").(string),
+		OIDCResponseType:     d.Get("oidc_response_type").(string),
 		JWKSURL:              d.Get("jwks_url").(string),
 		JWKSCAPEM:            d.Get("jwks_ca_pem").(string),
 		DefaultRole:          d.Get("default_role").(string),
@@ -234,9 +249,19 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	}
 
 	switch config.OIDCResponseMode {
-	case "", "query", "form_post":
+	case "", responseModeQuery:
+		if strutil.StrListContains([]string{responseTypeIDToken, responseTypeCodeIDToken}, config.OIDCResponseType) {
+			return logical.ErrorResponse("query response_mode may not be used with an id_token response_type"), nil
+		}
+	case responseModeFormPost:
 	default:
 		return logical.ErrorResponse("invalid response_mode: %q", config.OIDCResponseMode), nil
+	}
+
+	switch config.OIDCResponseType {
+	case "", responseTypeCode, responseTypeIDToken, responseTypeCodeIDToken:
+	default:
+		return logical.ErrorResponse("invalid response_type: %q", config.OIDCResponseType), nil
 	}
 
 	entry, err := logical.StorageEntryJSON(configPath, config)
@@ -299,6 +324,7 @@ type jwtConfig struct {
 	OIDCClientID         string   `json:"oidc_client_id"`
 	OIDCClientSecret     string   `json:"oidc_client_secret"`
 	OIDCResponseMode     string   `json:"oidc_response_mode"`
+	OIDCResponseType     string   `json:"oidc_response_type"`
 	JWKSURL              string   `json:"jwks_url"`
 	JWKSCAPEM            string   `json:"jwks_ca_pem"`
 	JWTValidationPubKeys []string `json:"jwt_validation_pubkeys"`
