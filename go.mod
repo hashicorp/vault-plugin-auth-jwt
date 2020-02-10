@@ -14,8 +14,6 @@ require (
 	github.com/hashicorp/go-uuid v1.0.2
 	github.com/hashicorp/vault/api v1.0.5-0.20191220205904-4083c36aa063
 	github.com/hashicorp/vault/sdk v0.1.14-0.20191220205904-4083c36aa063
-	github.com/kalafut/q v0.0.0-20181115173100-790b74a54bbf
-	github.com/kr/pretty v0.2.0 // indirect
 	github.com/mitchellh/pointerstructure v0.0.0-20190430161007-f252a8fd71c8
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect

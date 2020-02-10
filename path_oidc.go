@@ -134,14 +134,6 @@ window.localStorage.setItem("oidcState", JSON.stringify({"path":"oidc", "code":"
 		return logical.ErrorResponse(errLoginFailed + " Expired or missing OAuth state."), nil
 	}
 
-	code := d.Get("code").(string)
-	if code == noCode {
-		code = state.code
-	}
-	if code == "" {
-		return logical.ErrorResponse(errLoginFailed + " OAuth code parameter not provided"), nil
-	}
-
 	roleName := state.rolename
 	role, err := b.role(ctx, req.Storage, roleName)
 	if err != nil {
@@ -190,7 +182,15 @@ window.localStorage.setItem("oidcState", JSON.stringify({"path":"oidc", "code":"
 	var rawToken string
 	//var token *oauth2.Token
 
+	code := d.Get("code").(string)
+	if code == noCode {
+		code = state.code
+	}
+
 	if code == "" {
+		if state.id_token == "" {
+			return logical.ErrorResponse(errLoginFailed + " No code or id_token received."), nil
+		}
 		rawToken = state.id_token
 	} else {
 		oauth2Token, err := oauth2Config.Exchange(oidcCtx, code)
