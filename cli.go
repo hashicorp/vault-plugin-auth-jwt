@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/vault/api"
+	"github.com/kalafut/q"
 )
 
 const defaultMount = "oidc"
@@ -80,21 +81,42 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 	http.HandleFunc("/oidc/callback", func(w http.ResponseWriter, req *http.Request) {
 		var response string
 
-		query := req.URL.Query()
-		code := query.Get("code")
-		state := query.Get("state")
+		// Pull state and code from either the body or query parameters.
+		// FormValue prioritizes body values, if found.
 		data := map[string][]string{
-			"code":  {code},
-			"state": {state},
+			"state":    {req.FormValue("state")},
+			"code":     {req.FormValue("code")},
+			"id_token": {req.FormValue("id_token")},
 		}
 
-		secret, err := c.Logical().ReadWithData(fmt.Sprintf("auth/%s/oidc/callback", mount), data)
+		var secret *api.Secret
+		var err error
+
+		if req.Method == http.MethodPost {
+			q.Q("About to POST")
+			resp, err := http.PostForm(fmt.Sprintf("%s/v1/auth/%s/oidc/callback", c.Address(), mount), data)
+			b, _ := ioutil.ReadAll(resp.Body)
+			q.Q(string(b))
+			if err != nil {
+				q.Q(err)
+				summary, detail := parseError(err)
+				response = errorHTML(summary, detail)
+				goto ABORT
+			}
+			defer resp.Body.Close()
+			delete(data, "id_token")
+		}
+
+		q.Q("I'm here")
+		secret, err = c.Logical().ReadWithData(fmt.Sprintf("auth/%s/oidc/callback", mount), data)
 		if err != nil {
 			summary, detail := parseError(err)
 			response = errorHTML(summary, detail)
 		} else {
 			response = successHTML
 		}
+
+	ABORT:
 
 		w.Write([]byte(response))
 		doneCh <- loginResp{secret, err}

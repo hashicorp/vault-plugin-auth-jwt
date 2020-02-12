@@ -18,6 +18,7 @@ func TestConfig_JWT_Read(t *testing.T) {
 		"oidc_discovery_url":     "",
 		"oidc_discovery_ca_pem":  "",
 		"oidc_client_id":         "",
+		"oidc_response_mode":     "",
 		"default_role":           "",
 		"jwt_validation_pubkeys": []string{testJWTPubKey},
 		"jwt_supported_algs":     []string{},
@@ -159,6 +160,7 @@ func TestConfig_JWKS_Update(t *testing.T) {
 		"oidc_discovery_url":     "",
 		"oidc_discovery_ca_pem":  "",
 		"oidc_client_id":         "",
+		"oidc_response_mode":     "form_post",
 		"default_role":           "",
 		"jwt_validation_pubkeys": []string{},
 		"jwt_supported_algs":     []string{},
@@ -253,6 +255,46 @@ func TestConfig_JWKS_Update_Invalid(t *testing.T) {
 	}
 	if !strings.Contains(resp.Error().Error(), "failed to decode keys") {
 		t.Fatalf("got unexpected error: %v", resp.Error())
+	}
+}
+
+func TestConfig_ResponseMode(t *testing.T) {
+	b, storage := getBackend(t)
+
+	tests := []struct {
+		mode        string
+		errExpected bool
+	}{
+		{"", false},
+		{"form_post", false},
+		{"query", false},
+		{"QUERY", true},
+		{"abc", true},
+	}
+
+	for _, test := range tests {
+		data := map[string]interface{}{
+			"oidc_response_mode":     test.mode,
+			"jwt_validation_pubkeys": []string{testJWTPubKey},
+		}
+
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      configPath,
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if test.errExpected {
+			if err == nil && (resp == nil || !resp.IsError()) {
+				t.Fatalf("expected error, got none for %q", test.mode)
+			}
+		} else {
+			if err != nil || (resp != nil && resp.IsError()) {
+				t.Fatalf("err:%s resp:%#v\n", err, resp)
+			}
+		}
 	}
 }
 
