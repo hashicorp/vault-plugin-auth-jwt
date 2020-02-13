@@ -17,5 +17,6 @@ require (
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/ryanuber/go-glob v1.0.0
 	golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a
+	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	gopkg.in/square/go-jose.v2 v2.4.1
 )

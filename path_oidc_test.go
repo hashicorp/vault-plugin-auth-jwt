@@ -491,7 +491,7 @@ func TestOIDC_Callback(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if resp == nil || !strings.Contains(resp.Error().Error(), "code parameter not provided") {
+		if resp == nil || !strings.Contains(resp.Error().Error(), "No code or id_token received") {
 			t.Fatalf("expected OAuth core error response, got: %#v", resp)
 		}
 	})
