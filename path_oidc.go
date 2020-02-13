@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/cidrutil"
-	"github.com/hashicorp/vault/sdk/helper/consts"
 	"github.com/hashicorp/vault/sdk/helper/strutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"golang.org/x/oauth2"
@@ -63,10 +62,16 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 				logical.ReadOperation: &framework.PathOperation{
 					Callback: b.pathCallback,
 					Summary:  "Callback endpoint to complete an OIDC login.",
+
+					// state is cached so don't process OIDC logins on perf standbys
+					ForwardPerformanceStandby: true,
 				},
 				logical.UpdateOperation: &framework.PathOperation{
 					Callback: b.pathCallbackPost,
 					Summary:  "Callback endpoint to handle form_posts.",
+
+					// state is cached so don't process OIDC logins on perf standbys
+					ForwardPerformanceStandby: true,
 				},
 			},
 		},
@@ -86,6 +91,9 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 				logical.UpdateOperation: &framework.PathOperation{
 					Callback: b.authURL,
 					Summary:  "Request an authorization URL to start an OIDC login flow.",
+
+					// state is cached so don't process OIDC logins on perf standbys
+					ForwardPerformanceStandby: true,
 				},
 			},
 		},
@@ -93,11 +101,6 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 }
 
 func (b *jwtAuthBackend) pathCallbackPost(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	// Because the state is cached, don't process OIDC logins on perf standbys
-	if b.System().ReplicationState().HasState(consts.ReplicationPerformanceStandby) {
-		return nil, logical.ErrReadOnly
-	}
-
 	config, err := b.config(ctx, req.Storage)
 	if err != nil {
 		return nil, err
@@ -140,11 +143,6 @@ func (b *jwtAuthBackend) pathCallbackPost(ctx context.Context, req *logical.Requ
 }
 
 func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	// Because the state is cached, don't process OIDC logins on perf standbys
-	if b.System().ReplicationState().HasState(consts.ReplicationPerformanceStandby) {
-		return nil, logical.ErrReadOnly
-	}
-
 	config, err := b.config(ctx, req.Storage)
 	if err != nil {
 		return nil, err
@@ -310,11 +308,6 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 // roles is intentionally non-descriptive and will simply be an empty string.
 func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	logger := b.Logger()
-
-	// Because the state is cached, don't process OIDC logins on perf standbys
-	if b.System().ReplicationState().HasState(consts.ReplicationPerformanceStandby) {
-		return nil, logical.ErrReadOnly
-	}
 
 	// default response for most error/invalid conditions
 	resp := &logical.Response{
