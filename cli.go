@@ -132,7 +132,7 @@ func callbackHandler(c *api.Client, mount string, doneCh chan<- loginResp) http.
 		}
 
 		// If this is a POST, then the form_post response_mode is being used and the flow
-		// involves an extra step. First GET the data to Vault, and then issue a GET with
+		// involves an extra step. First POST the data to Vault, and then issue a GET with
 		// the same state/code to complete the auth as normal.
 		if req.Method == http.MethodPost {
 			url := c.Address() + path.Join("/v1/auth", mount, "oidc/callback")

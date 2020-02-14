@@ -55,7 +55,7 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 			},
 			"oidc_response_types": {
 				Type:        framework.TypeCommaStringSlice,
-				Description: "The response typess to request. Allowed values are 'code' and 'id_token'. Defaults to 'code'.",
+				Description: "The response types to request. Allowed values are 'code' and 'id_token'. Defaults to 'code'.",
 			},
 			"jwks_url": {
 				Type:        framework.TypeString,

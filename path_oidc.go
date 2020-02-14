@@ -394,7 +394,7 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 	// Add "form_post" param if requested. Note: the operator is allowed to configure "query"
 	// as well, but that is the default for the AuthCode method and needn't be explicitly added.
 	if config.OIDCResponseMode == responseModeFormPost {
-		authCodeOpts = append(authCodeOpts, oauth2.SetAuthURLParam("response_mode", "form_post"))
+		authCodeOpts = append(authCodeOpts, oauth2.SetAuthURLParam("response_mode", responseModeFormPost))
 	}
 
 	// Build the final authorization URL. oauth2Config doesn't support response types other than
