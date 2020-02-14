@@ -258,9 +258,6 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		if config.hasType(responseTypeIDToken) {
 			return logical.ErrorResponse("query response_mode may not be used with an id_token response_type"), nil
 		}
-	case responseModeFormPost:
-	default:
-		return logical.ErrorResponse("invalid response_mode: %q", config.OIDCResponseMode), nil
 	}
 
 	entry, err := logical.StorageEntryJSON(configPath, config)
