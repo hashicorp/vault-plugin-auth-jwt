@@ -39,7 +39,7 @@ type oidcState struct {
 	nonce       string
 	redirectURI string
 	code        string
-	id_token    string
+	idToken     string
 }
 
 func pathOIDC(b *jwtAuthBackend) []*framework.Path {
@@ -204,10 +204,10 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	}
 
 	if code == "" {
-		if state.id_token == "" {
+		if state.idToken == "" {
 			return logical.ErrorResponse(errLoginFailed + " No code or id_token received."), nil
 		}
-		rawToken = state.id_token
+		rawToken = state.idToken
 	} else {
 		oauth2Token, err = oauth2Config.Exchange(oidcCtx, code)
 		if err != nil {
@@ -440,7 +440,7 @@ func (b *jwtAuthBackend) createState(rolename, redirectURI string) (string, stri
 	return stateID, nonce, nil
 }
 
-func (b *jwtAuthBackend) amendState(stateID, code, id_token string) (*oidcState, error) {
+func (b *jwtAuthBackend) amendState(stateID, code, idToken string) (*oidcState, error) {
 	stateRaw, ok := b.oidcStates.Get(stateID)
 	if !ok {
 		return nil, errors.New("OIDC state not found")
@@ -448,7 +448,7 @@ func (b *jwtAuthBackend) amendState(stateID, code, id_token string) (*oidcState,
 
 	state := stateRaw.(*oidcState)
 	state.code = code
-	state.id_token = id_token
+	state.idToken = idToken
 
 	b.oidcStates.SetDefault(stateID, state)
 

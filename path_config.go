@@ -320,7 +320,7 @@ type jwtConfig struct {
 	OIDCClientID         string   `json:"oidc_client_id"`
 	OIDCClientSecret     string   `json:"oidc_client_secret"`
 	OIDCResponseMode     string   `json:"oidc_response_mode"`
-	OIDCResponseTypes    []string `json:"oidc_response_types`
+	OIDCResponseTypes    []string `json:"oidc_response_types"`
 	JWKSURL              string   `json:"jwks_url"`
 	JWKSCAPEM            string   `json:"jwks_ca_pem"`
 	JWTValidationPubKeys []string `json:"jwt_validation_pubkeys"`
