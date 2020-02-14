@@ -116,11 +116,10 @@ func callbackHandler(c *api.Client, mount string, doneCh chan<- loginResp) http.
 	return func(w http.ResponseWriter, req *http.Request) {
 		var response string
 		var secret *api.Secret
-		var err error
 
 		defer func() {
 			w.Write([]byte(response))
-			doneCh <- loginResp{secret, err}
+			doneCh <- loginResp{secret, nil}
 		}()
 
 		// Pull any parameters from either the body or query parameters.
@@ -148,7 +147,7 @@ func callbackHandler(c *api.Client, mount string, doneCh chan<- loginResp) http.
 			delete(data, "id_token")
 		}
 
-		secret, err = c.Logical().ReadWithData(fmt.Sprintf("auth/%s/oidc/callback", mount), data)
+		secret, err := c.Logical().ReadWithData(fmt.Sprintf("auth/%s/oidc/callback", mount), data)
 		if err != nil {
 			summary, detail := parseError(err)
 			response = errorHTML(summary, detail)
