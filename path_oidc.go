@@ -502,10 +502,12 @@ func validRedirect(uri string, allowed []string) bool {
 
 // parseMount attempts to extract the mount path from a redirect URI.
 func parseMount(redirectURI string) string {
-	parts := strings.Split(redirectURI, "/v1/auth/")
-	if len(parts) != 2 {
-		// This doesn't look like an auth engine mount.
-		return ""
+	parts := strings.Split(redirectURI, "/")
+
+	for i := 0; i+2 < len(parts); i++ {
+		if parts[i] == "v1" && parts[i+1] == "auth" {
+			return parts[i+2]
+		}
 	}
-	return parts[1]
+	return ""
 }

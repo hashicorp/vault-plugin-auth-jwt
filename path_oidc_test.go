@@ -947,7 +947,10 @@ func TestParseMount(t *testing.T) {
 	if result := parseMount("https://example.com/v1/auth/oidc"); result != "oidc" {
 		t.Fatalf("unexpected result: %s", result)
 	}
-	if result := parseMount("https://example.com/v1/auth/oidc/foo"); result != "oidc/foo" {
+	if result := parseMount("https://example.com/v1/auth/oidc/foo"); result != "oidc" {
+		t.Fatalf("unexpected result: %s", result)
+	}
+	if result := parseMount("https://example.com/v1/auth/oidc/foo/a/b/c"); result != "oidc" {
 		t.Fatalf("unexpected result: %s", result)
 	}
 }
