@@ -115,7 +115,7 @@ func (b *jwtAuthBackend) pathCallbackPost(ctx context.Context, req *logical.Requ
 
 	stateID := d.Get("state").(string)
 	code := d.Get("code").(string)
-	id_token := d.Get("id_token").(string)
+	idToken := d.Get("id_token").(string)
 
 	resp := &logical.Response{
 		Data: map[string]interface{}{
@@ -125,7 +125,7 @@ func (b *jwtAuthBackend) pathCallbackPost(ctx context.Context, req *logical.Requ
 	}
 
 	// Store the provided code and/or token into state, which must already exist.
-	state, err := b.amendState(stateID, code, id_token)
+	state, err := b.amendState(stateID, code, idToken)
 	if err != nil {
 		resp.Data[logical.HTTPRawBody] = []byte(errorHTML(errLoginFailed, "Expired or missing OAuth state."))
 		resp.Data[logical.HTTPStatusCode] = http.StatusBadRequest
