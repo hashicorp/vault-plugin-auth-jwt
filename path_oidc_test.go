@@ -942,3 +942,12 @@ func sampleClaims(nonce string) map[string]interface{} {
 		"password": "foo",
 	}
 }
+
+func TestParseMount(t *testing.T) {
+	if result := parseMount("https://example.com/v1/auth/oidc"); result != "oidc" {
+		t.Fatalf("unexpected result: %s", result)
+	}
+	if result := parseMount("https://example.com/v1/auth/oidc/foo"); result != "oidc/foo" {
+		t.Fatalf("unexpected result: %s", result)
+	}
+}
