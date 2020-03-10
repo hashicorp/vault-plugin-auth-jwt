@@ -2,6 +2,7 @@ package jwtauth
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,11 +36,13 @@ const (
 // oidcState is created when an authURL is requested. The state identifier is
 // passed throughout the OAuth process.
 type oidcState struct {
-	rolename    string
-	nonce       string
-	redirectURI string
-	code        string
-	idToken     string
+	rolename     string
+	nonce        string
+	redirectURI  string
+	code         string
+	idToken      string
+	refreshToken string
+	accessToken  string
 }
 
 func pathOIDC(b *jwtAuthBackend) []*framework.Path {
@@ -54,6 +57,12 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 					Type: framework.TypeString,
 				},
 				"id_token": {
+					Type: framework.TypeString,
+				},
+				"refresh_token": {
+					Type: framework.TypeString,
+				},
+				"access_token": {
 					Type: framework.TypeString,
 				},
 			},
@@ -116,6 +125,8 @@ func (b *jwtAuthBackend) pathCallbackPost(ctx context.Context, req *logical.Requ
 	stateID := d.Get("state").(string)
 	code := d.Get("code").(string)
 	idToken := d.Get("id_token").(string)
+	refreshToken := d.Get("refresh_token").(string)
+	accessToken := d.Get("access_token").(string)
 
 	resp := &logical.Response{
 		Data: map[string]interface{}{
@@ -124,8 +135,8 @@ func (b *jwtAuthBackend) pathCallbackPost(ctx context.Context, req *logical.Requ
 		},
 	}
 
-	// Store the provided code and/or token into state, which must already exist.
-	state, err := b.amendState(stateID, code, idToken)
+	// Store the provided code and/or token(s) into state, which must already exist.
+	state, err := b.amendState(stateID, code, idToken, refreshToken, accessToken)
 	if err != nil {
 		resp.Data[logical.HTTPRawBody] = []byte(errorHTML(errLoginFailed, "Expired or missing OAuth state."))
 		resp.Data[logical.HTTPStatusCode] = http.StatusBadRequest
@@ -140,6 +151,19 @@ func (b *jwtAuthBackend) pathCallbackPost(ctx context.Context, req *logical.Requ
 	}
 
 	return resp, nil
+}
+
+// function copied from coreos/go-oidc/verify.go private function
+func parseJWT(p string) ([]byte, error) {
+	parts := strings.Split(p, ".")
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("jwtauth: malformed jwt, expected 3 parts got %d", len(parts))
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("jwtauth: malformed jwt payload: %v", err)
+	}
+	return payload, nil
 }
 
 func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
@@ -196,6 +220,8 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	}
 
 	var rawToken string
+	var refreshToken string
+	var accessToken string
 	var oauth2Token *oauth2.Token
 
 	code := d.Get("code").(string)
@@ -208,6 +234,8 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 			return logical.ErrorResponse(errLoginFailed + " No code or id_token received."), nil
 		}
 		rawToken = state.idToken
+		refreshToken = state.refreshToken
+		accessToken = state.accessToken
 	} else {
 		oauth2Token, err = oauth2Config.Exchange(oidcCtx, code)
 		if err != nil {
@@ -220,10 +248,18 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		if !ok {
 			return logical.ErrorResponse(errTokenVerification + " No id_token found in response."), nil
 		}
+		refreshToken, _ = oauth2Token.Extra("refresh_token").(string)
+		accessToken, _ = oauth2Token.Extra("access_token").(string)
 	}
 
 	if role.VerboseOIDCLogging {
 		b.Logger().Debug("OIDC provider response", "ID token", rawToken)
+		if refreshToken != "" {
+			b.Logger().Debug("OIDC provider response", "Refresh token", refreshToken)
+		}
+		if accessToken != "" {
+			b.Logger().Debug("OIDC provider response", "Access token", accessToken)
+		}
 	}
 
 	// Parse and verify ID Token payload.
@@ -252,11 +288,30 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		}
 	}
 
+	var accessClaims map[string]interface{}
+	if (accessToken != "") {
+		accessPayload, err := parseJWT(accessToken)
+		if err != nil {
+			b.Logger().Warn("error parsing access token", "error", err)
+			accessToken = ""
+		} else if err := json.Unmarshal(accessPayload, &accessClaims); err != nil {
+			b.Logger().Warn("error unmarshaling access token", "error", err)
+			accessToken = ""
+		}
+	}
+
 	if role.VerboseOIDCLogging {
 		if c, err := json.Marshal(allClaims); err == nil {
 			b.Logger().Debug("OIDC provider response", "claims", string(c))
 		} else {
 			b.Logger().Debug("OIDC provider response", "marshalling error", err.Error())
+		}
+		if (accessToken != "") {
+			if c, err := json.Marshal(accessClaims); err == nil {
+				b.Logger().Debug("OIDC provider response", "access_token", string(c))
+			} else {
+				b.Logger().Debug("OIDC provider response", "access_token marshalling error", err.Error())
+			}
 		}
 	}
 
@@ -272,6 +327,16 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	tokenMetadata := map[string]string{"role": roleName}
 	for k, v := range alias.Metadata {
 		tokenMetadata[k] = v
+	}
+	if (accessToken != "") {
+		tokenMetadata["access_token"] = accessToken;
+		exp, ok := accessClaims["exp"]
+		if ok {
+			tokenMetadata["access_exp"] = fmt.Sprint(int(exp.(float64)))
+		}
+	}
+	if (refreshToken != "") {
+		tokenMetadata["refresh_token"] = refreshToken;
 	}
 
 	auth := &logical.Auth{
@@ -440,7 +505,7 @@ func (b *jwtAuthBackend) createState(rolename, redirectURI string) (string, stri
 	return stateID, nonce, nil
 }
 
-func (b *jwtAuthBackend) amendState(stateID, code, idToken string) (*oidcState, error) {
+func (b *jwtAuthBackend) amendState(stateID, code, idToken string, refreshToken string, accessToken string) (*oidcState, error) {
 	stateRaw, ok := b.oidcStates.Get(stateID)
 	if !ok {
 		return nil, errors.New("OIDC state not found")
@@ -449,6 +514,8 @@ func (b *jwtAuthBackend) amendState(stateID, code, idToken string) (*oidcState, 
 	state := stateRaw.(*oidcState)
 	state.code = code
 	state.idToken = idToken
+	state.refreshToken = refreshToken
+	state.accessToken = accessToken
 
 	b.oidcStates.SetDefault(stateID, state)
 
