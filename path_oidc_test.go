@@ -750,7 +750,7 @@ func TestOIDC_Callback(t *testing.T) {
 			// set mock provider's expected code
 			s.code = "abc"
 
-			// invoke the callback, which will in to try to exchange the code
+			// invoke the callback, which will try to exchange the code
 			// with the mock provider.
 			req = &logical.Request{
 				Operation: logical.ReadOperation,
