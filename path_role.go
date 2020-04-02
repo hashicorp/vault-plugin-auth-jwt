@@ -144,6 +144,14 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 Not recommended in production since sensitive information may be present 
 in OIDC responses.`,
 			},
+			"refresh_store_path": {
+				Type:        framework.TypeString,
+				Description: `Vault path to store refresh token`,
+			},
+			"refresh_store_cred": {
+				Type:        framework.TypeString,
+				Description: `Vault credential (that is, token) to use when storing refresh token`,
+			},
 		},
 		ExistenceCheck: b.pathRoleExistenceCheck,
 		Operations: map[logical.Operation]framework.OperationHandler{
@@ -202,6 +210,8 @@ type jwtRole struct {
 	OIDCScopes          []string               `json:"oidc_scopes"`
 	AllowedRedirectURIs []string               `json:"allowed_redirect_uris"`
 	VerboseOIDCLogging  bool                   `json:"verbose_oidc_logging"`
+	RefreshStorePath    string                 `json:"refresh_store_path"`
+	RefreshStoreCred    string                 `json:"refresh_store_cred"`
 
 	// Deprecated by TokenParams
 	Policies   []string                      `json:"policies"`
@@ -308,6 +318,8 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 		"allowed_redirect_uris": role.AllowedRedirectURIs,
 		"oidc_scopes":           role.OIDCScopes,
 		"verbose_oidc_logging":  role.VerboseOIDCLogging,
+		"refresh_store_path":    role.RefreshStorePath,
+		"refresh_store_cred":    role.RefreshStoreCred,
 	}
 
 	role.PopulateTokenData(d)
@@ -439,6 +451,13 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 
 	if verboseOIDCLoggingRaw, ok := data.GetOk("verbose_oidc_logging"); ok {
 		role.VerboseOIDCLogging = verboseOIDCLoggingRaw.(bool)
+	}
+
+	if refreshStorePath, ok := data.GetOk("refresh_store_path"); ok {
+		role.RefreshStorePath = refreshStorePath.(string)
+	}
+	if refreshStoreCred, ok := data.GetOk("refresh_store_cred"); ok {
+		role.RefreshStoreCred = refreshStoreCred.(string)
 	}
 
 	boundClaimsType := data.Get("bound_claims_type").(string)

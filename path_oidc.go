@@ -13,6 +13,7 @@ import (
 	"github.com/coreos/go-oidc"
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/cidrutil"
 	"github.com/hashicorp/vault/sdk/helper/strutil"
@@ -215,6 +216,7 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	}
 
 	var rawToken string
+	var refreshToken string
 	var oauth2Token *oauth2.Token
 
 	code := d.Get("code").(string)
@@ -238,6 +240,13 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		rawToken, ok = oauth2Token.Extra("id_token").(string)
 		if !ok {
 			return logical.ErrorResponse(errTokenVerification + " No id_token found in response."), nil
+		}
+
+		if role.RefreshStorePath != "" {
+			refreshToken, ok = oauth2Token.Extra("refresh_token").(string)
+			if !ok {
+				return logical.ErrorResponse(errTokenVerification + " No refresh_token found in response."), nil
+			}
 		}
 	}
 
@@ -277,6 +286,9 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		} else {
 			b.Logger().Debug("OIDC provider response", "marshalling error", err.Error())
 		}
+		if refreshToken != "" {
+			b.Logger().Debug("OIDC provider response", "refresh_token", refreshToken)
+		}
 	}
 
 	if err := validateBoundClaims(b.Logger(), role.BoundClaimsType, role.BoundClaims, allClaims); err != nil {
@@ -313,6 +325,42 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	}
 
 	role.PopulateTokenAuth(auth)
+
+	if role.RefreshStorePath != "" && refreshToken != "" {
+		vaultConfig := api.DefaultConfig()
+		client, err := api.NewClient(vaultConfig)
+		if err != nil {
+			return logical.ErrorResponse("error getting vault client: %s", err.Error()), nil
+		}
+		if role.RefreshStoreCred != "" {
+			client.SetToken(role.RefreshStoreCred)
+		}
+		storePath := role.RefreshStorePath
+		for {
+			/* replace claims in storePath of form {claim} with its value */
+			start := strings.Index(storePath, "{")
+			if start == -1 {
+				break
+			}
+			end := strings.Index(storePath, "}")
+			if end < start {
+				return logical.ErrorResponse("mismatched brackets in refresh_store_path %s", role.RefreshStorePath), nil
+			}
+			claim := storePath[start+1:end]
+			if val, ok := allClaims[claim]; ok {
+				storePath = strings.ReplaceAll(storePath, "{" + claim + "}", val.(string))
+			} else {
+				return logical.ErrorResponse("no claim %s found for refresh_store_path %s", claim, role.RefreshStorePath), nil
+			}
+		}
+		_, err = client.Logical().Write(storePath, map[string]interface{} {
+			"refresh_token": refreshToken,
+		})
+		if err != nil {
+			return logical.ErrorResponse("error storing refresh token at %s: %s", storePath, err.Error()), nil
+		}
+		b.Logger().Debug("OIDC stored refresh token", "store_path", storePath)
+	}
 
 	resp := &logical.Response{
 		Auth: auth,
