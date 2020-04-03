@@ -337,18 +337,18 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		}
 		storePath := role.RefreshStorePath
 		for {
-			/* replace claims in storePath of form {claim} with its value */
-			start := strings.Index(storePath, "{")
+			/* replace claims in storePath of form {{claim}} with its value */
+			start := strings.Index(storePath, "{{")
 			if start == -1 {
 				break
 			}
-			end := strings.Index(storePath, "}")
+			end := strings.Index(storePath, "}}")
 			if end < start {
 				return logical.ErrorResponse("mismatched brackets in refresh_store_path %s", role.RefreshStorePath), nil
 			}
-			claim := storePath[start+1:end]
+			claim := storePath[start+2:end]
 			if val, ok := allClaims[claim]; ok {
-				storePath = strings.ReplaceAll(storePath, "{" + claim + "}", val.(string))
+				storePath = strings.ReplaceAll(storePath, "{{" + claim + "}}", val.(string))
 			} else {
 				return logical.ErrorResponse("no claim %s found for refresh_store_path %s", claim, role.RefreshStorePath), nil
 			}
