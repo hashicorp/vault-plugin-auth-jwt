@@ -44,18 +44,6 @@ func (s *gRPCSystemViewClient) MaxLeaseTTL() time.Duration {
 	return time.Duration(reply.TTL)
 }
 
-func (s *gRPCSystemViewClient) SudoPrivilege(ctx context.Context, path string, token string) bool {
-	reply, err := s.client.SudoPrivilege(ctx, &pb.SudoPrivilegeArgs{
-		Path:  path,
-		Token: token,
-	})
-	if err != nil {
-		return false
-	}
-
-	return reply.Sudo
-}
-
 func (s *gRPCSystemViewClient) Tainted() bool {
 	reply, err := s.client.Tainted(context.Background(), &pb.Empty{})
 	if err != nil {
@@ -150,6 +138,20 @@ func (s *gRPCSystemViewClient) EntityInfo(entityID string) (*logical.Entity, err
 	return reply.Entity, nil
 }
 
+func (s *gRPCSystemViewClient) GroupsForEntity(entityID string) ([]*logical.Group, error) {
+	reply, err := s.client.GroupsForEntity(context.Background(), &pb.EntityInfoArgs{
+		EntityID: entityID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if reply.Err != "" {
+		return nil, errors.New(reply.Err)
+	}
+
+	return reply.Groups, nil
+}
+
 func (s *gRPCSystemViewClient) PluginEnv(ctx context.Context) (*logical.PluginEnvironment, error) {
 	reply, err := s.client.PluginEnv(ctx, &pb.Empty{})
 	if err != nil {
@@ -174,13 +176,6 @@ func (s *gRPCSystemViewServer) MaxLeaseTTL(ctx context.Context, _ *pb.Empty) (*p
 	ttl := s.impl.MaxLeaseTTL()
 	return &pb.TTLReply{
 		TTL: int64(ttl),
-	}, nil
-}
-
-func (s *gRPCSystemViewServer) SudoPrivilege(ctx context.Context, args *pb.SudoPrivilegeArgs) (*pb.SudoPrivilegeReply, error) {
-	sudo := s.impl.SudoPrivilege(ctx, args.Path, args.Token)
-	return &pb.SudoPrivilegeReply{
-		Sudo: sudo,
 	}, nil
 }
 
@@ -253,6 +248,18 @@ func (s *gRPCSystemViewServer) EntityInfo(ctx context.Context, args *pb.EntityIn
 	}
 	return &pb.EntityInfoReply{
 		Entity: entity,
+	}, nil
+}
+
+func (s *gRPCSystemViewServer) GroupsForEntity(ctx context.Context, args *pb.EntityInfoArgs) (*pb.GroupsForEntityReply, error) {
+	groups, err := s.impl.GroupsForEntity(args.EntityID)
+	if err != nil {
+		return &pb.GroupsForEntityReply{
+			Err: pb.ErrToString(err),
+		}, nil
+	}
+	return &pb.GroupsForEntityReply{
+		Groups: groups,
 	}, nil
 }
 
