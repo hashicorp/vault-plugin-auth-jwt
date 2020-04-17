@@ -144,6 +144,10 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 Not recommended in production since sensitive information may be present 
 in OIDC responses.`,
 			},
+			"google_recurse_max_depth": {
+				Type:        framework.TypeInt,
+				Description: `Group membership recursion max depth (0 = do not recurse)`,
+			},
 		},
 		ExistenceCheck: b.pathRoleExistenceCheck,
 		Operations: map[logical.Operation]framework.OperationHandler{
@@ -202,6 +206,9 @@ type jwtRole struct {
 	OIDCScopes          []string               `json:"oidc_scopes"`
 	AllowedRedirectURIs []string               `json:"allowed_redirect_uris"`
 	VerboseOIDCLogging  bool                   `json:"verbose_oidc_logging"`
+
+	// GSuite specific properties
+	GoogleRecurseMaxDepth int `json:"google_recurse_max_depth"`
 
 	// Deprecated by TokenParams
 	Policies   []string                      `json:"policies"`
@@ -329,6 +336,9 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 	}
 	if role.NumUses > 0 {
 		d["num_uses"] = role.NumUses
+	}
+	if role.GoogleRecurseMaxDepth > 0 {
+		d["google_recurse_max_depth"] = role.GoogleRecurseMaxDepth
 	}
 
 	return &logical.Response{
@@ -522,6 +532,10 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 			len(role.BoundClaims) == 0 {
 			return logical.ErrorResponse("must have at least one bound constraint when creating/updating a role"), nil
 		}
+	}
+
+	if googleRecurseMaxDepth, ok := data.GetOk("google_recurse_max_depth"); ok {
+		role.GoogleRecurseMaxDepth = googleRecurseMaxDepth.(int)
 	}
 
 	// Check that the TTL value provided is less than the MaxTTL.
