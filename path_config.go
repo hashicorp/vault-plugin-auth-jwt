@@ -86,7 +86,7 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 			},
 			"gsuite_service_account": {
 				Type:        framework.TypeString,
-				Description: "Service account JSON file with the following scope: https://www.googleapis.com/auth/admin.directory.group.readonly",
+				Description: "Service account JSON file with the following scopes: https://www.googleapis.com/auth/admin.directory.group.readonly, https://www.googleapis.com/auth/admin.directory.user.readonly",
 				DisplayAttrs: &framework.DisplayAttributes{
 					Sensitive: true,
 				},
@@ -145,7 +145,7 @@ func (b *jwtAuthBackend) config(ctx context.Context, s logical.Storage) (*jwtCon
 	}
 
 	if len(config.GSuiteServiceAccount) != 0 {
-		googleConfig, err := google.JWTConfigFromJSON([]byte(config.GSuiteServiceAccount), admin.AdminDirectoryGroupReadonlyScope)
+		googleConfig, err := google.JWTConfigFromJSON([]byte(config.GSuiteServiceAccount), admin.AdminDirectoryGroupReadonlyScope, admin.AdminDirectoryUserReadonlyScope)
 		if err != nil {
 			return nil, errwrap.Wrapf("error parsing gsuite service account file: {{err}}", err)
 		}

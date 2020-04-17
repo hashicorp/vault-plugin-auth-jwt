@@ -273,7 +273,7 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 
 	if config.OIDCDiscoveryURL == "https://accounts.google.com" && config.ParsedGSuiteServiceAccount != nil {
 		// GSuite does not return enough info in /userinfo, fetch data using their API
-		if err := b.fillGoogleInfo(oidcCtx, config.ParsedGSuiteServiceAccount, allClaims["sub"].(string), allClaims, role.GoogleRecurseMaxDepth); err != nil {
+		if err := b.fillGoogleInfo(oidcCtx, config.ParsedGSuiteServiceAccount, allClaims["sub"].(string), role.GoogleCustomSchemas, allClaims, role.GoogleRecurseMaxDepth); err != nil {
 			b.Logger().Warn("error reading gsuite groups /list endpoint", "error", err)
 		}
 	}

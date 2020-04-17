@@ -144,6 +144,10 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 Not recommended in production since sensitive information may be present 
 in OIDC responses.`,
 			},
+			"google_custom_schemas": {
+				Type:        framework.TypeString,
+				Description: `Comma-separated list of GSuite custom schemas to fetch as claims`,
+			},
 			"google_recurse_max_depth": {
 				Type:        framework.TypeInt,
 				Description: `Group membership recursion max depth (0 = do not recurse)`,
@@ -208,7 +212,8 @@ type jwtRole struct {
 	VerboseOIDCLogging  bool                   `json:"verbose_oidc_logging"`
 
 	// GSuite specific properties
-	GoogleRecurseMaxDepth int `json:"google_recurse_max_depth"`
+	GoogleCustomSchemas   string `json:"google_custom_schemas"`
+	GoogleRecurseMaxDepth int    `json:"google_recurse_max_depth"`
 
 	// Deprecated by TokenParams
 	Policies   []string                      `json:"policies"`
@@ -301,20 +306,20 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 
 	// Create a map of data to be returned
 	d := map[string]interface{}{
-		"role_type":             role.RoleType,
-		"expiration_leeway":     int64(role.ExpirationLeeway.Seconds()),
-		"not_before_leeway":     int64(role.NotBeforeLeeway.Seconds()),
-		"clock_skew_leeway":     int64(role.ClockSkewLeeway.Seconds()),
-		"bound_audiences":       role.BoundAudiences,
-		"bound_subject":         role.BoundSubject,
-		"bound_claims_type":     role.BoundClaimsType,
-		"bound_claims":          role.BoundClaims,
-		"claim_mappings":        role.ClaimMappings,
-		"user_claim":            role.UserClaim,
-		"groups_claim":          role.GroupsClaim,
-		"allowed_redirect_uris": role.AllowedRedirectURIs,
-		"oidc_scopes":           role.OIDCScopes,
-		"verbose_oidc_logging":  role.VerboseOIDCLogging,
+		"role_type":                role.RoleType,
+		"expiration_leeway":        int64(role.ExpirationLeeway.Seconds()),
+		"not_before_leeway":        int64(role.NotBeforeLeeway.Seconds()),
+		"clock_skew_leeway":        int64(role.ClockSkewLeeway.Seconds()),
+		"bound_audiences":          role.BoundAudiences,
+		"bound_subject":            role.BoundSubject,
+		"bound_claims_type":        role.BoundClaimsType,
+		"bound_claims":             role.BoundClaims,
+		"claim_mappings":           role.ClaimMappings,
+		"user_claim":               role.UserClaim,
+		"groups_claim":             role.GroupsClaim,
+		"allowed_redirect_uris":    role.AllowedRedirectURIs,
+		"oidc_scopes":              role.OIDCScopes,
+		"verbose_oidc_logging":     role.VerboseOIDCLogging,
 	}
 
 	role.PopulateTokenData(d)
@@ -532,6 +537,10 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 			len(role.BoundClaims) == 0 {
 			return logical.ErrorResponse("must have at least one bound constraint when creating/updating a role"), nil
 		}
+	}
+
+	if googleCustomSchemas, ok := data.GetOk("google_custom_schemas"); ok {
+		role.GoogleCustomSchemas = googleCustomSchemas.(string)
 	}
 
 	if googleRecurseMaxDepth, ok := data.GetOk("google_recurse_max_depth"); ok {
