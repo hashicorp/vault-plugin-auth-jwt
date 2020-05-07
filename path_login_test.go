@@ -32,6 +32,7 @@ type testConfig struct {
 	expLeeway      int
 	nbfLeeway      int
 	groupsClaim    string
+	policiesClaim  string
 }
 
 type closeableBackend struct {
@@ -49,6 +50,10 @@ func setupBackend(t *testing.T, cfg testConfig) (closeableBackend, logical.Stora
 
 	if cfg.groupsClaim == "" {
 		cfg.groupsClaim = "https://vault/groups"
+	}
+
+	if cfg.policiesClaim == "" {
+		cfg.policiesClaim = "https://vault/policies"
 	}
 
 	var data map[string]interface{}
@@ -92,15 +97,16 @@ func setupBackend(t *testing.T, cfg testConfig) (closeableBackend, logical.Stora
 	}
 
 	data = map[string]interface{}{
-		"role_type":     "jwt",
-		"bound_subject": "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
-		"user_claim":    "https://vault/user",
-		"groups_claim":  cfg.groupsClaim,
-		"policies":      "test",
-		"period":        "3s",
-		"ttl":           "1s",
-		"num_uses":      12,
-		"max_ttl":       "5s",
+		"role_type":      "jwt",
+		"bound_subject":  "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+		"user_claim":     "https://vault/user",
+		"groups_claim":   cfg.groupsClaim,
+		"policies_claim": cfg.policiesClaim,
+		"policies":       "test",
+		"period":         "3s",
+		"ttl":            "1s",
+		"num_uses":       12,
+		"max_ttl":        "5s",
 		"claim_mappings": map[string]string{
 			"first_name":   "name",
 			"/org/primary": "primary_org",
@@ -223,11 +229,13 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 		}
 
 		privateCl := struct {
-			User   string   `json:"https://vault/user"`
-			Groups []string `json:"https://vault/groups"`
+			User   string     `json:"https://vault/user"`
+			Groups []string   `json:"https://vault/groups"`
+			Policies []string `json:"https://vault/policies"`
 		}{
 			"jeff",
 			[]string{"foo", "bar"},
+			[]string{"foo_policy", "bar_policy"},
 		}
 
 		jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
@@ -343,12 +351,14 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 			privateCl := struct {
 				User      string   `json:"https://vault/user"`
 				Groups    []string `json:"https://vault/groups"`
+				Policies []string `json:"https://vault/policies"`
 				FirstName string   `json:"first_name"`
 				Org       orgs     `json:"org"`
 				Color     string   `json:"color"`
 			}{
 				"jeff",
 				[]string{"foo", "bar"},
+				[]string{"foo_policy", "bar_policy"},
 				"jeff2",
 				orgs{"engineering"},
 				"green",
@@ -384,7 +394,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 
 			auth := resp.Auth
 			switch {
-			case len(auth.Policies) != 1 || auth.Policies[0] != "test":
+			case len(auth.Policies) != 3 || auth.Policies[0] != "test" || auth.Policies[1] != "foo_policy" || auth.Policies[2] != "bar_policy":
 				t.Fatal(auth.Policies)
 			case auth.Alias.Name != "jeff":
 				t.Fatal(auth.Alias.Name)
@@ -964,13 +974,15 @@ func setupLogin(t *testing.T, iat, exp, nbf time.Time, b logical.Backend, storag
 		Primary string `json:"primary"`
 	}
 	privateCl := struct {
-		User   string   `json:"https://vault/user"`
-		Groups []string `json:"https://vault/groups"`
-		Org    orgs     `json:"org"`
-		Color  string   `json:"color"`
+		User   string     `json:"https://vault/user"`
+		Groups []string   `json:"https://vault/groups"`
+		Policies []string `json:"https://vault/policies"`
+		Org    orgs       `json:"org"`
+		Color  string     `json:"color"`
 	}{
 		"foobar",
 		[]string{"foo", "bar"},
+		[]string{"foo_policy", "bar_policy"},
 		orgs{"engineering"},
 		"green",
 	}
@@ -1033,7 +1045,7 @@ func TestLogin_OIDC(t *testing.T) {
 
 	auth := resp.Auth
 	switch {
-	case len(auth.Policies) != 1 || auth.Policies[0] != "test":
+	case len(auth.Policies) != 3 || auth.Policies[0] != "test" || auth.Policies[1] != "foo_policy" || auth.Policies[2] != "bar_policy":
 		t.Fatal(auth.Policies)
 	case auth.Alias.Name != "jeff":
 		t.Fatal(auth.Alias.Name)

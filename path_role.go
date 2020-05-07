@@ -130,6 +130,10 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 				Type:        framework.TypeString,
 				Description: `The claim to use for the Identity group alias names`,
 			},
+			"policies_claim": {
+				Type:        framework.TypeString,
+				Description: `The claim that sets specific policies on the returned token.`,
+			},
 			"oidc_scopes": {
 				Type:        framework.TypeCommaStringSlice,
 				Description: `Comma-separated list of OIDC scopes`,
@@ -199,6 +203,7 @@ type jwtRole struct {
 	ClaimMappings       map[string]string      `json:"claim_mappings"`
 	UserClaim           string                 `json:"user_claim"`
 	GroupsClaim         string                 `json:"groups_claim"`
+	PoliciesClaim       string                 `json:"policies_claim"`
 	OIDCScopes          []string               `json:"oidc_scopes"`
 	AllowedRedirectURIs []string               `json:"allowed_redirect_uris"`
 	VerboseOIDCLogging  bool                   `json:"verbose_oidc_logging"`
@@ -305,6 +310,7 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 		"claim_mappings":        role.ClaimMappings,
 		"user_claim":            role.UserClaim,
 		"groups_claim":          role.GroupsClaim,
+		"policies_claim":        role.PoliciesClaim,
 		"allowed_redirect_uris": role.AllowedRedirectURIs,
 		"oidc_scopes":           role.OIDCScopes,
 		"verbose_oidc_logging":  role.VerboseOIDCLogging,
@@ -498,6 +504,10 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 
 	if groupsClaim, ok := data.GetOk("groups_claim"); ok {
 		role.GroupsClaim = groupsClaim.(string)
+	}
+
+	if policiesClaim, ok := data.GetOk("policies_claim"); ok {
+		role.PoliciesClaim = policiesClaim.(string)
 	}
 
 	if oidcScopes, ok := data.GetOk("oidc_scopes"); ok {

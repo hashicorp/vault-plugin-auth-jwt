@@ -239,6 +239,14 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 
 	role.PopulateTokenAuth(auth)
 
+	// Append policies from JWT claims to the policies already on the token
+	if role.PoliciesClaim != "" {
+        err := b.processPoliciesClaim(allClaims, role, auth)
+        if err != nil {
+            return logical.ErrorResponse(err.Error()), nil
+        }
+    }
+
 	return &logical.Response{
 		Auth: auth,
 	}, nil
@@ -359,6 +367,30 @@ func (b *jwtAuthBackend) createIdentity(allClaims map[string]interface{}, role *
 	}
 
 	return alias, groupAliases, nil
+}
+
+// Adds policies from the JWT policiesClaim to the auth token, if applicable
+func (b *jwtAuthBackend) processPoliciesClaim(allClaims map[string]interface{}, role *jwtRole, auth *logical.Auth) (error){
+	policiesClaimRaw := getClaim(b.Logger(), allClaims, role.PoliciesClaim)
+    if policiesClaimRaw != nil {
+        policies, ok := normalizeList(policiesClaimRaw)
+
+        if !ok {
+            return fmt.Errorf("%q claim could not be converted to string list", role.PoliciesClaim)
+        }
+        for _, policyRaw := range policies{
+            policy, ok := policyRaw.(string)
+            if !ok{
+                return fmt.Errorf("value %v in policies claim could not be parsed as string", policyRaw)
+            }
+            if policy == "" {
+                continue
+            }
+            auth.Policies = append(auth.Policies, policy)
+        }
+    }
+
+    return nil
 }
 
 const (
