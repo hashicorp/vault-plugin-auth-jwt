@@ -215,6 +215,7 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	}
 
 	var rawToken string
+	var refreshToken string
 	var oauth2Token *oauth2.Token
 
 	code := d.Get("code").(string)
@@ -238,6 +239,13 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		rawToken, ok = oauth2Token.Extra("id_token").(string)
 		if !ok {
 			return logical.ErrorResponse(errTokenVerification + " No id_token found in response."), nil
+		}
+
+		if role.RefreshField != "" {
+			refreshToken, ok = oauth2Token.Extra("refresh_token").(string)
+			if !ok {
+				return logical.ErrorResponse(errTokenVerification + " No refresh_token found in response."), nil
+			}
 		}
 	}
 
@@ -291,6 +299,9 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	tokenMetadata := map[string]string{"role": roleName}
 	for k, v := range alias.Metadata {
 		tokenMetadata[k] = v
+	}
+	if role.RefreshField != "" && refreshToken != "" {
+		tokenMetadata[role.RefreshField] = refreshToken
 	}
 
 	auth := &logical.Auth{

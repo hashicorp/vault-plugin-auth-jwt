@@ -122,6 +122,10 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 				Type:        framework.TypeKVPairs,
 				Description: `Mappings of claims (key) that will be copied to a metadata field (value)`,
 			},
+			"refresh_field": {
+				Type:        framework.TypeString,
+				Description: `Name of metadata field for refresh token`,
+			},
 			"user_claim": {
 				Type:        framework.TypeString,
 				Description: `The claim to use for the Identity entity alias name`,
@@ -197,6 +201,7 @@ type jwtRole struct {
 	BoundClaimsType     string                 `json:"bound_claims_type"`
 	BoundClaims         map[string]interface{} `json:"bound_claims"`
 	ClaimMappings       map[string]string      `json:"claim_mappings"`
+	RefreshField        string                 `json:"refresh_field"`
 	UserClaim           string                 `json:"user_claim"`
 	GroupsClaim         string                 `json:"groups_claim"`
 	OIDCScopes          []string               `json:"oidc_scopes"`
@@ -303,6 +308,7 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 		"bound_claims_type":     role.BoundClaimsType,
 		"bound_claims":          role.BoundClaims,
 		"claim_mappings":        role.ClaimMappings,
+		"refresh_field":         role.RefreshField,
 		"user_claim":            role.UserClaim,
 		"groups_claim":          role.GroupsClaim,
 		"allowed_redirect_uris": role.AllowedRedirectURIs,
@@ -487,6 +493,10 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 		}
 
 		role.ClaimMappings = claimMappings
+	}
+
+	if refreshField, ok := data.GetOk("refresh_field"); ok {
+		role.RefreshField = refreshField.(string)
 	}
 
 	if userClaim, ok := data.GetOk("user_claim"); ok {
