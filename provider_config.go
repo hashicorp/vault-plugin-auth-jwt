@@ -55,7 +55,7 @@ func NewProviderConfig(jc *jwtConfig, providerMap map[string]CustomProvider) (Cu
 // 	FetchUserInfo(context.Context, *oidc.Provider, *oauth2.Token, claims) error
 // }
 
-// // GroupsFetcher - Optional support for custom groups handling
-// type GroupsFetcher interface {
-// 	FetchGroups(context.Context, *oauth2.Token, claims) error
-// }
+// GroupsFetcher - Optional support for custom groups handling
+type GroupsFetcher interface {
+	FetchGroups(*jwtAuthBackend, map[string]interface{}, *jwtRole) (interface{}, error)
+}
