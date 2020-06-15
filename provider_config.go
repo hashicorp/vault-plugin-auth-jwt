@@ -10,6 +10,7 @@ import (
 
 // ProviderMap is used to map a provider name to its provider type
 var ProviderMap = map[string]CustomProvider{
+	// TODO: remove "empty" provider when actual providers are added
 	"empty": &EmptyProvider{},
 }
 

@@ -69,7 +69,7 @@ func TestNewProviderConfig(t *testing.T) {
 		}
 
 		theProvider, err := NewProviderConfig(jc, pMap)
-		assert.EqualError(t, err, "provider field not found in provider_config")
+		assert.EqualError(t, err, "'provider' field not found in provider_config")
 		assert.Nil(t, theProvider)
 	})
 
@@ -100,7 +100,7 @@ func TestNewProviderConfig(t *testing.T) {
 		}
 
 		theProvider, err := NewProviderConfig(jc, pMap)
-		assert.EqualError(t, err, "provider field not found in provider_config")
+		assert.EqualError(t, err, "'provider' field not found in provider_config")
 		assert.Nil(t, theProvider)
 	})
 
