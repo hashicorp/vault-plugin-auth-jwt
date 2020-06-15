@@ -470,7 +470,7 @@ func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
 		resp, err := b.HandleRequest(context.Background(), req)
 		assert.NoError(t, err)
 		assert.True(t, resp.IsError())
-		assert.EqualError(t, resp.Error(), "invalid provider_config: provider field not found in provider_config")
+		assert.EqualError(t, resp.Error(), "invalid provider_config: 'provider' field not found in provider_config")
 	})
 
 	t.Run("provider_config not set", func(t *testing.T) {
