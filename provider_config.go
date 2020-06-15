@@ -31,7 +31,7 @@ func NewProviderConfig(jc *jwtConfig, providerMap map[string]CustomProvider) (Cu
 		return nil, nil
 	}
 	if provider, ok = jc.ProviderConfig["provider"].(string); !ok {
-		return nil, fmt.Errorf("provider field not found in provider_config")
+		return nil, fmt.Errorf("'provider' field not found in provider_config")
 	}
 	newCustomProvider, ok = providerMap[provider]
 	if !ok {
