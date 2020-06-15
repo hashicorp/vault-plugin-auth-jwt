@@ -1,7 +1,6 @@
 package jwtauth
 
 import (
-	"errors"
 	"fmt"
 )
 
@@ -28,11 +27,11 @@ func NewProviderConfig(jc *jwtConfig, providerMap map[string]CustomProvider) (Cu
 	var ok bool
 	var newCustomProvider CustomProvider
 
-	if jc.ProviderConfig == nil {
+	if len(jc.ProviderConfig) == 0 {
 		return nil, nil
 	}
 	if provider, ok = jc.ProviderConfig["provider"].(string); !ok {
-		return nil, errors.New("provider field not found in provider_config")
+		return nil, fmt.Errorf("provider field not found in provider_config")
 	}
 	newCustomProvider, ok = providerMap[provider]
 	if !ok {
