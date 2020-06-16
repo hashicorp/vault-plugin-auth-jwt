@@ -35,8 +35,6 @@ func TestNewProviderConfig(t *testing.T) {
 		}
 		pMap := map[string]CustomProvider{
 			"test": &testProviderConfig{},
-			// "gsuite": &GsuiteProvider{},
-			// "azure":  &AzureProvider{},
 		}
 
 		theProvider, err := NewProviderConfig(jc, pMap)

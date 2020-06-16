@@ -281,8 +281,7 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	}
 
 	// Validate provider_config
-	_, err := NewProviderConfig(config, ProviderMap)
-	if err != nil {
+	if _, err := NewProviderConfig(config, ProviderMap()); err != nil {
 		return logical.ErrorResponse("invalid provider_config: %s", err), nil
 	}
 
