@@ -104,7 +104,7 @@ $ vault auth enable -plugin-name='jwt' plugin
 Successfully enabled 'plugin' at 'jwt'!
 ```
 
-### Provider-specific configuration
+### Provider-specific handling
 
 Provider-specific handling can be added by writing an object that conforms to
 one or more interfaces in [provider_config.go](provider_config.go). Some
