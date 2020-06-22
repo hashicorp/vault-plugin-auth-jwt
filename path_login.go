@@ -362,7 +362,7 @@ func (b *jwtAuthBackend) createIdentity(allClaims map[string]interface{}, role *
 
 // Checks if there's a custom provider_config and calls FetchGroups() if implemented
 func (b *jwtAuthBackend) fetchGroups(allClaims map[string]interface{}, role *jwtRole) (interface{}, error) {
-	pConfig, err := NewProviderConfig(b.cachedConfig, ProviderMap)
+	pConfig, err := NewProviderConfig(b.cachedConfig, ProviderMap())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load custom provider config: %s", err)
 	}
