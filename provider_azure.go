@@ -52,7 +52,7 @@ func (a *AzureProvider) FetchGroups(b *jwtAuthBackend, allClaims map[string]inte
 		// If the "groups" claim is missing, it might be because the user is a
 		// member of more than 200 groups, which means the token contains
 		// distributed claim information. Attempt to look that up here.
-		azureClaimSourcesURL, err := a.getClaimSources(b.Logger(), allClaims, role, b.cachedConfig)
+		azureClaimSourcesURL, err := a.getClaimSource(b.Logger(), allClaims, role)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get claim sources: %s", err)
 		}
@@ -99,7 +99,7 @@ func (a *AzureProvider) FetchGroups(b *jwtAuthBackend, allClaims map[string]inte
 //
 // For this to work, "profile" should be set in "oidc_scopes" in the vault oidc role.
 //
-func (a *AzureProvider) getClaimSources(logger log.Logger, allClaims map[string]interface{}, role *jwtRole, c *jwtConfig) (string, error) {
+func (a *AzureProvider) getClaimSource(logger log.Logger, allClaims map[string]interface{}, role *jwtRole) (string, error) {
 	// Get the source key for the groups claim
 	name := fmt.Sprintf("/%s/%s", claimNamesField, role.GroupsClaim)
 	groupsClaimSource := getClaim(logger, allClaims, name)
