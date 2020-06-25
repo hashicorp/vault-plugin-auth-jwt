@@ -70,7 +70,7 @@ func (a *AzureProvider) FetchGroups(b *jwtAuthBackend, allClaims map[string]inte
 			return nil, fmt.Errorf("unable to create CA Context: %s", err)
 		}
 
-		azureGroups, err := a.getAzureGroups(b.Logger(), azureClaimSourcesURL, b.cachedConfig)
+		azureGroups, err := a.getAzureGroups(azureClaimSourcesURL, b.cachedConfig)
 		if err != nil {
 			return nil, fmt.Errorf("%q claim not found in token: %v", role.GroupsClaim, err)
 		}
@@ -117,17 +117,20 @@ func (a *AzureProvider) getClaimSource(logger log.Logger, allClaims map[string]i
 }
 
 // Fetch user groups from the Azure AD Graph API
-func (a *AzureProvider) getAzureGroups(logger log.Logger, groupsURL string, c *jwtConfig) (interface{}, error) {
+func (a *AzureProvider) getAzureGroups(groupsURL string, c *jwtConfig) (interface{}, error) {
 	urlParsed, err := url.Parse(groupsURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse distributed groups source url %s: %s", groupsURL, err)
 	}
-	token, err := a.getAzureToken(logger, c, urlParsed.Host)
+	token, err := a.getAzureToken(c, urlParsed.Host)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get token: %s", err)
 	}
 	payload := strings.NewReader("{\"securityEnabledOnly\": false}")
-	req, _ := http.NewRequest("POST", groupsURL, payload)
+	req, err := http.NewRequest("POST", groupsURL, payload)
+	if err != nil {
+		return nil, fmt.Errorf("error constructing groups endpoint request: %s", err)
+	}
 	req.Header.Add("content-type", "application/json")
 	req.Header.Add("authorization", fmt.Sprintf("Bearer %s", token))
 
@@ -162,7 +165,7 @@ func (a *AzureProvider) getAzureGroups(logger log.Logger, groupsURL string, c *j
 }
 
 // Login to Azure, using client id and secret.
-func (a *AzureProvider) getAzureToken(logger log.Logger, c *jwtConfig, host string) (string, error) {
+func (a *AzureProvider) getAzureToken(c *jwtConfig, host string) (string, error) {
 	config := &clientcredentials.Config{
 		ClientID:     c.OIDCClientID,
 		ClientSecret: c.OIDCClientSecret,
