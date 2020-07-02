@@ -3,7 +3,8 @@
 //
 // The below code was copied from
 //   https://raw.githubusercontent.com/rjw57/oauth2device/master/oauth2device.go
-// on 16 June 2020.  Documentation for the original code was available at 
+// on 16 June 2020 and updated according to the more recent RFC8628.
+// Documentation for the original code was available at 
 //   https://godoc.org/github.com/rjw57/oauth2device
 // The BSD license applied was this:
 // 
@@ -41,6 +42,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -49,15 +51,21 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// A DeviceCode represents the user-visible code, verification URL and
-// device-visible code used to allow for user authorisation of this app. The
-// app should show UserCode and VerificationURL to the user.
+// A DeviceCode represents the user-visible code, verification URI and
+// device-visible code used to allow for user authorisation of this app.
+// The VerificationURIComplete is optional and combines the user code
+// and verification URI.  If present, apps may choose to show to
+// the user the VerificationURIComplete, otherwise the app should show
+// the UserCode and VerificationURL to the user.  ExpiresIn is how many
+// seconds the user has to respond, and the optional Interval is how many
+// seconds the app should wait in between polls (default 5).
 type DeviceCode struct {
-	DeviceCode      string `json:"device_code"`
-	UserCode        string `json:"user_code"`
-	VerificationURL string `json:"verification_url"`
-	ExpiresIn       int64  `json:"expires_in"`
-	Interval        int64  `json:"interval"`
+	DeviceCode              string `json:"device_code"`
+	UserCode                string `json:"user_code"`
+	VerificationURI         string `json:"verification_uri"`
+	VerificationURIComplete string `json:"verification_uri_complete"`
+	ExpiresIn               int64  `json:"expires_in"`
+	Interval                int64  `json:"interval"`
 }
 
 // DeviceEndpoint contains the URLs required to initiate the OAuth2.0 flow for a
@@ -67,7 +75,7 @@ type DeviceEndpoint struct {
 }
 
 // A version of oauth2.Config augmented with device endpoints
-type Config struct {
+type DeviceConfig struct {
 	*oauth2.Config
 	DeviceEndpoint DeviceEndpoint
 }
@@ -86,13 +94,13 @@ var (
 )
 
 const (
-	deviceGrantType = "http://oauth.net/grant_type/device/1.0"
+	deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code"
 )
 
 // RequestDeviceCode will initiate the OAuth2 device authorization flow. It
 // requests a device code and information on the code and URL to show to the
 // user. Pass the returned DeviceCode to WaitForDeviceAuthorization.
-func RequestDeviceCode(client *http.Client, config *Config) (*DeviceCode, error) {
+func RequestDeviceCode(client *http.Client, config *DeviceConfig) (*DeviceCode, error) {
 	scopes := strings.Join(config.Scopes, " ")
 	resp, err := client.PostForm(config.DeviceEndpoint.CodeURL,
 		url.Values{"client_id": {config.ClientID}, "scope": {scopes}})
@@ -113,6 +121,10 @@ func RequestDeviceCode(client *http.Client, config *Config) (*DeviceCode, error)
 		return nil, err
 	}
 
+	if dcr.Interval == 0 {
+		dcr.Interval = 5
+	}
+
 	return &dcr, nil
 }
 
@@ -120,34 +132,45 @@ func RequestDeviceCode(client *http.Client, config *Config) (*DeviceCode, error)
 // authorize the app. Upon authorization, it returns the new token. If
 // authorization fails then an error is returned. If that failure was due to a
 // user explicitly denying access, the error is ErrAccessDenied.
-func WaitForDeviceAuthorization(client *http.Client, config *Config, code *DeviceCode) (*oauth2.Token, error) {
+func WaitForDeviceAuthorization(client *http.Client, config *DeviceConfig, code *DeviceCode) (*oauth2.Token, error) {
 	for {
 
 		resp, err := client.PostForm(config.Endpoint.TokenURL,
 			url.Values{
 				"client_secret": {config.ClientSecret},
 				"client_id":     {config.ClientID},
-				"code":          {code.DeviceCode},
+				"device_code":   {code.DeviceCode},
 				"grant_type":    {deviceGrantType}})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("post error while polling for OAuth token: %v", err)
 		}
-		if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadRequest {
 			return nil, fmt.Errorf("HTTP error %v (%v) when polling for OAuth token",
 				resp.StatusCode, http.StatusText(resp.StatusCode))
 		}
 
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("error reading response body while polling for OAuth token: %v", err)
+		}
+
 		// Unmarshal response, checking for errors
 		var token tokenOrError
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&token); err != nil {
-			return nil, err
+		if err := json.Unmarshal(body, &token); err != nil {
+			return nil, fmt.Errorf("error decoding response body while polling for OAuth token: %v", err)
 		}
+
 
 		switch token.Error {
 		case "":
 
-			return token.Token, nil
+			extra := make(map[string]interface{})
+			err := json.Unmarshal(body, &extra)
+			if err != nil {
+				// already been unmarshalled once, unlikely
+				return nil, err
+			}
+			return token.Token.WithExtra(extra), nil
 		case "authorization_pending":
 
 		case "slow_down":
