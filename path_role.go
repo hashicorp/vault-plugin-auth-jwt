@@ -130,6 +130,10 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 				Type:        framework.TypeString,
 				Description: `The claim to use for the Identity group alias names`,
 			},
+			"device_auth_url": {
+				Type:        framework.TypeString,
+				Description: `URL of OIDC provider device endpoint`,
+			},
 			"oidc_scopes": {
 				Type:        framework.TypeCommaStringSlice,
 				Description: `Comma-separated list of OIDC scopes`,
@@ -199,6 +203,7 @@ type jwtRole struct {
 	ClaimMappings       map[string]string      `json:"claim_mappings"`
 	UserClaim           string                 `json:"user_claim"`
 	GroupsClaim         string                 `json:"groups_claim"`
+	DeviceAuthURL       string                 `json:"device_auth_url"`
 	OIDCScopes          []string               `json:"oidc_scopes"`
 	AllowedRedirectURIs []string               `json:"allowed_redirect_uris"`
 	VerboseOIDCLogging  bool                   `json:"verbose_oidc_logging"`
@@ -305,6 +310,7 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 		"claim_mappings":        role.ClaimMappings,
 		"user_claim":            role.UserClaim,
 		"groups_claim":          role.GroupsClaim,
+		"device_auth_url":       role.DeviceAuthURL,
 		"allowed_redirect_uris": role.AllowedRedirectURIs,
 		"oidc_scopes":           role.OIDCScopes,
 		"verbose_oidc_logging":  role.VerboseOIDCLogging,
@@ -500,6 +506,10 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 		role.GroupsClaim = groupsClaim.(string)
 	}
 
+	if deviceAuthURL, ok := data.GetOk("device_auth_url"); ok {
+		role.DeviceAuthURL = deviceAuthURL.(string)
+	}
+
 	if oidcScopes, ok := data.GetOk("oidc_scopes"); ok {
 		role.OIDCScopes = oidcScopes.([]string)
 	}
@@ -508,9 +518,9 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 		role.AllowedRedirectURIs = allowedRedirectURIs.([]string)
 	}
 
-	if role.RoleType == "oidc" && len(role.AllowedRedirectURIs) == 0 {
+	if role.RoleType == "oidc" && len(role.AllowedRedirectURIs) == 0 && role.DeviceAuthURL == "" {
 		return logical.ErrorResponse(
-			"'allowed_redirect_uris' must be set if 'role_type' is 'oidc' or unspecified."), nil
+			"'allowed_redirect_uris' must be set if 'role_type' is 'oidc' or unspecified and 'device_auth_url' is unspecified."), nil
 	}
 
 	// OIDC verification will enforce that the audience match the configured client_id.

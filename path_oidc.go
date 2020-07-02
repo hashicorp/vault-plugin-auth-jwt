@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,8 +34,8 @@ const (
 	noCode = "no_code"
 )
 
-// oidcState is created when an authURL is requested. The state identifier is
-// passed throughout the OAuth process.
+// oidcState is created when an authURL is requested while not using the
+//   device flow.  The state identifier is passed throughout the OAuth process.
 type oidcState struct {
 	rolename    string
 	nonce       string
@@ -92,7 +93,7 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 				},
 				"redirect_uri": {
 					Type:        framework.TypeString,
-					Description: "The OAuth redirect_uri to use in the authorization URL.",
+					Description: "The OAuth redirect_uri to use in a code flow authorization URL.",
 				},
 				"client_nonce": {
 					Type:        framework.TypeString,
@@ -105,6 +106,31 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 					Summary:  "Request an authorization URL to start an OIDC login flow.",
 
 					// state is cached so don't process OIDC logins on perf standbys
+					ForwardPerformanceStandby: true,
+				},
+			},
+		},
+		{
+			Pattern: `oidc/device_wait`,
+			Fields: map[string]*framework.FieldSchema{
+				"role": {
+					Type:        framework.TypeLowerCaseString,
+					Description: "The role that initiated the OIDC device authorization flow.",
+				},
+				"device_code": {
+					Type: framework.TypeString,
+					Description: "The device code returned from auth_url.",
+				},
+				"interval": {
+					Type: framework.TypeString,
+					Description: "Interval in seconds between polls to the token endpoint.",
+				},
+			},
+			Operations: map[logical.Operation]framework.OperationHandler{
+				logical.UpdateOperation: &framework.PathOperation{
+					Callback: b.pathDeviceWait,
+					Summary:  "Wait for a device flow authorization to complete.",
+
 					ForwardPerformanceStandby: true,
 				},
 			},
@@ -242,6 +268,14 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		}
 	}
 
+	return b.processToken(ctx, config, provider, roleName, role, rawToken, oauth2Token, state.nonce)
+}
+
+
+// Continue processing a token after it has been received from the
+//  OIDC provider from either code or device authorization flows
+func (b *jwtAuthBackend) processToken(ctx context.Context, config *jwtConfig, provider *oidc.Provider, roleName string, role *jwtRole, rawToken string, oauth2Token *oauth2.Token, nonce string) (*logical.Response, error) {
+
 	if role.VerboseOIDCLogging {
 		b.Logger().Debug("OIDC provider response", "ID token", rawToken)
 	}
@@ -252,15 +286,22 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		return logical.ErrorResponse("%s %s", errTokenVerification, err.Error()), nil
 	}
 
-	if allClaims["nonce"] != state.nonce {
-		return logical.ErrorResponse(errTokenVerification + " Invalid ID token nonce."), nil
+	if nonce, ok := allClaims["nonce"]; ok {
+		if allClaims["nonce"] != nonce {
+			return logical.ErrorResponse(errTokenVerification + " Invalid ID token nonce."), nil
+		}
+		delete(allClaims, "nonce")
 	}
-	delete(allClaims, "nonce")
 
 	// If we have a token, attempt to fetch information from the /userinfo endpoint
 	// and merge it with the existing claims data. A failure to fetch additional information
 	// from this endpoint will not invalidate the authorization flow.
 	if oauth2Token != nil {
+		oidcCtx, err := b.createCAContext(ctx, config.OIDCDiscoveryCAPEM)
+		if err != nil {
+			return nil, err
+		}
+
 		if userinfo, err := provider.UserInfo(oidcCtx, oauth2.StaticTokenSource(oauth2Token)); err == nil {
 			_ = userinfo.Claims(&allClaims)
 		} else {
@@ -322,6 +363,90 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	return resp, nil
 }
 
+// lookup the role
+func (b *jwtAuthBackend) lookupRole(ctx context.Context, req *logical.Request, config *jwtConfig, roleName string) (*jwtRole, *logical.Response, error) {
+	if roleName == "" {
+		roleName = config.DefaultRole
+	}
+	if roleName == "" {
+		return nil, logical.ErrorResponse("missing role"), nil
+	}
+
+	role, err := b.role(ctx, req.Storage, roleName)
+	if err != nil {
+		return nil, nil, err
+	}
+	if role == nil {
+		return nil, logical.ErrorResponse("role %q could not be found", roleName), nil
+	}
+	return role, nil, nil
+}
+
+// deviceWait does the second half of the device flow, waiting while the
+//  the user authorizes by entering a code into their web browser 
+func (b *jwtAuthBackend) pathDeviceWait(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	config, err := b.config(ctx, req.Storage)
+	if err != nil {
+		return nil, err
+	}
+	if config == nil {
+		return logical.ErrorResponse(errLoginFailed + " Could not load configuration"), nil
+	}
+
+	roleName := d.Get("role").(string)
+	role, errresp, err := b.lookupRole(ctx, req, config, roleName)
+	if err != nil {
+		return nil, err
+	}
+	if role == nil {
+		return errresp, nil
+	}
+
+	deviceCodestr := d.Get("device_code").(string)
+	if deviceCodestr == "" {
+		return logical.ErrorResponse(errLoginFailed + " missing device_code"), nil
+	}
+	interval := int64(5)
+	intervalstr := d.Get("interval").(string)
+	if intervalstr != "" {
+		i, err := strconv.ParseInt(intervalstr, 10, 64)
+		if err != nil {
+			interval = i
+		}
+	}
+
+	provider, err := b.getProvider(config)
+	if err != nil {
+		return nil, err
+	}
+
+	httpClient := &http.Client{
+		Timeout: time.Second * 5,
+	}
+	deviceConfig := DeviceConfig{
+		Config: &oauth2.Config{
+			ClientID:       config.OIDCClientID,
+			ClientSecret:   config.OIDCClientSecret,
+			Endpoint:       provider.Endpoint(),
+		},
+	}
+	deviceCode := DeviceCode {
+		DeviceCode:	deviceCodestr,
+		Interval:	interval,
+	}
+
+	oauth2Token, err := WaitForDeviceAuthorization(httpClient, &deviceConfig, &deviceCode)
+	if err != nil {
+		return nil, err
+	}
+	rawToken, ok := oauth2Token.Extra("id_token").(string)
+	if !ok {
+		return logical.ErrorResponse(errTokenVerification + " No id_token found in response."), nil
+	}
+
+	return b.processToken(ctx, config, provider, roleName, role, rawToken, oauth2Token, "")
+}
+
 // authURL returns a URL used for redirection to receive an authorization code.
 // This path requires a role name, or that a default_role has been configured.
 // Because this endpoint is unauthenticated, the response to invalid or non-OIDC
@@ -349,11 +474,46 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 	}
 
 	roleName := d.Get("role").(string)
-	if roleName == "" {
-		roleName = config.DefaultRole
+	role, errresp, err := b.lookupRole(ctx, req, config, roleName)
+	if err != nil {
+		return nil, err
 	}
-	if roleName == "" {
-		return logical.ErrorResponse("missing role"), nil
+	if role == nil {
+		return errresp, nil
+	}
+
+	// "openid" is a required scope for OpenID Connect flows
+	scopes := append([]string{oidc.ScopeOpenID}, role.OIDCScopes...)
+
+	if role.DeviceAuthURL != "" {
+		// start a device flow
+		deviceEndpoint := DeviceEndpoint{
+			CodeURL: role.DeviceAuthURL,
+		}
+		deviceConfig := DeviceConfig{
+			Config: &oauth2.Config{
+				ClientID:       config.OIDCClientID,
+				ClientSecret:   config.OIDCClientSecret,
+				Scopes:         scopes,
+			},
+			DeviceEndpoint: deviceEndpoint,
+		}
+		httpClient := &http.Client{
+			Timeout: time.Second * 5,
+		}
+		deviceCode, err := RequestDeviceCode(httpClient, &deviceConfig)
+		if err != nil {
+			return nil, err
+		}
+		if deviceCode.VerificationURIComplete != "" {
+			resp.Data["auth_url"] = deviceCode.VerificationURIComplete
+		} else {
+			resp.Data["auth_url"] = deviceCode.VerificationURI
+			resp.Data["user_code"] = deviceCode.UserCode
+		}
+		resp.Data["device_code"] = deviceCode.DeviceCode
+		resp.Data["interval"] = deviceCode.Interval
+		return resp, nil
 	}
 
 	redirectURI := d.Get("redirect_uri").(string)
@@ -362,14 +522,6 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 	}
 
 	clientNonce := d.Get("client_nonce").(string)
-
-	role, err := b.role(ctx, req.Storage, roleName)
-	if err != nil {
-		return nil, err
-	}
-	if role == nil {
-		return logical.ErrorResponse("role %q could not be found", roleName), nil
-	}
 
 	if !validRedirect(redirectURI, role.AllowedRedirectURIs) {
 		logger.Warn("unauthorized redirect_uri", "redirect_uri", redirectURI)
@@ -390,9 +542,6 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 		logger.Warn("error getting provider for login operation", "error", err)
 		return resp, nil
 	}
-
-	// "openid" is a required scope for OpenID Connect flows
-	scopes := append([]string{oidc.ScopeOpenID}, role.OIDCScopes...)
 
 	// Configure an OpenID Connect aware OAuth2 client
 	oauth2Config := oauth2.Config{
