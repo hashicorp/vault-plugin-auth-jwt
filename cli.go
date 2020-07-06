@@ -74,24 +74,49 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 
 	role := m["role"]
 
-	authURL, clientNonce, err := fetchAuthURL(c, role, mount, callbackPort, callbackMethod, callbackHost)
+	authURL, clientNonce, secret, err := fetchAuthURL(c, role, mount, callbackPort, callbackMethod, callbackHost)
 	if err != nil {
 		return nil, err
 	}
 
-	// Set up callback handler
-	http.HandleFunc("/oidc/callback", callbackHandler(c, mount, clientNonce, doneCh))
+	var deviceCode string
+	var userCode string
+	var listener net.Listener
 
-	listener, err := net.Listen("tcp", listenAddress+":"+port)
-	if err != nil {
-		return nil, err
+	if secret != nil {
+		deviceCode, _ = secret.Data["device_code"].(string)
 	}
-	defer listener.Close()
+	if deviceCode != "" {
+		userCode, _ = secret.Data["user_code"].(string)
+	} else {
+		// Set up callback handler
+		http.HandleFunc("/oidc/callback", callbackHandler(c, mount, clientNonce, doneCh))
+
+		listener, err = net.Listen("tcp", listenAddress+":"+port)
+		if err != nil {
+			return nil, err
+		}
+		defer listener.Close()
+	}
 
 	// Open the default browser to the callback URL.
 	fmt.Fprintf(os.Stderr, "Complete the login via your OIDC provider. Launching browser to:\n\n    %s\n\n\n", authURL)
+	if userCode != "" {
+		fmt.Fprintf(os.Stderr, "When prompted, enter code %s\n\n", userCode)
+	}
 	if err := openURL(authURL); err != nil {
 		fmt.Fprintf(os.Stderr, "Error attempting to automatically open browser: '%s'.\nPlease visit the authorization URL manually.", err)
+	}
+
+	if deviceCode != "" {
+		interval, _ := secret.Data["interval"].(string)
+		data := map[string]interface{}{
+			"role":		role,
+			"device_code":	deviceCode,
+			"interval":	interval,
+		}
+
+		return c.Logical().Write(fmt.Sprintf("auth/%s/oidc/device_wait", mount), data)
 	}
 
 	// Start local server
@@ -160,12 +185,12 @@ func callbackHandler(c *api.Client, mount string, clientNonce string, doneCh cha
 	}
 }
 
-func fetchAuthURL(c *api.Client, role, mount, callbackport string, callbackMethod string, callbackHost string) (string, string, error) {
+func fetchAuthURL(c *api.Client, role, mount, callbackport string, callbackMethod string, callbackHost string) (string, string, *api.Secret, error) {
 	var authURL string
 
 	clientNonce, err := base62.Random(20)
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 
 	data := map[string]interface{}{
@@ -176,7 +201,7 @@ func fetchAuthURL(c *api.Client, role, mount, callbackport string, callbackMetho
 
 	secret, err := c.Logical().Write(fmt.Sprintf("auth/%s/oidc/auth_url", mount), data)
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 
 	if secret != nil {
@@ -184,10 +209,10 @@ func fetchAuthURL(c *api.Client, role, mount, callbackport string, callbackMetho
 	}
 
 	if authURL == "" {
-		return "", "", fmt.Errorf("Unable to authorize role %q. Check Vault logs for more information.", role)
+		return "", "", nil, fmt.Errorf("Unable to authorize role %q. Check Vault logs for more information.", role)
 	}
 
-	return authURL, clientNonce, nil
+	return authURL, clientNonce, secret, nil
 }
 
 // isWSL tests if the binary is being run in Windows Subsystem for Linux
