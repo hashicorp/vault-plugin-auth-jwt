@@ -382,7 +382,7 @@ func (b *jwtAuthBackend) lookupRole(ctx context.Context, req *logical.Request, c
 	return role, nil, nil
 }
 
-// deviceWait does the second half of the device flow, waiting while the
+// pathDeviceWait does the second half of the device flow, waiting while the
 //  the user authorizes by entering a code into their web browser 
 func (b *jwtAuthBackend) pathDeviceWait(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	config, err := b.config(ctx, req.Storage)
