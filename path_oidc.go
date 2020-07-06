@@ -286,8 +286,8 @@ func (b *jwtAuthBackend) processToken(ctx context.Context, config *jwtConfig, pr
 		return logical.ErrorResponse("%s %s", errTokenVerification, err.Error()), nil
 	}
 
-	if nonce, ok := allClaims["nonce"]; ok {
-		if allClaims["nonce"] != nonce {
+	if claimNonce, ok := allClaims["nonce"]; ok {
+		if claimNonce != nonce {
 			return logical.ErrorResponse(errTokenVerification + " Invalid ID token nonce."), nil
 		}
 		delete(allClaims, "nonce")
