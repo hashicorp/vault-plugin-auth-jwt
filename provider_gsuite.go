@@ -159,6 +159,10 @@ func (g *GSuiteProvider) search(ctx context.Context, visited map[string]bool, us
 // FetchUserInfo fetches additional user information from G Suite using custom schemas.
 func (g *GSuiteProvider) FetchUserInfo(b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole) error {
 	if !g.config.FetchUserInfo || g.config.UserCustomSchemas == "" {
+		if g.config.UserCustomSchemas != "" {
+			b.Logger().Warn(fmt.Sprintf("must set 'fetch_user_info=true' to fetch 'user_custom_schemas': %s", g.config.UserCustomSchemas))
+		}
+
 		return nil
 	}
 
