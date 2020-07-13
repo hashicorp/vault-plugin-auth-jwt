@@ -19,7 +19,6 @@ type GSuiteProvider struct {
 	config    GSuiteProviderConfig // Configuration for the provider
 	jwtConfig *jwt.Config          // Google JWT configuration
 	adminSvc  *admin.Service       // Google admin service
-	ctx       context.Context      // Context for requests to Google admin APIs
 }
 
 // GSuiteProviderConfig represents the configuration for a GSuiteProvider.
@@ -109,15 +108,14 @@ func (g *GSuiteProvider) FetchGroups(b *jwtAuthBackend, allClaims map[string]int
 	}
 
 	// Set context and create a new admin service for requests to Google admin APIs
-	g.ctx = b.providerCtx
-	g.adminSvc, err = admin.NewService(g.ctx, option.WithHTTPClient(g.jwtConfig.Client(g.ctx)))
+	g.adminSvc, err = admin.NewService(b.providerCtx, option.WithHTTPClient(g.jwtConfig.Client(b.providerCtx)))
 	if err != nil {
 		return nil, err
 	}
 
 	// Get the G Suite groups
 	userGroupsMap := make(map[string]bool)
-	if err := g.search(userGroupsMap, userName, g.config.GroupsRecurseMaxDepth); err != nil {
+	if err := g.search(b.providerCtx, userGroupsMap, userName, g.config.GroupsRecurseMaxDepth); err != nil {
 		return nil, err
 	}
 
@@ -132,10 +130,10 @@ func (g *GSuiteProvider) FetchGroups(b *jwtAuthBackend, allClaims map[string]int
 }
 
 // search recursively searches for G Suite groups based on a configured depth for this provider.
-func (g *GSuiteProvider) search(visited map[string]bool, userName string, depth int) error {
+func (g *GSuiteProvider) search(ctx context.Context, visited map[string]bool, userName string, depth int) error {
 	var newGroups []string
 	call := g.adminSvc.Groups.List().UserKey(userName).Fields("nextPageToken", "groups(email)")
-	if err := call.Pages(g.ctx, func(groups *admin.Groups) error {
+	if err := call.Pages(ctx, func(groups *admin.Groups) error {
 		for _, group := range groups.Groups {
 			if _, ok := visited[group.Email]; ok {
 				continue
@@ -146,7 +144,7 @@ func (g *GSuiteProvider) search(visited map[string]bool, userName string, depth 
 		// Only recursively search for new groups that haven't been seen
 		if depth > 0 {
 			for _, email := range newGroups {
-				if err := g.search(visited, email, depth-1); err != nil {
+				if err := g.search(ctx, visited, email, depth-1); err != nil {
 					return err
 				}
 			}
@@ -170,20 +168,19 @@ func (g *GSuiteProvider) FetchUserInfo(b *jwtAuthBackend, allClaims map[string]i
 	}
 
 	// Set context and create a new admin service for requests to Google admin APIs
-	g.ctx = b.providerCtx
-	g.adminSvc, err = admin.NewService(g.ctx, option.WithHTTPClient(g.jwtConfig.Client(g.ctx)))
+	g.adminSvc, err = admin.NewService(b.providerCtx, option.WithHTTPClient(g.jwtConfig.Client(b.providerCtx)))
 	if err != nil {
 		return err
 	}
 
-	return g.fillCustomSchemas(userName, allClaims)
+	return g.fillCustomSchemas(b.providerCtx, userName, allClaims)
 }
 
 // fillCustomSchemas fetches G Suite user information associated with the custom schemas
 // configured for this provider. It inserts the schema -> value pairs into the passed
 // allClaims so that the values can be used for claim mapping to token and identity metadata.
-func (g *GSuiteProvider) fillCustomSchemas(userName string, allClaims map[string]interface{}) error {
-	userResponse, err := g.adminSvc.Users.Get(userName).Context(g.ctx).Projection("custom").
+func (g *GSuiteProvider) fillCustomSchemas(ctx context.Context, userName string, allClaims map[string]interface{}) error {
+	userResponse, err := g.adminSvc.Users.Get(userName).Context(ctx).Projection("custom").
 		CustomFieldMask(g.config.UserCustomSchemas).Fields("customSchemas").Do()
 	if err != nil {
 		return err
