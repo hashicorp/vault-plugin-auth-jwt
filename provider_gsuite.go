@@ -205,11 +205,11 @@ func (g *GSuiteProvider) fillCustomSchemas(ctx context.Context, userName string,
 func (g *GSuiteProvider) getUserClaim(b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole) (string, error) {
 	userClaimRaw := getClaim(b.Logger(), allClaims, role.UserClaim)
 	if userClaimRaw == nil {
-		return "", fmt.Errorf("unable to locate '%s' in claims", role.UserClaim)
+		return "", fmt.Errorf("unable to locate %q in claims", role.UserClaim)
 	}
 	userClaim, ok := userClaimRaw.(string)
 	if !ok {
-		return "", fmt.Errorf("claim '%s' could not be converted to string", role.UserClaim)
+		return "", fmt.Errorf("claim %q could not be converted to string", role.UserClaim)
 	}
 
 	return userClaim, nil
