@@ -73,7 +73,7 @@ func (g *GSuiteProvider) initialize(config GSuiteProviderConfig) error {
 	}
 	if config.AdminImpersonateEmail == "" {
 		return errors.New("'gsuite_admin_impersonate' must be set to an email address of a " +
-			"G Suite user with permission to access the Admin APIs")
+			"G Suite user with 'Read' permission to access the G Suite Admin User and Group APIs")
 	}
 	if config.GroupsRecurseMaxDepth < 0 {
 		return errors.New("'gsuite_recurse_max_depth' must be a positive integer")
