@@ -16,30 +16,32 @@ import (
 
 // GSuiteProvider provides G Suite-specific configuration and behavior.
 type GSuiteProvider struct {
-	// Configuration for the provider
-	config GSuiteProviderConfig
-	// Google JWT configuration
-	jwtConfig *jwt.Config
-	// Google admin service
-	adminSvc *admin.Service
-	// Context for requests to Google admin APIs
-	ctx context.Context
+	config    GSuiteProviderConfig // Configuration for the provider
+	jwtConfig *jwt.Config          // Google JWT configuration
+	adminSvc  *admin.Service       // Google admin service
+	ctx       context.Context      // Context for requests to Google admin APIs
 }
 
 // GSuiteProviderConfig represents the configuration for a GSuiteProvider.
 type GSuiteProviderConfig struct {
 	// Path to a Google service account key file. Required.
 	ServiceAccountFilePath string `mapstructure:"gsuite_service_account"`
+
 	// Email address of a G Suite admin to impersonate. Required.
 	AdminImpersonateEmail string `mapstructure:"gsuite_admin_impersonate"`
+
 	// If set to true, groups will be fetched from G Suite.
 	FetchGroups bool `mapstructure:"fetch_groups"`
+
 	// If set to true, user info will be fetched from G Suite using UserCustomSchemas.
 	FetchUserInfo bool `mapstructure:"fetch_user_info"`
+
 	// Group membership recursion max depth (0 = do not recurse).
 	GroupsRecurseMaxDepth int `mapstructure:"groups_recurse_max_depth"`
+
 	// Comma-separated list of G Suite custom schemas to fetch as claims.
 	UserCustomSchemas string `mapstructure:"user_custom_schemas"`
+
 	// JSON contents of a Google service account key file.
 	serviceAccountKeyJSON []byte
 }
