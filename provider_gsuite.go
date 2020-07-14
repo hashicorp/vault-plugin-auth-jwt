@@ -131,9 +131,9 @@ func (g *GSuiteProvider) FetchGroups(b *jwtAuthBackend, allClaims map[string]int
 
 // search recursively searches for G Suite groups based on a configured depth for this provider.
 func (g *GSuiteProvider) search(ctx context.Context, visited map[string]bool, userName string, depth int) error {
-	var newGroups []string
 	call := g.adminSvc.Groups.List().UserKey(userName).Fields("nextPageToken", "groups(email)")
 	if err := call.Pages(ctx, func(groups *admin.Groups) error {
+		var newGroups []string
 		for _, group := range groups.Groups {
 			if _, ok := visited[group.Email]; ok {
 				continue
