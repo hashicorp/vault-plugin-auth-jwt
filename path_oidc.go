@@ -2,6 +2,7 @@ package jwtauth
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -103,6 +104,30 @@ func pathOIDC(b *jwtAuthBackend) []*framework.Path {
 				logical.UpdateOperation: &framework.PathOperation{
 					Callback: b.authURL,
 					Summary:  "Request an authorization URL to start an OIDC login flow.",
+
+					// state is cached so don't process OIDC logins on perf standbys
+					ForwardPerformanceStandby: true,
+				},
+			},
+		},
+		{
+			Pattern: `oidc/manual`,
+			Fields: map[string]*framework.FieldSchema{
+				"code": {
+					Type:        framework.TypeString,
+					Required:    true,
+					Description: "The code value returned from the OIDC process",
+				},
+				"state": {
+					Type:        framework.TypeString,
+					Required:    true,
+					Description: "The state value returned from the OIDC process",
+				},
+			},
+			Operations: map[logical.Operation]framework.OperationHandler{
+				logical.ReadOperation: &framework.PathOperation{
+					Callback: b.manual,
+					Summary:  "Used for Manual OIDC Authentication. The provided fields are used to create an encoded output that can be provided to a vault client without a display.",
 
 					// state is cached so don't process OIDC logins on perf standbys
 					ForwardPerformanceStandby: true,
@@ -326,6 +351,20 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	resp := &logical.Response{
 		Auth: auth,
 	}
+
+	return resp, nil
+}
+
+func (b *jwtAuthBackend) manual(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	resp := &logical.Response{
+		Data: map[string]interface{}{
+			logical.HTTPContentType: "text/html",
+			logical.HTTPStatusCode:  http.StatusOK,
+		},
+	}
+
+	payload := fmt.Sprintf("%s|%s", d.Get("code").(string), d.Get("state").(string))
+	resp.Data[logical.HTTPRawBody] = []byte(codeHTML(base64.RawStdEncoding.EncodeToString([]byte(payload))))
 
 	return resp, nil
 }

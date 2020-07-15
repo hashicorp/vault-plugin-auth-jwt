@@ -1,6 +1,7 @@
 package jwtauth
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -17,13 +18,17 @@ import (
 
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/helper/base62"
+	pwd "github.com/hashicorp/vault/sdk/helper/password"
 )
 
-const defaultMount = "oidc"
-const defaultListenAddress = "localhost"
-const defaultPort = "8250"
-const defaultCallbackHost = "localhost"
-const defaultCallbackMethod = "http"
+const (
+	defaultMount          = "oidc"
+	defaultListenAddress  = "localhost"
+	defaultPort           = "8250"
+	defaultCallbackHost   = "localhost"
+	defaultCallbackMethod = "http"
+	defaultMode           = "browser"
+)
 
 var errorRegex = regexp.MustCompile(`(?s)Errors:.*\* *(.*)`)
 
@@ -74,33 +79,84 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 
 	role := m["role"]
 
-	authURL, clientNonce, err := fetchAuthURL(c, role, mount, callbackPort, callbackMethod, callbackHost)
-	if err != nil {
-		return nil, err
-	}
-
-	// Set up callback handler
-	http.HandleFunc("/oidc/callback", callbackHandler(c, mount, clientNonce, doneCh))
-
-	listener, err := net.Listen("tcp", listenAddress+":"+port)
-	if err != nil {
-		return nil, err
-	}
-	defer listener.Close()
-
-	// Open the default browser to the callback URL.
-	fmt.Fprintf(os.Stderr, "Complete the login via your OIDC provider. Launching browser to:\n\n    %s\n\n\n", authURL)
-	if err := openURL(authURL); err != nil {
-		fmt.Fprintf(os.Stderr, "Error attempting to automatically open browser: '%s'.\nPlease visit the authorization URL manually.", err)
-	}
-
-	// Start local server
-	go func() {
-		err := http.Serve(listener, nil)
-		if err != nil && err != http.ErrServerClosed {
-			doneCh <- loginResp{nil, err}
+	mode, ok := m["mode"]
+	if !ok {
+		mode = defaultMode
+	} else {
+		switch mode {
+		case defaultMode, "manual":
+			// valid
+		default:
+			return nil, fmt.Errorf("%q is not a valid mode", mode)
 		}
-	}()
+	}
+
+	if mode == "manual" {
+		// by default, the mount has a / suffix, which
+		// we remove to construct the appropriaate redirect_uri
+		if strings.HasSuffix(mount, "/") {
+			mount = mount[:len(mount)-1]
+		}
+		path := fmt.Sprintf("v1/auth/%s/oidc/manual", mount)
+		authURL, clientNonce, err := fetchAuthURL(c, role, mount, callbackPort, callbackMethod, callbackHost, path)
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Fprintf(os.Stderr, "Complete the login via your OIDC provider by following this link in your browser: \n\n    %s\n\n\n", authURL)
+		fmt.Fprintf(os.Stderr, "Enter verification code: ")
+		input, err := pwd.Read(os.Stdin)
+		fmt.Fprintf(os.Stderr, "\n")
+		if err != nil {
+			return nil, err
+		}
+
+		decoded, err := base64.RawStdEncoding.DecodeString(input)
+		if err != nil {
+			return nil, err
+		}
+
+		split := strings.Split(string(decoded), "|")
+		if len(split) != 2 {
+			return nil, errors.New("failed to decode verification code")
+		}
+
+		code := split[0]
+		state := split[1]
+
+		secret, err := h.codeHandler(c, mount, clientNonce, code, state, doneCh)
+		go func() {
+			doneCh <- loginResp{secret, err}
+		}()
+	} else {
+		authURL, clientNonce, err := fetchAuthURL(c, role, mount, callbackPort, callbackMethod, callbackHost, "oidc/callback")
+		if err != nil {
+			return nil, err
+		}
+
+		// Set up callback handler
+		http.HandleFunc("/oidc/callback", callbackHandler(c, mount, clientNonce, doneCh))
+
+		listener, err := net.Listen("tcp", listenAddress+":"+port)
+		if err != nil {
+			return nil, err
+		}
+		defer listener.Close()
+
+		// Open the default browser to the callback URL.
+		fmt.Fprintf(os.Stderr, "Complete the login via your OIDC provider. Launching browser to:\n\n    %s\n\n\n", authURL)
+		if err := openURL(authURL); err != nil {
+			fmt.Fprintf(os.Stderr, "Error attempting to automatically open browser: '%s'.\nPlease visit the authorization URL manually.", err)
+		}
+
+		// Start local server
+		go func() {
+			err := http.Serve(listener, nil)
+			if err != nil && err != http.ErrServerClosed {
+				doneCh <- loginResp{nil, err}
+			}
+		}()
+	}
 
 	// Wait for either the callback to finish, SIGINT to be received or up to 2 minutes
 	select {
@@ -113,7 +169,21 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 	}
 }
 
-func callbackHandler(c *api.Client, mount string, clientNonce string, doneCh chan<- loginResp) http.HandlerFunc {
+func (h *CLIHandler) codeHandler(c *api.Client, mount, clientNonce, code, state string, doneCh chan<- loginResp) (*api.Secret, error) {
+	data := map[string][]string{
+		"state":        {state},
+		"code":         {code},
+		"client_nonce": {clientNonce},
+	}
+
+	secret, err := c.Logical().ReadWithData(fmt.Sprintf("auth/%s/oidc/callback", mount), data)
+	if err != nil {
+		return nil, err
+	}
+	return secret, nil
+}
+
+func callbackHandler(c *api.Client, mount, clientNonce string, doneCh chan<- loginResp) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		var response string
 		var secret *api.Secret
@@ -160,7 +230,7 @@ func callbackHandler(c *api.Client, mount string, clientNonce string, doneCh cha
 	}
 }
 
-func fetchAuthURL(c *api.Client, role, mount, callbackport string, callbackMethod string, callbackHost string) (string, string, error) {
+func fetchAuthURL(c *api.Client, role, mount, callbackport, callbackMethod, callbackHost, path string) (string, string, error) {
 	var authURL string
 
 	clientNonce, err := base62.Random(20)
