@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,8 +15,97 @@ import (
 )
 
 const (
-	serviceAccountKeyJSON = `{"type": "service_account"}`
+	googleCredentialsEnv = "GOOGLE_CREDENTIALS"
+	gsuiteAdminEmailEnv  = "GSUITE_ADMIN_EMAIL"
 )
+
+// Tests fetching groups from G Suite using the provider configuration.
+//
+// To run the tests:
+//   1. Supply credentials via environment variables as detailed in getTestCreds()
+//   2. Supply the G Suite userName and expected groups to be fetched for the user in the test table
+func TestGSuiteProvider_FetchGroups(t *testing.T) {
+	creds, adminEmail := getTestCreds(t)
+
+	type args struct {
+		userName string
+		config   *jwtConfig
+	}
+	tests := []struct {
+		name     string
+		args     args
+		expected []interface{}
+	}{
+		{
+			name: "fetch groups from gsuite with default recursion max depth 0",
+			args: args{
+				userName: "fill_in_user_before_running",
+				config: &jwtConfig{
+					ProviderConfig: map[string]interface{}{
+						"provider":                 "gsuite",
+						"gsuite_service_account":   creds,
+						"gsuite_admin_impersonate": adminEmail,
+						"fetch_groups":             true,
+					},
+				},
+			},
+			expected: []interface{}{
+				// Fill in expected groups before running
+			},
+		},
+		{
+			name: "fetch groups from gsuite with recursion max depth 1",
+			args: args{
+				userName: "fill_in_user_before_running",
+				config: &jwtConfig{
+					ProviderConfig: map[string]interface{}{
+						"provider":                 "gsuite",
+						"gsuite_service_account":   creds,
+						"gsuite_admin_impersonate": adminEmail,
+						"fetch_groups":             true,
+						"groups_recurse_max_depth": 1,
+					},
+				},
+			},
+			expected: []interface{}{
+				// Fill in expected groups before running
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, _ := getBackend(t)
+
+			// Configure the provider
+			gProvider := new(GSuiteProvider)
+			err := gProvider.Initialize(tt.args.config)
+			assert.NoError(t, err)
+
+			// Fetch groups from G Suite
+			allClaims := map[string]interface{}{
+				"sub": tt.args.userName,
+			}
+			role := &jwtRole{
+				UserClaim:   "sub",
+				GroupsClaim: "groups",
+			}
+			groupsRaw, err := gProvider.FetchGroups(b.(*jwtAuthBackend), allClaims, role)
+			assert.NoError(t, err)
+
+			// Assert that groups are as expected
+			groupsResp, ok := normalizeList(groupsRaw)
+			assert.True(t, ok)
+			sort.Slice(groupsResp, func(i, j int) bool {
+				return groupsResp[i].(string) < groupsResp[j].(string)
+			})
+			sort.Slice(tt.expected, func(i, j int) bool {
+				return tt.expected[i].(string) < tt.expected[j].(string)
+			})
+			assert.Equal(t, tt.expected, groupsResp)
+		})
+	}
+}
 
 // Tests the user and group recursion logic in the search method.
 func TestGSuiteProvider_search(t *testing.T) {
@@ -67,7 +158,7 @@ func TestGSuiteProvider_search(t *testing.T) {
 			args: args{
 				user: "noGroupUser",
 				config: GSuiteProviderConfig{
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 					ServiceAccountFilePath: "/path/to/google-service-account.json",
 					AdminImpersonateEmail:  "test@example.com",
 					FetchGroups:            true,
@@ -80,7 +171,7 @@ func TestGSuiteProvider_search(t *testing.T) {
 			args: args{
 				user: "group3@group.com",
 				config: GSuiteProviderConfig{
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 					ServiceAccountFilePath: "/path/to/google-service-account.json",
 					AdminImpersonateEmail:  "test@example.com",
 					FetchGroups:            true,
@@ -93,7 +184,7 @@ func TestGSuiteProvider_search(t *testing.T) {
 			args: args{
 				user: "user1",
 				config: GSuiteProviderConfig{
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 					ServiceAccountFilePath: "/path/to/google-service-account.json",
 					AdminImpersonateEmail:  "test@example.com",
 					FetchGroups:            true,
@@ -108,7 +199,7 @@ func TestGSuiteProvider_search(t *testing.T) {
 			args: args{
 				user: "user1",
 				config: GSuiteProviderConfig{
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 					ServiceAccountFilePath: "/path/to/google-service-account.json",
 					AdminImpersonateEmail:  "test@example.com",
 					FetchGroups:            true,
@@ -125,7 +216,7 @@ func TestGSuiteProvider_search(t *testing.T) {
 			args: args{
 				user: "user1",
 				config: GSuiteProviderConfig{
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 					ServiceAccountFilePath: "/path/to/google-service-account.json",
 					AdminImpersonateEmail:  "test@example.com",
 					FetchGroups:            true,
@@ -143,7 +234,7 @@ func TestGSuiteProvider_search(t *testing.T) {
 			args: args{
 				user: "group1@group.com",
 				config: GSuiteProviderConfig{
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 					ServiceAccountFilePath: "/path/to/google-service-account.json",
 					AdminImpersonateEmail:  "test@example.com",
 					FetchGroups:            true,
@@ -158,7 +249,7 @@ func TestGSuiteProvider_search(t *testing.T) {
 			args: args{
 				user: "group1@group.com",
 				config: GSuiteProviderConfig{
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 					ServiceAccountFilePath: "/path/to/google-service-account.json",
 					AdminImpersonateEmail:  "test@example.com",
 					FetchGroups:            true,
@@ -175,7 +266,7 @@ func TestGSuiteProvider_search(t *testing.T) {
 			args: args{
 				user: "group1@group.com",
 				config: GSuiteProviderConfig{
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 					ServiceAccountFilePath: "/path/to/google-service-account.json",
 					AdminImpersonateEmail:  "test@example.com",
 					FetchGroups:            true,
@@ -202,7 +293,7 @@ func TestGSuiteProvider_search(t *testing.T) {
 			groups := make(map[string]bool)
 			assert.NoError(t, gProvider.search(ctx, groups, tt.args.user, gProvider.config.GroupsRecurseMaxDepth))
 
-			// Assert that we got the expected groups
+			// Assert that groups are as expected
 			assert.Equal(t, len(tt.expected), len(groups))
 			for _, group := range tt.expected {
 				_, ok := groups[group]
@@ -228,7 +319,7 @@ func TestGSuiteProvider_initialize(t *testing.T) {
 					AdminImpersonateEmail: "test@example.com",
 					GroupsRecurseMaxDepth: -1,
 					UserCustomSchemas:     "Custom",
-					serviceAccountKeyJSON: []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON: []byte(`{"type": "service_account"}`),
 				},
 			},
 			wantErr: true,
@@ -240,7 +331,7 @@ func TestGSuiteProvider_initialize(t *testing.T) {
 					ServiceAccountFilePath: "/path/to/google-service-account.json",
 					GroupsRecurseMaxDepth:  -1,
 					UserCustomSchemas:      "Custom",
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 				},
 			},
 			wantErr: true,
@@ -253,7 +344,7 @@ func TestGSuiteProvider_initialize(t *testing.T) {
 					AdminImpersonateEmail:  "test@example.com",
 					GroupsRecurseMaxDepth:  -1,
 					UserCustomSchemas:      "Custom",
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 				},
 			},
 			wantErr: true,
@@ -266,7 +357,7 @@ func TestGSuiteProvider_initialize(t *testing.T) {
 					AdminImpersonateEmail:  "test@example.com",
 					GroupsRecurseMaxDepth:  5,
 					UserCustomSchemas:      "Custom",
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 				},
 			},
 			wantErr: false,
@@ -278,7 +369,7 @@ func TestGSuiteProvider_initialize(t *testing.T) {
 					ServiceAccountFilePath: "/path/to/google-service-account.json",
 					AdminImpersonateEmail:  "test@example.com",
 					GroupsRecurseMaxDepth:  5,
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 				},
 			},
 			wantErr: false,
@@ -289,7 +380,7 @@ func TestGSuiteProvider_initialize(t *testing.T) {
 				config: GSuiteProviderConfig{
 					ServiceAccountFilePath: "/path/to/google-service-account.json",
 					AdminImpersonateEmail:  "test@example.com",
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 					UserCustomSchemas:      "Custom",
 				},
 			},
@@ -301,7 +392,7 @@ func TestGSuiteProvider_initialize(t *testing.T) {
 				config: GSuiteProviderConfig{
 					ServiceAccountFilePath: "/path/to/google-service-account.json",
 					AdminImpersonateEmail:  "test@example.com",
-					serviceAccountKeyJSON:  []byte(serviceAccountKeyJSON),
+					serviceAccountKeyJSON:  []byte(`{"type": "service_account"}`),
 					UserCustomSchemas:      "Custom",
 					FetchGroups:            true,
 					FetchUserInfo:          true,
@@ -320,4 +411,22 @@ func TestGSuiteProvider_initialize(t *testing.T) {
 			}
 		})
 	}
+}
+
+// getTestCreds gets credentials needed to run tests from environment variables.
+// It will log and skip the test if the required credentials are not set.
+func getTestCreds(t *testing.T) (string, string) {
+	c := os.Getenv(googleCredentialsEnv)
+	if c == "" {
+		t.Logf("skip: must set env var %q to a valid service account key file path", googleCredentialsEnv)
+		t.SkipNow()
+	}
+
+	a := os.Getenv(gsuiteAdminEmailEnv)
+	if a == "" {
+		t.Logf("skip: must set env var %q to a gsuite admin email address", gsuiteAdminEmailEnv)
+		t.SkipNow()
+	}
+
+	return c, a
 }
