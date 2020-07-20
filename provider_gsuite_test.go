@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,6 +52,7 @@ func TestGSuiteProvider_FetchGroups(t *testing.T) {
 			},
 			expected: []interface{}{
 				// Fill in expected groups before running
+				// Example: "group1", "group2",
 			},
 		},
 		{
@@ -69,6 +71,7 @@ func TestGSuiteProvider_FetchGroups(t *testing.T) {
 			},
 			expected: []interface{}{
 				// Fill in expected groups before running
+				// Example: "group1", "group2",
 			},
 		},
 	}
@@ -103,6 +106,77 @@ func TestGSuiteProvider_FetchGroups(t *testing.T) {
 				return tt.expected[i].(string) < tt.expected[j].(string)
 			})
 			assert.Equal(t, tt.expected, groupsResp)
+		})
+	}
+}
+
+// Tests fetching user custom schemas from G Suite using the provider configuration.
+//
+// To run the tests:
+//   1. Supply credentials via environment variables as detailed in getTestCreds()
+//   2. Supply the G Suite userName, user_custom_schemas, and expected custom schema
+//      values to be fetched as claims in the test table
+func TestGSuiteProvider_FetchUserInfo(t *testing.T) {
+	creds, adminEmail := getTestCreds(t)
+
+	type args struct {
+		userName string
+		config   *jwtConfig
+	}
+	tests := []struct {
+		name     string
+		args     args
+		expected map[string]interface{}
+	}{
+		{
+			name: "fetch user info from custom schemas in gsuite",
+			args: args{
+				userName: "fill_in_user_before_running",
+				config: &jwtConfig{
+					ProviderConfig: map[string]interface{}{
+						"provider":                 "gsuite",
+						"gsuite_service_account":   creds,
+						"gsuite_admin_impersonate": adminEmail,
+						"fetch_user_info":          true,
+						"user_custom_schemas":      "fill_in_custom_schemas_before_running",
+					},
+				},
+			},
+			expected: map[string]interface{}{
+				// Fill in expected custom schema claims before running
+				// Example:
+				// "Preferences": map[string]interface{}{
+				// 	"shirt_size": "medium",
+				// },
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, _ := getBackend(t)
+
+			// Configure the provider
+			gProvider := new(GSuiteProvider)
+			err := gProvider.Initialize(tt.args.config)
+			assert.NoError(t, err)
+
+			// Fetch user info from G Suite
+			allClaims := map[string]interface{}{
+				"sub": tt.args.userName,
+			}
+			role := &jwtRole{
+				UserClaim:   "sub",
+				GroupsClaim: "groups",
+			}
+			err = gProvider.FetchUserInfo(b.(*jwtAuthBackend), allClaims, role)
+			assert.NoError(t, err)
+
+			// Assert that expected user info is added to the JWT claims
+			customSchemas := tt.args.config.ProviderConfig["user_custom_schemas"].(string)
+			for _, schema := range strings.Split(customSchemas, ",") {
+				assert.Equal(t, tt.expected[schema], allClaims[schema])
+			}
 		})
 	}
 }
