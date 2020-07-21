@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"sort"
 	"strings"
 	"testing"
 
@@ -19,6 +18,24 @@ const (
 	googleCredentialsEnv = "GOOGLE_CREDENTIALS"
 	gsuiteAdminEmailEnv  = "GSUITE_ADMIN_EMAIL"
 )
+
+// getTestCreds gets credentials needed to run tests from environment variables.
+// It will log and skip the test if the required credentials are not set.
+func getTestCreds(t *testing.T) (string, string) {
+	c := os.Getenv(googleCredentialsEnv)
+	if c == "" {
+		t.Logf("skip: must set env var %q to a valid service account key file path", googleCredentialsEnv)
+		t.SkipNow()
+	}
+
+	a := os.Getenv(gsuiteAdminEmailEnv)
+	if a == "" {
+		t.Logf("skip: must set env var %q to a gsuite admin email address", gsuiteAdminEmailEnv)
+		t.SkipNow()
+	}
+
+	return c, a
+}
 
 // Tests fetching groups from G Suite using the provider configuration.
 //
@@ -99,13 +116,7 @@ func TestGSuiteProvider_FetchGroups(t *testing.T) {
 			// Assert that groups are as expected
 			groupsResp, ok := normalizeList(groupsRaw)
 			assert.True(t, ok)
-			sort.Slice(groupsResp, func(i, j int) bool {
-				return groupsResp[i].(string) < groupsResp[j].(string)
-			})
-			sort.Slice(tt.expected, func(i, j int) bool {
-				return tt.expected[i].(string) < tt.expected[j].(string)
-			})
-			assert.Equal(t, tt.expected, groupsResp)
+			assert.ElementsMatch(t, tt.expected, groupsResp)
 		})
 	}
 }
@@ -485,22 +496,4 @@ func TestGSuiteProvider_initialize(t *testing.T) {
 			}
 		})
 	}
-}
-
-// getTestCreds gets credentials needed to run tests from environment variables.
-// It will log and skip the test if the required credentials are not set.
-func getTestCreds(t *testing.T) (string, string) {
-	c := os.Getenv(googleCredentialsEnv)
-	if c == "" {
-		t.Logf("skip: must set env var %q to a valid service account key file path", googleCredentialsEnv)
-		t.SkipNow()
-	}
-
-	a := os.Getenv(gsuiteAdminEmailEnv)
-	if a == "" {
-		t.Logf("skip: must set env var %q to a gsuite admin email address", gsuiteAdminEmailEnv)
-		t.SkipNow()
-	}
-
-	return c, a
 }
