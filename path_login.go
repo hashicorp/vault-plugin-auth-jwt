@@ -69,7 +69,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		return logical.ErrorResponse("role %q could not be found", roleName), nil
 	}
 
-	if role.RoleType == "oidc" {
+	if role.RoleType == "oidc" || role.RoleType == "oidcdevice" {
 		return logical.ErrorResponse("role with oidc role_type is not allowed"), nil
 	}
 
@@ -278,7 +278,7 @@ func (b *jwtAuthBackend) verifyOIDCToken(ctx context.Context, config *jwtConfig,
 		SupportedSigningAlgs: config.JWTSupportedAlgs,
 	}
 
-	if role.RoleType == "oidc" {
+	if role.RoleType == "oidc" || role.RoleType == "oidcdevice" {
 		oidcConfig.ClientID = config.OIDCClientID
 	} else {
 		oidcConfig.SkipClientIDCheck = true

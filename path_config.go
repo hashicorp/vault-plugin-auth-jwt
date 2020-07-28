@@ -57,6 +57,10 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 				Type:        framework.TypeCommaStringSlice,
 				Description: "The response types to request. Allowed values are 'code' and 'id_token'. Defaults to 'code'.",
 			},
+			"oidc_device_auth_url": {
+				Type:        framework.TypeString,
+				Description: `OIDC Device Flow authentication URL.  May only be used with "oidc_discovery_url".`,
+			},
 			"jwks_url": {
 				Type:        framework.TypeString,
 				Description: `JWKS URL to use to authenticate signatures. Cannot be used with "oidc_discovery_url" or "jwt_validation_pubkeys".`,
@@ -151,6 +155,7 @@ func (b *jwtAuthBackend) pathConfigRead(ctx context.Context, req *logical.Reques
 			"oidc_client_id":         config.OIDCClientID,
 			"oidc_response_mode":     config.OIDCResponseMode,
 			"oidc_response_types":    config.OIDCResponseTypes,
+			"oidc_device_auth_url":   config.OIDCDeviceAuthURL,
 			"default_role":           config.DefaultRole,
 			"jwt_validation_pubkeys": config.JWTValidationPubKeys,
 			"jwt_supported_algs":     config.JWTSupportedAlgs,
@@ -171,6 +176,7 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		OIDCClientSecret:     d.Get("oidc_client_secret").(string),
 		OIDCResponseMode:     d.Get("oidc_response_mode").(string),
 		OIDCResponseTypes:    d.Get("oidc_response_types").([]string),
+		OIDCDeviceAuthURL:    d.Get("oidc_device_auth_url").(string),
 		JWKSURL:              d.Get("jwks_url").(string),
 		JWKSCAPEM:            d.Get("jwks_ca_pem").(string),
 		DefaultRole:          d.Get("default_role").(string),
@@ -208,6 +214,10 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	case config.OIDCClientID != "" && config.OIDCDiscoveryURL == "":
 		return logical.ErrorResponse("'oidc_discovery_url' must be set for OIDC"), nil
 
+	case config.OIDCDeviceAuthURL != "" && config.OIDCDiscoveryURL == "":
+		return logical.ErrorResponse("'oidc_discovery_url' must be set when 'oidc_device_auth_url' is set"), nil
+
+	case config.JWKSURL != "":
 	case config.JWKSURL != "":
 		ctx, err := b.createCAContext(context.Background(), config.JWKSCAPEM)
 		if err != nil {
@@ -327,6 +337,7 @@ type jwtConfig struct {
 	OIDCClientSecret     string   `json:"oidc_client_secret"`
 	OIDCResponseMode     string   `json:"oidc_response_mode"`
 	OIDCResponseTypes    []string `json:"oidc_response_types"`
+	OIDCDeviceAuthURL    string   `json:"oidc_device_auth_url"`
 	JWKSURL              string   `json:"jwks_url"`
 	JWKSCAPEM            string   `json:"jwks_ca_pem"`
 	JWTValidationPubKeys []string `json:"jwt_validation_pubkeys"`

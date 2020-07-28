@@ -485,10 +485,10 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 	// "openid" is a required scope for OpenID Connect flows
 	scopes := append([]string{oidc.ScopeOpenID}, role.OIDCScopes...)
 
-	if role.DeviceAuthURL != "" {
+	if role.RoleType == "oidcdevice" {
 		// start a device flow
 		deviceEndpoint := DeviceEndpoint{
-			CodeURL: role.DeviceAuthURL,
+			CodeURL: config.OIDCDeviceAuthURL,
 		}
 		deviceConfig := DeviceConfig{
 			Config: &oauth2.Config{
