@@ -373,7 +373,7 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 
 	// If namespace will be passed around in state, don't store it in redirect_uri
 	namespace := ""
-	if config.PassNamespaceInState {
+	if config.NamespaceInState {
 		inputURI, err := url.Parse(redirectURI)
 		if err != nil {
 			return resp, nil
@@ -422,7 +422,7 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 		logger.Warn("error generating OAuth state", "error", err)
 		return resp, nil
 	}
-	if config.PassNamespaceInState && len(namespace) > 0 {
+	if config.NamespaceInState && len(namespace) > 0 {
 		// embed namespace in state in the auth_url
 		stateID = fmt.Sprintf("%s,ns=%s", stateID, namespace)
 	}
