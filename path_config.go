@@ -94,6 +94,11 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 					},
 				},
 			},
+			"pass_namespace_in_state": {
+				Type:        framework.TypeBool,
+				Description: "Pass namespace in the state parameter instead of as a separate query parameter. With this setting the allowed redirect URL in Vault and on the provider side should not contain a namespace query parameter. This means only one redirect URL entry needs to be maintained on the provider side for all vault namespaces that will be authenticating against it.",
+				Default:     false,
+			},
 		},
 
 		Operations: map[logical.Operation]framework.OperationHandler{
@@ -159,18 +164,19 @@ func (b *jwtAuthBackend) pathConfigRead(ctx context.Context, req *logical.Reques
 
 	resp := &logical.Response{
 		Data: map[string]interface{}{
-			"oidc_discovery_url":     config.OIDCDiscoveryURL,
-			"oidc_discovery_ca_pem":  config.OIDCDiscoveryCAPEM,
-			"oidc_client_id":         config.OIDCClientID,
-			"oidc_response_mode":     config.OIDCResponseMode,
-			"oidc_response_types":    config.OIDCResponseTypes,
-			"default_role":           config.DefaultRole,
-			"jwt_validation_pubkeys": config.JWTValidationPubKeys,
-			"jwt_supported_algs":     config.JWTSupportedAlgs,
-			"jwks_url":               config.JWKSURL,
-			"jwks_ca_pem":            config.JWKSCAPEM,
-			"bound_issuer":           config.BoundIssuer,
-			"provider_config":        config.ProviderConfig,
+			"oidc_discovery_url":      config.OIDCDiscoveryURL,
+			"oidc_discovery_ca_pem":   config.OIDCDiscoveryCAPEM,
+			"oidc_client_id":          config.OIDCClientID,
+			"oidc_response_mode":      config.OIDCResponseMode,
+			"oidc_response_types":     config.OIDCResponseTypes,
+			"default_role":            config.DefaultRole,
+			"jwt_validation_pubkeys":  config.JWTValidationPubKeys,
+			"jwt_supported_algs":      config.JWTSupportedAlgs,
+			"jwks_url":                config.JWKSURL,
+			"jwks_ca_pem":             config.JWKSCAPEM,
+			"bound_issuer":            config.BoundIssuer,
+			"provider_config":         config.ProviderConfig,
+			"pass_namespace_in_state": config.PassNamespaceInState,
 		},
 	}
 
@@ -192,6 +198,7 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		JWTSupportedAlgs:     d.Get("jwt_supported_algs").([]string),
 		BoundIssuer:          d.Get("bound_issuer").(string),
 		ProviderConfig:       d.Get("provider_config").(map[string]interface{}),
+		PassNamespaceInState: d.Get("pass_namespace_in_state").(bool),
 	}
 
 	// Run checks on values
@@ -354,6 +361,7 @@ type jwtConfig struct {
 	BoundIssuer          string                 `json:"bound_issuer"`
 	DefaultRole          string                 `json:"default_role"`
 	ProviderConfig       map[string]interface{} `json:"provider_config"`
+	PassNamespaceInState bool                   `json:"pass_namespace_in_state"`
 
 	ParsedJWTPubKeys []interface{} `json:"-"`
 }

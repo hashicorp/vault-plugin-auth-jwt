@@ -371,6 +371,20 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 		return logical.ErrorResponse("role %q could not be found", roleName), nil
 	}
 
+	// If namespace will be passed around in state, don't store it in redirect_uri
+	namespace := ""
+	if config.PassNamespaceInState {
+		inputURI, err := url.Parse(redirectURI)
+		if err != nil {
+			return resp, nil
+		}
+		qParam := inputURI.Query()
+		namespace = qParam.Get("namespace")
+		qParam.Del("namespace")
+		inputURI.RawQuery = qParam.Encode()
+		redirectURI = inputURI.String()
+	}
+
 	if !validRedirect(redirectURI, role.AllowedRedirectURIs) {
 		logger.Warn("unauthorized redirect_uri", "redirect_uri", redirectURI)
 		return resp, nil
@@ -407,6 +421,10 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 	if err != nil {
 		logger.Warn("error generating OAuth state", "error", err)
 		return resp, nil
+	}
+	if config.PassNamespaceInState && len(namespace) > 0 {
+		// embed namespace in state in the auth_url
+		stateID = fmt.Sprintf("%s,ns=%s", stateID, namespace)
 	}
 
 	authCodeOpts := []oauth2.AuthCodeOption{

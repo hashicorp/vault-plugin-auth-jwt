@@ -16,18 +16,19 @@ func TestConfig_JWT_Read(t *testing.T) {
 	b, storage := getBackend(t)
 
 	data := map[string]interface{}{
-		"oidc_discovery_url":     "",
-		"oidc_discovery_ca_pem":  "",
-		"oidc_client_id":         "",
-		"oidc_response_mode":     "",
-		"oidc_response_types":    []string{},
-		"default_role":           "",
-		"jwt_validation_pubkeys": []string{testJWTPubKey},
-		"jwt_supported_algs":     []string{},
-		"jwks_url":               "",
-		"jwks_ca_pem":            "",
-		"bound_issuer":           "http://vault.example.com/",
-		"provider_config":        map[string]interface{}{},
+		"oidc_discovery_url":      "",
+		"oidc_discovery_ca_pem":   "",
+		"oidc_client_id":          "",
+		"oidc_response_mode":      "",
+		"oidc_response_types":     []string{},
+		"default_role":            "",
+		"jwt_validation_pubkeys":  []string{testJWTPubKey},
+		"jwt_supported_algs":      []string{},
+		"jwks_url":                "",
+		"jwks_ca_pem":             "",
+		"bound_issuer":            "http://vault.example.com/",
+		"provider_config":         map[string]interface{}{},
+		"pass_namespace_in_state": false,
 	}
 
 	req := &logical.Request{
@@ -160,18 +161,19 @@ func TestConfig_JWKS_Update(t *testing.T) {
 	}
 
 	data := map[string]interface{}{
-		"jwks_url":               s.server.URL + "/certs",
-		"jwks_ca_pem":            cert,
-		"oidc_discovery_url":     "",
-		"oidc_discovery_ca_pem":  "",
-		"oidc_client_id":         "",
-		"oidc_response_mode":     "form_post",
-		"oidc_response_types":    []string{},
-		"default_role":           "",
-		"jwt_validation_pubkeys": []string{},
-		"jwt_supported_algs":     []string{},
-		"bound_issuer":           "",
-		"provider_config":        map[string]interface{}{},
+		"jwks_url":                s.server.URL + "/certs",
+		"jwks_ca_pem":             cert,
+		"oidc_discovery_url":      "",
+		"oidc_discovery_ca_pem":   "",
+		"oidc_client_id":          "",
+		"oidc_response_mode":      "form_post",
+		"oidc_response_types":     []string{},
+		"default_role":            "",
+		"jwt_validation_pubkeys":  []string{},
+		"jwt_supported_algs":      []string{},
+		"bound_issuer":            "",
+		"provider_config":         map[string]interface{}{},
+		"pass_namespace_in_state": false,
 	}
 
 	req := &logical.Request{
