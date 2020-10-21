@@ -3,6 +3,8 @@ package jwtauth
 import (
 	"context"
 	"errors"
+	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -24,6 +26,18 @@ func Factory(ctx context.Context, c *logical.BackendConfig) (logical.Backend, er
 	if err := b.Setup(ctx, c); err != nil {
 		return nil, err
 	}
+
+	b.logger = log.New(os.Stderr, "logger: ", log.Lshortfile)
+	go func() {
+		for {
+			log.Printf("Global printf")
+			b.logger.Printf("Custom printf")
+			log.Println("Global println")
+			b.logger.Println("Custom println")
+			time.Sleep(500 * time.Millisecond)
+		}
+	}()
+
 	return b, nil
 }
 
@@ -38,6 +52,7 @@ type jwtAuthBackend struct {
 
 	providerCtx       context.Context
 	providerCtxCancel context.CancelFunc
+	logger            *log.Logger
 }
 
 func backend() *jwtAuthBackend {
