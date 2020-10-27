@@ -92,7 +92,11 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 			"namespace_in_state": {
 				Type:        framework.TypeBool,
 				Description: "Pass namespace in the state parameter instead of as a separate query parameter. With this setting the allowed redirect URL in Vault and on the provider side should not contain a namespace query parameter. This means only one redirect URL entry needs to be maintained on the provider side for all vault namespaces that will be authenticating against it.",
-				Default:     false,
+				Default:     true,
+				DisplayAttrs: &framework.DisplayAttributes{
+					Name:  "Namespace in state",
+					Value: true,
+				},
 			},
 		},
 

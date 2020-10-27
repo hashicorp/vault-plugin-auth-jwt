@@ -137,6 +137,7 @@ func TestConfig_JWT_Write(t *testing.T) {
 		OIDCResponseTypes:    []string{},
 		BoundIssuer:          "http://vault.example.com/",
 		ProviderConfig:       map[string]interface{}{},
+		NamespaceInState:     true,
 	}
 
 	conf, err := b.(*jwtAuthBackend).config(context.Background(), storage)
@@ -344,6 +345,7 @@ func TestConfig_OIDC_Write(t *testing.T) {
 		OIDCResponseTypes:    []string{},
 		OIDCDiscoveryURL:     "https://team-vault.auth0.com/",
 		ProviderConfig:       map[string]interface{}{},
+		NamespaceInState:     true,
 	}
 
 	conf, err := b.(*jwtAuthBackend).config(context.Background(), storage)
@@ -435,6 +437,7 @@ func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
 				"provider":     "azure",
 				"extraOptions": "abound",
 			},
+			NamespaceInState: true,
 		}
 
 		conf, err := b.(*jwtAuthBackend).config(context.Background(), storage)
@@ -491,6 +494,7 @@ func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
 			OIDCResponseTypes:    []string{},
 			OIDCDiscoveryURL:     "https://team-vault.auth0.com/",
 			ProviderConfig:       map[string]interface{}{},
+			NamespaceInState:     true,
 		}
 
 		conf, err := b.(*jwtAuthBackend).config(context.Background(), storage)
