@@ -93,7 +93,8 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 				Type:        framework.TypeBool,
 				Description: "Pass namespace in the OIDC state parameter instead of as a separate query parameter. With this setting, the allowed redirect URL(s) in Vault and on the provider side should not contain a namespace query parameter. This means only one redirect URL entry needs to be maintained on the provider side for all vault namespaces that will be authenticating against it. Defaults to true for new configs.",
 				DisplayAttrs: &framework.DisplayAttributes{
-					Name: "Namespace in OIDC state",
+					Name:  "Namespace in OIDC state",
+					Value: true,
 				},
 			},
 		},
@@ -198,7 +199,8 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	}
 
 	// Check if the config already exists, to determine if this is a create or
-	// an update
+	// an update, since req.Operation is always 'update' in this handler, and
+	// there's no existence check defined.
 	existingConfig, err := b.config(ctx, req.Storage)
 	if err != nil {
 		return nil, err
