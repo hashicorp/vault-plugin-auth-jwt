@@ -91,11 +91,9 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 			},
 			"namespace_in_state": {
 				Type:        framework.TypeBool,
-				Description: "Pass namespace in the state parameter instead of as a separate query parameter. With this setting the allowed redirect URL in Vault and on the provider side should not contain a namespace query parameter. This means only one redirect URL entry needs to be maintained on the provider side for all vault namespaces that will be authenticating against it.",
-				Default:     true,
+				Description: "Pass namespace in the OIDC state parameter instead of as a separate query parameter. With this setting, the allowed redirect URL(s) in Vault and on the provider side should not contain a namespace query parameter. This means only one redirect URL entry needs to be maintained on the provider side for all vault namespaces that will be authenticating against it. Defaults to true for new configs.",
 				DisplayAttrs: &framework.DisplayAttributes{
-					Name:  "Namespace in state",
-					Value: true,
+					Name: "Namespace in OIDC state",
 				},
 			},
 		},
@@ -197,7 +195,22 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		JWTSupportedAlgs:     d.Get("jwt_supported_algs").([]string),
 		BoundIssuer:          d.Get("bound_issuer").(string),
 		ProviderConfig:       d.Get("provider_config").(map[string]interface{}),
-		NamespaceInState:     d.Get("namespace_in_state").(bool),
+	}
+
+	// Check if the config already exists, to determine if this is a create or
+	// an update
+	existingConfig, err := b.config(ctx, req.Storage)
+	if err != nil {
+		return nil, err
+	}
+	if nsInState, ok := d.GetOk("namespace_in_state"); ok {
+		config.NamespaceInState = nsInState.(bool)
+	} else if existingConfig == nil {
+		// new configs default to true
+		config.NamespaceInState = true
+	} else {
+		// maintain the existing value
+		config.NamespaceInState = existingConfig.NamespaceInState
 	}
 
 	// Run checks on values
