@@ -309,8 +309,8 @@ func (b *jwtAuthBackend) verifyOIDCToken(ctx context.Context, config *jwtConfig,
 // createIdentity creates an alias and set of groups aliases based on the role
 // definition and received claims.
 func (b *jwtAuthBackend) createIdentity(allClaims map[string]interface{}, role *jwtRole) (*logical.Alias, []*logical.Alias, error) {
-	userClaimRaw, ok := allClaims[role.UserClaim]
-	if !ok {
+	userClaimRaw := getClaim(b.Logger(), allClaims, role.UserClaim)
+	if userClaimRaw == nil {
 		return nil, nil, fmt.Errorf("claim %q not found in token", role.UserClaim)
 	}
 	userName, ok := userClaimRaw.(string)
