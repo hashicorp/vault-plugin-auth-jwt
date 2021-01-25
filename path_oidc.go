@@ -251,7 +251,7 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 			loggedToken = fmt.Sprintf("%s.%s.xxxxxxxxxxx", parts[0], parts[1])
 		}
 
-		b.Logger().Debug("OIDC provider response", "ID token", loggedToken)
+		b.Logger().Debug("OIDC provider response", "id_token", loggedToken)
 	}
 
 	// Parse and verify ID Token payload.
