@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/cidrutil"
 	"github.com/hashicorp/vault/sdk/logical"
+	"golang.org/x/oauth2"
 )
 
 func pathLogin(b *jwtAuthBackend) *framework.Path {
@@ -116,7 +117,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		return logical.ErrorResponse("audience claim found in JWT but no audiences bound to the role"), nil
 	}
 
-	alias, groupAliases, err := b.createIdentity(ctx, allClaims, role)
+	alias, groupAliases, err := b.createIdentity(ctx, allClaims, role, nil)
 	if err != nil {
 		return logical.ErrorResponse(err.Error()), nil
 	}
@@ -169,12 +170,19 @@ func (b *jwtAuthBackend) pathLoginRenew(ctx context.Context, req *logical.Reques
 	return resp, nil
 }
 
+// TODO: This exists to support JWT auth via OIDC Discovery. It is not needed
+//       for OIDC auth and will be replaced by the cap/jwt library.
 func (b *jwtAuthBackend) verifyOIDCToken(ctx context.Context, config *jwtConfig, role *jwtRole, rawToken string) (map[string]interface{}, error) {
 	allClaims := make(map[string]interface{})
 
-	provider, err := b.getProvider(config)
+	oidcCtx, err := b.createCAContext(b.providerCtx, config.OIDCDiscoveryCAPEM)
 	if err != nil {
-		return nil, errwrap.Wrapf("error getting provider for login operation: {{err}}", err)
+		return nil, errwrap.Wrapf("error creating provider: {{err}}", err)
+	}
+
+	provider, err := oidc.NewProvider(oidcCtx, config.OIDCDiscoveryURL)
+	if err != nil {
+		return nil, errwrap.Wrapf("error creating provider with given values: {{err}}", err)
 	}
 
 	oidcConfig := &oidc.Config{
@@ -211,7 +219,7 @@ func (b *jwtAuthBackend) verifyOIDCToken(ctx context.Context, config *jwtConfig,
 
 // createIdentity creates an alias and set of groups aliases based on the role
 // definition and received claims.
-func (b *jwtAuthBackend) createIdentity(ctx context.Context, allClaims map[string]interface{}, role *jwtRole) (*logical.Alias, []*logical.Alias, error) {
+func (b *jwtAuthBackend) createIdentity(ctx context.Context, allClaims map[string]interface{}, role *jwtRole, tokenSource oauth2.TokenSource) (*logical.Alias, []*logical.Alias, error) {
 	userClaimRaw, ok := allClaims[role.UserClaim]
 	if !ok {
 		return nil, nil, fmt.Errorf("claim %q not found in token", role.UserClaim)
@@ -246,7 +254,7 @@ func (b *jwtAuthBackend) createIdentity(ctx context.Context, allClaims map[strin
 		return alias, groupAliases, nil
 	}
 
-	groupsClaimRaw, err := b.fetchGroups(ctx, pConfig, allClaims, role)
+	groupsClaimRaw, err := b.fetchGroups(ctx, pConfig, allClaims, role, tokenSource)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch groups: %s", err)
 	}
@@ -285,12 +293,12 @@ func (b *jwtAuthBackend) fetchUserInfo(ctx context.Context, pConfig CustomProvid
 }
 
 // Checks if there's a custom provider_config and calls FetchGroups() if implemented
-func (b *jwtAuthBackend) fetchGroups(ctx context.Context, pConfig CustomProvider, allClaims map[string]interface{}, role *jwtRole) (interface{}, error) {
+func (b *jwtAuthBackend) fetchGroups(ctx context.Context, pConfig CustomProvider, allClaims map[string]interface{}, role *jwtRole, tokenSource oauth2.TokenSource) (interface{}, error) {
 	// If the custom provider implements interface GroupsFetcher, call it,
 	// otherwise fall through to the default method
 	if pConfig != nil {
 		if gf, ok := pConfig.(GroupsFetcher); ok {
-			groupsRaw, err := gf.FetchGroups(ctx, b, allClaims, role)
+			groupsRaw, err := gf.FetchGroups(ctx, b, allClaims, role, tokenSource)
 			if err != nil {
 				return nil, err
 			}

@@ -235,11 +235,14 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		config.OIDCClientID == "" && config.OIDCClientSecret != "":
 		return logical.ErrorResponse("both 'oidc_client_id' and 'oidc_client_secret' must be set for OIDC"), nil
 
-	case config.OIDCDiscoveryURL != "":
+	case config.OIDCDiscoveryURL != "" && config.OIDCClientID != "" && config.OIDCClientSecret != "":
 		_, err := b.createProvider(config)
 		if err != nil {
 			return logical.ErrorResponse(errwrap.Wrapf("error checking oidc discovery URL: {{err}}", err).Error()), nil
 		}
+
+	case config.OIDCDiscoveryURL != "" && config.OIDCClientID == "" && config.OIDCClientSecret == "":
+		// TODO: add validation to this case for JWT auth via OIDC discovery once using cap/jwt library
 
 	case config.OIDCClientID != "" && config.OIDCDiscoveryURL == "":
 		return logical.ErrorResponse("'oidc_discovery_url' must be set for OIDC"), nil
@@ -315,12 +318,23 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 }
 
 func (b *jwtAuthBackend) createProvider(config *jwtConfig) (*oidc.Provider, error) {
-	oidcCtx, err := b.createCAContext(b.providerCtx, config.OIDCDiscoveryCAPEM)
+	supportedSigAlgs := make([]oidc.Alg, 0)
+	for _, a := range config.JWTSupportedAlgs {
+		supportedSigAlgs = append(supportedSigAlgs, oidc.Alg(a))
+	}
+
+	if len(supportedSigAlgs) == 0 {
+		supportedSigAlgs = []oidc.Alg{oidc.RS256}
+	}
+
+	c, err := oidc.NewConfig(config.OIDCDiscoveryURL, config.OIDCClientID,
+		oidc.ClientSecret(config.OIDCClientSecret), supportedSigAlgs, []string{},
+		oidc.WithProviderCA(config.OIDCDiscoveryCAPEM))
 	if err != nil {
 		return nil, errwrap.Wrapf("error creating provider: {{err}}", err)
 	}
 
-	provider, err := oidc.NewProvider(oidcCtx, config.OIDCDiscoveryURL)
+	provider, err := oidc.NewProvider(c)
 	if err != nil {
 		return nil, errwrap.Wrapf("error creating provider with given values: {{err}}", err)
 	}
