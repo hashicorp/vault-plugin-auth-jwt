@@ -64,6 +64,7 @@ func setupBackend(t *testing.T, cfg testConfig) (closeableBackend, logical.Stora
 			data = map[string]interface{}{
 				"bound_issuer":           "https://team-vault.auth0.com/",
 				"jwt_validation_pubkeys": ecdsaPubKey,
+				"jwt_supported_algs":     []string{string(jose.ES256)},
 			}
 		} else {
 			p := newOIDCProvider(t)
@@ -75,8 +76,9 @@ func setupBackend(t *testing.T, cfg testConfig) (closeableBackend, logical.Stora
 			}
 
 			data = map[string]interface{}{
-				"jwks_url":    p.server.URL + "/certs",
-				"jwks_ca_pem": cert,
+				"jwks_url":           p.server.URL + "/certs",
+				"jwks_ca_pem":        cert,
+				"jwt_supported_algs": []string{string(jose.ES256)},
 			}
 		}
 	}
@@ -1056,6 +1058,7 @@ func TestLogin_NestedGroups(t *testing.T) {
 	data := map[string]interface{}{
 		"bound_issuer":           "https://team-vault.auth0.com/",
 		"jwt_validation_pubkeys": ecdsaPubKey,
+		"jwt_supported_algs":     "ES256",
 	}
 
 	req := &logical.Request{
