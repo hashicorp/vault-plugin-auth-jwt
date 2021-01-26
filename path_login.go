@@ -87,7 +87,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 	}
 
 	// Get the JWT validator based on the configured auth type
-	validator, err := b.getJWTValidator(config)
+	validator, err := b.jwtValidator(config)
 	if err != nil {
 		return logical.ErrorResponse(errwrap.Wrapf("error configuring token validator: {{err}}", err).Error()), nil
 	}

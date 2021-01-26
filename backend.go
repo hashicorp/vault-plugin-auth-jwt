@@ -131,8 +131,8 @@ func (b *jwtAuthBackend) getProvider(config *jwtConfig) (*oidc.Provider, error) 
 	return provider, nil
 }
 
-// getJWTValidator returns a new JWT validator based on the provided config.
-func (b *jwtAuthBackend) getJWTValidator(config *jwtConfig) (*jwt.Validator, error) {
+// jwtValidator returns a new JWT validator based on the provided config.
+func (b *jwtAuthBackend) jwtValidator(config *jwtConfig) (*jwt.Validator, error) {
 	b.l.Lock()
 	defer b.l.Unlock()
 
