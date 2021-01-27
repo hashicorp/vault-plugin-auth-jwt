@@ -109,7 +109,8 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		return logical.ErrorResponse(errwrap.Wrapf("error validating token: {{err}}", err).Error()), nil
 	}
 
-	// If the role has no bound audiences, then return an error if any audience in the JWT claim
+	// If there are no bound audiences for the role, then the existence of any audience
+	// in the audience claim should result in an error.
 	aud, ok := getClaim(b.Logger(), allClaims, "aud").([]interface{})
 	if ok && len(aud) > 0 && len(role.BoundAudiences) == 0 {
 		return logical.ErrorResponse("audience claim found in JWT but no audiences bound to the role"), nil
