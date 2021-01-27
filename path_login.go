@@ -103,7 +103,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		ClockSkewLeeway:   role.ClockSkewLeeway,
 	}
 
-	// Validate the JWT by verifying it's signature and asserting expected claims values
+	// Validate the JWT by verifying its signature and asserting expected claims values
 	allClaims, err := validator.Validate(ctx, token, expected)
 	if err != nil {
 		return logical.ErrorResponse(errwrap.Wrapf("error validating token: {{err}}", err).Error()), nil
