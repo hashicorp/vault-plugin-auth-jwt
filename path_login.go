@@ -89,7 +89,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 	// Get the JWT validator based on the configured auth type
 	validator, err := b.jwtValidator(config)
 	if err != nil {
-		return logical.ErrorResponse(errwrap.Wrapf("error configuring token validator: {{err}}", err).Error()), nil
+		return logical.ErrorResponse("error configuring token validator: %s", err.Error()), nil
 	}
 
 	// Set expected claims values to assert on the JWT
@@ -106,7 +106,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 	// Validate the JWT by verifying its signature and asserting expected claims values
 	allClaims, err := validator.Validate(ctx, token, expected)
 	if err != nil {
-		return logical.ErrorResponse(errwrap.Wrapf("error validating token: {{err}}", err).Error()), nil
+		return logical.ErrorResponse("error validating token: %s", err.Error()), nil
 	}
 
 	// If there are no bound audiences for the role, then the existence of any audience
