@@ -34,7 +34,7 @@ type jwtAuthBackend struct {
 	provider     *oidc.Provider
 	validator    *jwt.Validator
 	cachedConfig *jwtConfig
-	oidcStates   *cache.Cache
+	oidcRequests *cache.Cache
 
 	providerCtx       context.Context
 	providerCtxCancel context.CancelFunc
@@ -43,7 +43,7 @@ type jwtAuthBackend struct {
 func backend() *jwtAuthBackend {
 	b := new(jwtAuthBackend)
 	b.providerCtx, b.providerCtxCancel = context.WithCancel(context.Background())
-	b.oidcStates = cache.New(oidcStateTimeout, oidcStateCleanupInterval)
+	b.oidcRequests = cache.New(oidcRequestTimeout, oidcRequestCleanupInterval)
 
 	b.Backend = &framework.Backend{
 		AuthRenew:   b.pathLoginRenew,

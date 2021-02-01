@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	oidcStateTimeout         = 10 * time.Minute
-	oidcStateCleanupInterval = 1 * time.Minute
+	oidcRequestTimeout         = 10 * time.Minute
+	oidcRequestCleanupInterval = 1 * time.Minute
 )
 
 const (
@@ -34,9 +34,10 @@ const (
 	noCode = "no_code"
 )
 
-// oidcState is created when an authURL is requested. The state identifier is
-// passed throughout the OAuth process.
-type oidcState struct {
+// oidcRequest represents a single OIDC authentication flow. It is created when
+// an authURL is requested. It is uniquely identified by a state, which is passed
+// throughout the multiple interactions needed to complete the flow.
+type oidcRequest struct {
 	oidc.Request
 
 	rolename string
@@ -137,13 +138,13 @@ func (b *jwtAuthBackend) pathCallbackPost(ctx context.Context, req *logical.Requ
 		},
 	}
 
-	// Store the provided code and/or token into state, which must already exist.
-	state, err := b.amendState(stateID, code, idToken)
+	// Store the provided code and/or token into its OIDC request, which must already exist.
+	oidcRequest, err := b.amendOIDCRequest(stateID, code, idToken)
 	if err != nil {
 		resp.Data[logical.HTTPRawBody] = []byte(errorHTML(errLoginFailed, "Expired or missing OAuth state."))
 		resp.Data[logical.HTTPStatusCode] = http.StatusBadRequest
 	} else {
-		mount := parseMount(state.RedirectURL())
+		mount := parseMount(oidcRequest.RedirectURL())
 		if mount == "" {
 			resp.Data[logical.HTTPRawBody] = []byte(errorHTML(errLoginFailed, "Invalid redirect path."))
 			resp.Data[logical.HTTPStatusCode] = http.StatusBadRequest
@@ -166,7 +167,7 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 
 	stateID := d.Get("state").(string)
 
-	oidcRequest := b.verifyState(stateID)
+	oidcRequest := b.verifyOIDCRequest(stateID)
 	if oidcRequest == nil {
 		return logical.ErrorResponse(errLoginFailed + " Expired or missing OAuth state."), nil
 	}
@@ -426,9 +427,8 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 }
 
 // createOIDCRequest makes an expiring request object, associated with a random state ID
-// that is passed throughout the OAuth process. A nonce is also included in the auth process,
-// and for simplicity will be identical in length as the state ID.
-func (b *jwtAuthBackend) createOIDCRequest(config *jwtConfig, role *jwtRole, rolename, redirectURI, clientNonce string) (*oidcState, error) {
+// that is passed throughout the OAuth process. A nonce is also included in the auth process.
+func (b *jwtAuthBackend) createOIDCRequest(config *jwtConfig, role *jwtRole, rolename, redirectURI, clientNonce string) (*oidcRequest, error) {
 	options := []oidc.Option{
 		oidc.WithAudiences(role.BoundAudiences...),
 		oidc.WithScopes(role.OIDCScopes...),
@@ -438,45 +438,45 @@ func (b *jwtAuthBackend) createOIDCRequest(config *jwtConfig, role *jwtRole, rol
 		options = append(options, oidc.WithImplicitFlow())
 	}
 
-	request, err := oidc.NewRequest(oidcStateTimeout, redirectURI, options...)
+	request, err := oidc.NewRequest(oidcRequestTimeout, redirectURI, options...)
 	if err != nil {
 		return nil, err
 	}
 
-	oidcState := &oidcState{
+	oidcRequest := &oidcRequest{
 		Request:     request,
 		rolename:    rolename,
 		clientNonce: clientNonce,
 	}
-	b.oidcStates.SetDefault(request.State(), oidcState)
+	b.oidcRequests.SetDefault(request.State(), oidcRequest)
 
-	return oidcState, nil
+	return oidcRequest, nil
 }
 
-func (b *jwtAuthBackend) amendState(stateID, code, idToken string) (*oidcState, error) {
-	stateRaw, ok := b.oidcStates.Get(stateID)
+func (b *jwtAuthBackend) amendOIDCRequest(stateID, code, idToken string) (*oidcRequest, error) {
+	requestRaw, ok := b.oidcRequests.Get(stateID)
 	if !ok {
 		return nil, errors.New("OIDC state not found")
 	}
 
-	state := stateRaw.(*oidcState)
-	state.code = code
-	state.idToken = idToken
+	request := requestRaw.(*oidcRequest)
+	request.code = code
+	request.idToken = idToken
 
-	b.oidcStates.SetDefault(stateID, state)
+	b.oidcRequests.SetDefault(stateID, request)
 
-	return state, nil
+	return request, nil
 }
 
-// verifyState tests whether the provided state ID is valid and returns the
-// associated state object if so. A nil state is returned if the ID is not found
-// or expired. The state should only ever be retrieved once and is deleted as
+// verifyOIDCRequest tests whether the provided state ID is valid and returns the
+// associated oidcRequest if so. A nil oidcRequest is returned if the ID is not found
+// or expired. The oidcRequest should only ever be retrieved once and is deleted as
 // part of this request.
-func (b *jwtAuthBackend) verifyState(stateID string) *oidcState {
-	defer b.oidcStates.Delete(stateID)
+func (b *jwtAuthBackend) verifyOIDCRequest(stateID string) *oidcRequest {
+	defer b.oidcRequests.Delete(stateID)
 
-	if stateRaw, ok := b.oidcStates.Get(stateID); ok {
-		return stateRaw.(*oidcState)
+	if stateRaw, ok := b.oidcRequests.Get(stateID); ok {
+		return stateRaw.(*oidcRequest)
 	}
 
 	return nil

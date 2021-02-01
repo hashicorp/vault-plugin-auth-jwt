@@ -243,7 +243,7 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 			_, err = jwt.NewOIDCDiscoveryKeySet(ctx, config.OIDCDiscoveryURL, config.OIDCDiscoveryCAPEM)
 		}
 		if err != nil {
-			return logical.ErrorResponse("error checking oidc discovery URL: %s", err), nil
+			return logical.ErrorResponse("error checking oidc discovery URL: %s", err.Error()), nil
 		}
 
 	case config.OIDCClientID != "" && config.OIDCDiscoveryURL == "":
