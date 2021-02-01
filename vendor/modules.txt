@@ -3,7 +3,6 @@ cloud.google.com/go/compute/metadata
 # github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310
 github.com/armon/go-radix
 # github.com/coreos/go-oidc v2.2.1+incompatible
-## explicit
 github.com/coreos/go-oidc
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
@@ -26,6 +25,7 @@ github.com/golang/snappy
 github.com/googleapis/gax-go/v2
 # github.com/hashicorp/cap v0.0.0-20210122190810-1e160503dd74
 ## explicit
+github.com/hashicorp/cap/jwt
 github.com/hashicorp/cap/oidc
 github.com/hashicorp/cap/oidc/internal/base62
 github.com/hashicorp/cap/oidc/internal/strutils
