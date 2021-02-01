@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/coreos/go-oidc"
 	"github.com/hashicorp/cap/jwt"
+	"github.com/hashicorp/cap/oidc"
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/vault/sdk/framework"
@@ -235,14 +235,16 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		config.OIDCClientID == "" && config.OIDCClientSecret != "":
 		return logical.ErrorResponse("both 'oidc_client_id' and 'oidc_client_secret' must be set for OIDC"), nil
 
-	case config.OIDCDiscoveryURL != "" && config.OIDCClientID != "" && config.OIDCClientSecret != "":
-		_, err := b.createProvider(config)
-		if err != nil {
-			return logical.ErrorResponse(errwrap.Wrapf("error checking oidc discovery URL: {{err}}", err).Error()), nil
+	case config.OIDCDiscoveryURL != "":
+		var err error
+		if config.OIDCClientID != "" && config.OIDCClientSecret != "" {
+			_, err = b.createProvider(config)
+		} else {
+			_, err = jwt.NewOIDCDiscoveryKeySet(ctx, config.OIDCDiscoveryURL, config.OIDCDiscoveryCAPEM)
 		}
-
-	case config.OIDCDiscoveryURL != "" && config.OIDCClientID == "" && config.OIDCClientSecret == "":
-		// TODO: add validation to this case for JWT auth via OIDC discovery once using cap/jwt library
+		if err != nil {
+			return logical.ErrorResponse("error checking oidc discovery URL: %s", err), nil
+		}
 
 	case config.OIDCClientID != "" && config.OIDCDiscoveryURL == "":
 		return logical.ErrorResponse("'oidc_discovery_url' must be set for OIDC"), nil

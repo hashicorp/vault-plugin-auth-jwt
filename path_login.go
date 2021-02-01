@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/coreos/go-oidc"
 	"github.com/hashicorp/cap/jwt"
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/vault/sdk/framework"
@@ -168,53 +167,6 @@ func (b *jwtAuthBackend) pathLoginRenew(ctx context.Context, req *logical.Reques
 	resp.Auth.MaxTTL = role.TokenMaxTTL
 	resp.Auth.Period = role.TokenPeriod
 	return resp, nil
-}
-
-// TODO: This exists to support JWT auth via OIDC Discovery. It is not needed
-//       for OIDC auth and will be replaced by the cap/jwt library.
-func (b *jwtAuthBackend) verifyOIDCToken(ctx context.Context, config *jwtConfig, role *jwtRole, rawToken string) (map[string]interface{}, error) {
-	allClaims := make(map[string]interface{})
-
-	oidcCtx, err := b.createCAContext(b.providerCtx, config.OIDCDiscoveryCAPEM)
-	if err != nil {
-		return nil, errwrap.Wrapf("error creating provider: {{err}}", err)
-	}
-
-	provider, err := oidc.NewProvider(oidcCtx, config.OIDCDiscoveryURL)
-	if err != nil {
-		return nil, errwrap.Wrapf("error creating provider with given values: {{err}}", err)
-	}
-
-	oidcConfig := &oidc.Config{
-		SupportedSigningAlgs: config.JWTSupportedAlgs,
-	}
-
-	if role.RoleType == "oidc" {
-		oidcConfig.ClientID = config.OIDCClientID
-	} else {
-		oidcConfig.SkipClientIDCheck = true
-	}
-
-	verifier := provider.Verifier(oidcConfig)
-
-	idToken, err := verifier.Verify(ctx, rawToken)
-	if err != nil {
-		return nil, errwrap.Wrapf("error validating signature: {{err}}", err)
-	}
-
-	if err := idToken.Claims(&allClaims); err != nil {
-		return nil, errwrap.Wrapf("unable to successfully parse all claims from token: {{err}}", err)
-	}
-
-	if role.BoundSubject != "" && role.BoundSubject != idToken.Subject {
-		return nil, errors.New("sub claim does not match bound subject")
-	}
-
-	if err := validateAudience(role.BoundAudiences, idToken.Audience, false); err != nil {
-		return nil, errwrap.Wrapf("error validating claims: {{err}}", err)
-	}
-
-	return allClaims, nil
 }
 
 // createIdentity creates an alias and set of groups aliases based on the role

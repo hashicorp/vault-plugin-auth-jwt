@@ -238,12 +238,6 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		b.Logger().Debug("OIDC provider response", "id_token", loggedToken)
 	}
 
-	// Parse and verify ID Token payload.
-	allClaims, err := b.verifyOIDCToken(ctx, config, role, rawToken)
-	if err != nil {
-		return logical.ErrorResponse("%s %s", errTokenVerification, err.Error()), nil
-	}
-
 	// Parse claims from the ID token payload.
 	var allClaims map[string]interface{}
 	if err := rawToken.Claims(&allClaims); err != nil {
@@ -431,10 +425,9 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 	return resp, nil
 }
 
-// TODO: correct comment
-// createState make an expiring state object, associated with a random state ID
-// that is passed throughout the OAuth process. A nonce is also included in the
-// auth process, and for simplicity will be identical in length/format as the state ID.
+// createOIDCRequest makes an expiring request object, associated with a random state ID
+// that is passed throughout the OAuth process. A nonce is also included in the auth process,
+// and for simplicity will be identical in length as the state ID.
 func (b *jwtAuthBackend) createOIDCRequest(config *jwtConfig, role *jwtRole, rolename, redirectURI, clientNonce string) (*oidcState, error) {
 	options := []oidc.Option{
 		oidc.WithAudiences(role.BoundAudiences...),
