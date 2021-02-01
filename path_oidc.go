@@ -254,6 +254,10 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		subject = allClaims["sub"].(string)
 	}
 
+	if role.BoundSubject != "" && role.BoundSubject != subject {
+		return nil, errors.New("sub claim does not match bound subject")
+	}
+
 	// If we have a token, attempt to fetch information from the /userinfo endpoint
 	// and merge it with the existing claims data. A failure to fetch additional information
 	// from this endpoint will not invalidate the authorization flow.
