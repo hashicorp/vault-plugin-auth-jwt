@@ -398,16 +398,15 @@ func (b *jwtAuthBackend) authURL(ctx context.Context, req *logical.Request, d *f
 		redirectURI = strings.Replace(redirectURI, "ui/vault", "v1", 1)
 	}
 
-	// Create a new OIDC request state
-	oidcReq, err := b.createOIDCRequest(config, role, roleName, redirectURI, clientNonce)
-	if err != nil {
-		logger.Warn("error generating OAuth state", "error", err)
-		return resp, nil
-	}
-
 	provider, err := b.getProvider(config)
 	if err != nil {
 		logger.Warn("error getting provider for login operation", "error", err)
+		return resp, nil
+	}
+
+	oidcReq, err := b.createOIDCRequest(config, role, roleName, redirectURI, clientNonce)
+	if err != nil {
+		logger.Warn("error generating OAuth state", "error", err)
 		return resp, nil
 	}
 
