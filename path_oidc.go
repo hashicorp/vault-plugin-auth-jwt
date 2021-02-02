@@ -246,9 +246,7 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	}
 	delete(allClaims, "nonce")
 
-	// The sub claim in the user info response must be verified to
-	// exactly match the sub claim in the ID token as described in:
-	// https://openid.net/specs/openid-connect-core-1_0.html#UserInfoResponse
+	// Get the subject claim for bound subject and user info validation
 	var subject string
 	if subStr, ok := allClaims["sub"].(string); ok {
 		subject = subStr
