@@ -250,8 +250,8 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	// exactly match the sub claim in the ID token as described in:
 	// https://openid.net/specs/openid-connect-core-1_0.html#UserInfoResponse
 	var subject string
-	if _, ok := allClaims["sub"].(string); ok {
-		subject = allClaims["sub"].(string)
+	if subStr, ok := allClaims["sub"].(string); ok {
+		subject = subStr
 	}
 
 	if role.BoundSubject != "" && role.BoundSubject != subject {
