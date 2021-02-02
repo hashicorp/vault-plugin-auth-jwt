@@ -320,9 +320,9 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 }
 
 func (b *jwtAuthBackend) createProvider(config *jwtConfig) (*oidc.Provider, error) {
-	supportedSigAlgs := make([]oidc.Alg, 0)
-	for _, a := range config.JWTSupportedAlgs {
-		supportedSigAlgs = append(supportedSigAlgs, oidc.Alg(a))
+	supportedSigAlgs := make([]oidc.Alg, len(config.JWTSupportedAlgs))
+	for i, a := range config.JWTSupportedAlgs {
+		supportedSigAlgs[i] = oidc.Alg(a)
 	}
 
 	if len(supportedSigAlgs) == 0 {
