@@ -23,7 +23,7 @@ github.com/golang/protobuf/ptypes/timestamp
 github.com/golang/snappy
 # github.com/googleapis/gax-go/v2 v2.0.5
 github.com/googleapis/gax-go/v2
-# github.com/hashicorp/cap v0.0.0-20210122190810-1e160503dd74
+# github.com/hashicorp/cap v0.0.0-20210204173447-5fcddadbf7c7
 ## explicit
 github.com/hashicorp/cap/jwt
 github.com/hashicorp/cap/oidc

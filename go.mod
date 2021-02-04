@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	github.com/go-test/deep v1.0.2-0.20181118220953-042da051cf31
-	github.com/hashicorp/cap v0.0.0-20210122190810-1e160503dd74
+	github.com/hashicorp/cap v0.0.0-20210204173447-5fcddadbf7c7
 	github.com/hashicorp/errwrap v1.0.0
 	github.com/hashicorp/go-cleanhttp v0.5.1
 	github.com/hashicorp/go-hclog v0.12.0
