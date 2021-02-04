@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	// The host of the deprecated Azure Active Directory (AAD) graph API
+	// Deprecated: The host of the Azure Active Directory (AAD) graph API
 	azureADGraphHost = "graph.windows.net"
 
 	// The host and version of the Microsoft Graph API
