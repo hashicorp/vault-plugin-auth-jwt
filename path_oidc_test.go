@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/cap/oidc"
 	"github.com/hashicorp/go-sockaddr"
-
 	"github.com/hashicorp/vault/sdk/logical"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
@@ -838,8 +838,7 @@ func TestOIDC_Callback(t *testing.T) {
 			t.Fatal("nil response")
 		}
 
-		expectedMsg := "invalid id_token: one audience (not_gonna_match) which is not the client_id (abc)"
-		if !resp.IsError() || !strings.Contains(resp.Error().Error(), expectedMsg) {
+		if !resp.IsError() || !strings.Contains(resp.Error().Error(), oidc.ErrInvalidAuthorizedParty.Error()) {
 			t.Fatalf("expected invalid client_id error, got : %v", *resp)
 		}
 	})
