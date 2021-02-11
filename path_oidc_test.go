@@ -385,56 +385,46 @@ func TestOIDC_AuthURL_max_age(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, resp.IsError())
 
-	tests := []struct {
-		name           string
+	tests := map[string]struct {
 		maxAge         string
 		expectedMaxAge string
 		expectErr      bool
 	}{
-		{
-			name:           "auth URL for role with integer max_age of 60",
+		"auth URL for role with integer max_age of 60": {
 			maxAge:         "60",
 			expectedMaxAge: "60",
 		},
-		{
-			name:           "auth URL for role with integer max_age of 180",
+		"auth URL for role with integer max_age of 180": {
 			maxAge:         "180",
 			expectedMaxAge: "180",
 		},
-		{
-			name:           "auth URL for role with empty max_age",
+		"auth URL for role with empty max_age": {
 			maxAge:         "",
 			expectedMaxAge: "",
 		},
-		{
-			name:           "auth URL for role with duration string max_age of 30s",
+		"auth URL for role with duration string max_age of 30s": {
 			maxAge:         "30s",
 			expectedMaxAge: "30",
 		},
-		{
-			name:           "auth URL for role with duration string max_age of 2m",
+		"auth URL for role with duration string max_age of 2m": {
 			maxAge:         "2m",
 			expectedMaxAge: "120",
 		},
-		{
-			name:           "auth URL for role with duration string max_age of 1hr",
+		"auth URL for role with duration string max_age of 1hr": {
 			maxAge:         "1h",
 			expectedMaxAge: "3600",
 		},
-		{
-			name:      "auth URL for role with invalid duration string",
+		"auth URL for role with invalid duration string": {
 			maxAge:    "1hr",
 			expectErr: true,
 		},
-		{
-			name:      "auth URL for role with invalid signed integer",
+		"auth URL for role with invalid signed integer": {
 			maxAge:    "-1",
 			expectErr: true,
 		},
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
 			// Write the role with the given max age
 			req = &logical.Request{
 				Operation: logical.CreateOperation,
