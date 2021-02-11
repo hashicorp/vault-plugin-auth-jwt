@@ -426,6 +426,11 @@ func TestOIDC_AuthURL_max_age(t *testing.T) {
 			maxAge:    "1hr",
 			expectErr: true,
 		},
+		{
+			name:      "auth URL for role with invalid signed integer",
+			maxAge:    "-1",
+			expectErr: true,
+		},
 	}
 
 	for _, tt := range tests {
