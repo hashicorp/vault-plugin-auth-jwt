@@ -98,7 +98,8 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 	if len(signingAlgorithms) == 0 {
 		signingAlgorithms = []jwt.Alg{
 			jwt.RS256, jwt.RS384, jwt.RS512, jwt.ES256, jwt.ES384,
-			jwt.ES512, jwt.PS256, jwt.PS384, jwt.PS512, jwt.EdDSA}
+			jwt.ES512, jwt.PS256, jwt.PS384, jwt.PS512, jwt.EdDSA,
+		}
 	}
 
 	// Set expected claims values to assert on the JWT
