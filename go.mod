@@ -1,6 +1,6 @@
 module github.com/hashicorp/vault-plugin-auth-jwt
 
-go 1.14
+go 1.16
 
 require (
 	github.com/go-test/deep v1.0.2-0.20181118220953-042da051cf31

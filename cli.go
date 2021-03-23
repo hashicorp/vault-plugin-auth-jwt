@@ -155,12 +155,8 @@ func callbackHandler(c *api.Client, mount string, clientNonce string, doneCh cha
 			summary, detail := parseError(err)
 			response = errorHTML(summary, detail)
 		} else {
-			// use go embed
-			// response = successHTML
-
-			//go:embed success.html
-			var success string
-			response = success
+			// uses go:embed
+			response = successHTMLstr
 		}
 	}
 }

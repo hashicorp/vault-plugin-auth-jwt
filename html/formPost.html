@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Vault Authentication Succeeded</title>
+  <title>Complete sign-in process</title>
     <style>
       body {
         font-size: 14px;
@@ -105,12 +105,8 @@
         </svg>
           <div class="message-content">
             <div class="message-title">
-              Signed in via your OIDC provider
+              Completing the sign-in process...
             </div>
-            <p class="message-body">
-            You can now close this window and start using Vault.<p></p>
-            Hello from embedded file
-            </p>
           </div>
         </div>
         <hr />
@@ -136,5 +132,8 @@
         </a>
       </div>
     </div>
+	<script>
+		window.localStorage.setItem("oidcState", JSON.stringify({"path":"%s", "code":"%s", "state":"%s"}));
+	</script>
   </body>
 </html>
