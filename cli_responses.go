@@ -97,6 +97,7 @@ const successHTML = `
   </head>
   <body translate="no" >
     <div class="container">
+		hiya from success
       <div>
         <svg id="logo" width="146" height="51" viewBox="0 0 146 51" xmlns="http://www.w3.org/2000/svg">
           <g id="vault-logo-v" fill-rule="nonzero">
@@ -259,6 +260,7 @@ h1 + p {
 </head>
 <body translate="no" >
   <div class="container">
+	hiya from error
     <div>
       <svg id="logo" width="146" height="51" viewBox="0 0 146 51" xmlns="http://www.w3.org/2000/svg">
   <g id="vault-logo-v" fill-rule="nonzero">
@@ -408,6 +410,7 @@ func formpostHTML(path, code, state string) string {
   </head>
   <body translate="no" >
     <div class="container">
+		hiya from form
       <div>
         <svg id="logo" width="146" height="51" viewBox="0 0 146 51" xmlns="http://www.w3.org/2000/svg">
           <g id="vault-logo-v" fill-rule="nonzero">
