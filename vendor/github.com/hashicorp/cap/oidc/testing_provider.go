@@ -72,7 +72,10 @@ import (
 //  * Now: SetNowFunc(...) updates the provider's "now" function and time.Now
 //  is the default.
 //
-//  * Expiry: SetExpectedExpiry( exp time.Duration) updates the expiry and
+//  * Subject: SetExpectedSubject(sub string) configures the expected subject for
+//    any JWTs issued by the provider (the default is "alice@example.com")
+//
+//  * Expiry: SetExpectedExpiry(exp time.Duration) updates the expiry and
 //    now + 5 * time.Second is the default.
 //
 //  * Signing keys: SetSigningKeys(...) updates the keys and a ECDSA P-256 pair
@@ -118,15 +121,20 @@ import (
 //
 //  * UserInfo: SetUserInfoReply sets the UserInfo endpoint response and
 //  UserInfoReply() returns the current response.
+//
+//  * ID Token additional claims: SetIDTokenAdditionalClaims sets the additional
+//  claims returned in an ID Token and IDTokenAdditionalClaims returns the current
+//  additional claims
 type TestProvider struct {
 	httpServer *httptest.Server
 	caCert     string
 
-	jwks                *jose.JSONWebKeySet
-	allowedRedirectURIs []string
-	replySubject        string
-	replyUserinfo       interface{}
-	replyExpiry         time.Duration
+	jwks                         *jose.JSONWebKeySet
+	allowedRedirectURIs          []string
+	replyIDTokenAdditionalClaims map[string]interface{}
+	replySubject                 string
+	replyUserinfo                interface{}
+	replyExpiry                  time.Duration
 
 	mu                sync.Mutex
 	clientID          string
@@ -136,6 +144,7 @@ type TestProvider struct {
 	expectedState     string
 	customClaims      map[string]interface{}
 	customAudiences   []string
+	supportedScopes   []string
 	omitAuthTimeClaim bool
 	omitIDToken       bool
 	omitAccessToken   bool
@@ -187,6 +196,10 @@ func StartTestProvider(t *testing.T, opt ...Option) *TestProvider {
 		allowedRedirectURIs: []string{
 			"https://example.com",
 		},
+		replyIDTokenAdditionalClaims: map[string]interface{}{
+			"name":  "Alice Doe Smith",
+			"email": "alice@example.com",
+		},
 		replySubject: "alice@example.com",
 		replyUserinfo: map[string]interface{}{
 			"sub":           "alice@example.com",
@@ -196,6 +209,7 @@ func StartTestProvider(t *testing.T, opt ...Option) *TestProvider {
 			"advisor":       "Faythe",
 			"nosy-neighbor": "Eve",
 		},
+		supportedScopes: []string{"openid"}, // required openid is the default
 	}
 
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -313,6 +327,47 @@ func (p *TestProvider) HTTPClient() *http.Client {
 		Transport: tr,
 	}
 	return p.client
+}
+
+// SetSupportedScopes sets the values for the scopes supported for
+// authorization.  Valid supported scopes are: openid, profile, email,
+// address, phone
+func (p *TestProvider) SetSupportedScopes(scope ...string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.t.Helper()
+	require := require.New(p.t)
+	for _, s := range scope {
+		require.Containsf([]string{"openid", "profile", "email", "address", "phone"}, s, "unsupported scope %q", s)
+	}
+	if !strutils.StrListContains(scope, "openid") {
+		scope = append(scope, "openid")
+	}
+	p.supportedScopes = scope
+}
+
+// SupportedScopes returns the values for the scopes supported.
+func (p *TestProvider) SupportedScopes() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.supportedScopes
+}
+
+// SetExpectedSubject is for configuring the expected subject for
+// any JWTs issued by the provider (the default is "alice@example.com")
+func (p *TestProvider) SetExpectedSubject(sub string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.replySubject = sub
+}
+
+// ExpectedSubject returns the subject for any JWTs issued by the
+// provider See: SetExpectedSubject(...) to override the default which
+// is "alice@example.com"
+func (p *TestProvider) ExpectedSubject() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.replySubject
 }
 
 // SetExpectedExpiry is for configuring the expected expiry for any JWTs issued
@@ -485,11 +540,27 @@ func (p *TestProvider) SetUserInfoReply(resp interface{}) {
 	p.replyUserinfo = resp
 }
 
-// SetUserInfoReply sets the UserInfo endpoint response.
+// UserInfoReply gets the UserInfo endpoint response.
 func (p *TestProvider) UserInfoReply() interface{} {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.replyUserinfo
+}
+
+// SetIDTokenAdditionalClaims sets the additional claims returned
+// in an ID Token.
+func (p *TestProvider) SetIDTokenAdditionalClaims(additionalClaims map[string]interface{}) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.replyIDTokenAdditionalClaims = additionalClaims
+}
+
+// IDTokenAdditionalClaims gets the additional claims returned
+// in ID Tokens
+func (p *TestProvider) IDTokenAdditionalClaims() map[string]interface{} {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.replyIDTokenAdditionalClaims
 }
 
 // Addr returns the current base URL for the test provider's running webserver,
@@ -590,6 +661,12 @@ func (p *TestProvider) issueSignedJWT(opt ...Option) string {
 		"auth_time": float64(p.nowFunc().Unix()),
 		"iat":       float64(p.nowFunc().Unix()),
 		"aud":       []string{p.clientID},
+		"azp":       p.clientID,
+	}
+	for k, v := range p.replyIDTokenAdditionalClaims {
+		if k != "sub" {
+			claims[k] = v
+		}
 	}
 	if len(p.customAudiences) != 0 {
 		claims["aud"] = append(claims["aud"].([]string), p.customAudiences...)
@@ -710,17 +787,21 @@ func (p *TestProvider) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 
 		reply := struct {
-			Issuer           string `json:"issuer"`
-			AuthEndpoint     string `json:"authorization_endpoint"`
-			TokenEndpoint    string `json:"token_endpoint"`
-			JWKSURI          string `json:"jwks_uri"`
-			UserinfoEndpoint string `json:"userinfo_endpoint,omitempty"`
+			Issuer           string   `json:"issuer"`
+			AuthEndpoint     string   `json:"authorization_endpoint"`
+			TokenEndpoint    string   `json:"token_endpoint"`
+			JWKSURI          string   `json:"jwks_uri"`
+			UserinfoEndpoint string   `json:"userinfo_endpoint,omitempty"`
+			SupportedAlgs    []string `json:"id_token_signing_alg_values_supported"`
+			SupportedScopes  []string `json:"scopes_supported"`
 		}{
 			Issuer:           p.Addr(),
 			AuthEndpoint:     p.Addr() + authorize,
 			TokenEndpoint:    p.Addr() + token,
 			JWKSURI:          p.Addr() + wellKnownJwks,
 			UserinfoEndpoint: p.Addr() + userInfo,
+			SupportedAlgs:    []string{string(p.alg)},
+			SupportedScopes:  p.supportedScopes,
 		}
 		if p.disableUserInfo {
 			reply.UserinfoEndpoint = ""
@@ -751,9 +832,11 @@ func (p *TestProvider) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			p.writeAuthErrorResponse(w, req, redirectURI, state, "unsupported_response_type", "")
 			return
 		}
-		if !strutils.StrListContains(scopes, "openid") {
-			p.writeAuthErrorResponse(w, req, redirectURI, state, "invalid_scope", "")
-			return
+		for _, s := range scopes {
+			if !strutils.StrListContains(p.supportedScopes, s) {
+				p.writeAuthErrorResponse(w, req, redirectURI, state, "invalid_scope", "")
+				return
+			}
 		}
 
 		if p.expectedAuthCode == "" {
