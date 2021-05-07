@@ -205,6 +205,7 @@ func isWSL() bool {
 }
 
 // openURL opens the specified URL in the default browser of the user.
+// If the BROWSER environment variable is set it will be used instead.
 // Source: https://stackoverflow.com/a/39324149/453290
 func openURL(url string) error {
 	var cmd string
@@ -220,6 +221,12 @@ func openURL(url string) error {
 	default: // "linux", "freebsd", "openbsd", "netbsd"
 		cmd = "xdg-open"
 	}
+
+	// Allow users to define the browser instead of using the default one
+	if os.Getenv("BROWSER") != "" {
+		cmd = os.Getenv("BROWSER")
+	}
+
 	args = append(args, url)
 	return exec.Command(cmd, args...).Start()
 }
