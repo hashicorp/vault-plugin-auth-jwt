@@ -305,6 +305,23 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		}
 	}
 
+	// Also fetch any requested extra oauth2 metadata
+	oauth2Metadata := make(map[string]string)
+	for _, mdname := range role.Oauth2Metadata {
+		var md string
+		switch mdname {
+		case "id_token":
+			md = string(token.IDToken())
+		case "refresh_token":
+			md = string(token.RefreshToken())
+		case "access_token":
+			md = string(token.AccessToken())
+		default:
+			return logical.ErrorResponse(errLoginFailed + " Unrecognized oauth2 metadata name " + mdname), nil
+		}
+		oauth2Metadata[mdname] = md
+	}
+
 	if role.VerboseOIDCLogging {
 		if c, err := json.Marshal(allClaims); err == nil {
 			b.Logger().Debug("OIDC provider response", "claims", string(c))
@@ -325,6 +342,9 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	tokenMetadata := map[string]string{"role": roleName}
 	for k, v := range alias.Metadata {
 		tokenMetadata[k] = v
+	}
+	for k, v := range oauth2Metadata {
+		tokenMetadata["oauth2_" + k] = v
 	}
 
 	auth := &logical.Auth{
