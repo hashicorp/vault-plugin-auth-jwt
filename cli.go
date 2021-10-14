@@ -25,6 +25,7 @@ const (
 	defaultPort           = "8250"
 	defaultCallbackHost   = "localhost"
 	defaultCallbackMethod = "http"
+	defaultBrowserLaunch  = true
 )
 
 var errorRegex = regexp.MustCompile(`(?s)Errors:.*\* *(.*)`)
@@ -74,6 +75,12 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 		callbackPort = port
 	}
 
+	doBrowserLaunch := defaultBrowserLaunch
+	_, ok = m["no-launch"]
+	if ok {
+		doBrowserLaunch = false
+	}
+
 	role := m["role"]
 
 	authURL, clientNonce, err := fetchAuthURL(c, role, mount, callbackPort, callbackMethod, callbackHost)
@@ -91,10 +98,15 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 	defer listener.Close()
 
 	// Open the default browser to the callback URL.
-	fmt.Fprintf(os.Stderr, "Complete the login via your OIDC provider. Launching browser to:\n\n    %s\n\n\n", authURL)
-	if err := openURL(authURL); err != nil {
-		fmt.Fprintf(os.Stderr, "Error attempting to automatically open browser: '%s'.\nPlease visit the authorization URL manually.", err)
+	if doBrowserLaunch {
+		fmt.Fprintf(os.Stderr, "Complete the login via your OIDC provider. Launching browser to:\n\n    %s\n\n\n", authURL)
+		if err := openURL(authURL); err != nil {
+			fmt.Fprintf(os.Stderr, "Error attempting to automatically open browser: '%s'.\nPlease visit the authorization URL manually.", err)
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Complete the login via your OIDC provider. Open the following link in your browser:\n\n    %s\n\n\n", authURL)
 	}
+	fmt.Fprintf(os.Stderr, "Waiting for OIDC authentication to complete...\n")
 
 	// Start local server
 	go func() {
@@ -299,6 +311,9 @@ Configuration:
 
   callbackport=<string>
       Optional port to to use in OIDC redirect_uri (default: the value set for port).
+
+  no-launch
+      Do not auto-launch default browser with OIDC login address.
 `
 
 	return strings.TrimSpace(help)
