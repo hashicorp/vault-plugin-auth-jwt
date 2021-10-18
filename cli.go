@@ -12,6 +12,7 @@ import (
 	"path"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +33,8 @@ var errorRegex = regexp.MustCompile(`(?s)Errors:.*\* *(.*)`)
 
 type CLIHandler struct{}
 
+// loginResp implements vault's command.LoginHandler interface, but we do not check
+// the implementation as that'd cause an import loop.
 type loginResp struct {
 	secret *api.Secret
 	err    error
@@ -76,9 +79,12 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 	}
 
 	doBrowserLaunch := defaultBrowserLaunch
-	_, ok = m["no-launch"]
-	if ok {
-		doBrowserLaunch = false
+	if x, ok := m["launch-browser"]; ok {
+		parsed, err := strconv.ParseBool(x)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to parse \"launch-browser\" as a boolean: %w", err)
+		}
+		doBrowserLaunch = parsed
 	}
 
 	role := m["role"]
