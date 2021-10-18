@@ -21,12 +21,12 @@ import (
 )
 
 const (
-	defaultMount          = "oidc"
-	defaultListenAddress  = "localhost"
-	defaultPort           = "8250"
-	defaultCallbackHost   = "localhost"
-	defaultCallbackMethod = "http"
-	defaultBrowserLaunch  = true
+	defaultMount             = "oidc"
+	defaultListenAddress     = "localhost"
+	defaultPort              = "8250"
+	defaultCallbackHost      = "localhost"
+	defaultCallbackMethod    = "http"
+	defaultSkipBrowserLaunch = false
 )
 
 var errorRegex = regexp.MustCompile(`(?s)Errors:.*\* *(.*)`)
@@ -78,13 +78,13 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 		callbackPort = port
 	}
 
-	doBrowserLaunch := defaultBrowserLaunch
-	if x, ok := m["launch-browser"]; ok {
+	skipBrowserLaunch := defaultSkipBrowserLaunch
+	if x, ok := m["skip_browser"]; ok {
 		parsed, err := strconv.ParseBool(x)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to parse \"launch-browser\" as a boolean: %w", err)
+			return nil, fmt.Errorf("Failed to parse \"skip_browser\" as a boolean: %w", err)
 		}
-		doBrowserLaunch = parsed
+		skipBrowserLaunch = parsed
 	}
 
 	role := m["role"]
@@ -104,7 +104,7 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 	defer listener.Close()
 
 	// Open the default browser to the callback URL.
-	if doBrowserLaunch {
+	if !skipBrowserLaunch {
 		fmt.Fprintf(os.Stderr, "Complete the login via your OIDC provider. Launching browser to:\n\n    %s\n\n\n", authURL)
 		if err := openURL(authURL); err != nil {
 			fmt.Fprintf(os.Stderr, "Error attempting to automatically open browser: '%s'.\nPlease visit the authorization URL manually.", err)
