@@ -301,7 +301,7 @@ Usage: vault login -method=oidc [CONFIG K=V...]
 Configuration:
 
   role=<string>
-      Vault role of type "OIDC" to use for authentication.
+    Vault role of type "OIDC" to use for authentication.
 
   listenaddress=<string>
     Optional address to bind the OIDC callback listener to (default: localhost).
@@ -316,10 +316,10 @@ Configuration:
     Optional callback host address to use in OIDC redirect_uri (default: localhost).
 
   callbackport=<string>
-      Optional port to to use in OIDC redirect_uri (default: the value set for port).
+    Optional port to to use in OIDC redirect_uri (default: the value set for port).
 
-  no-launch
-      Do not auto-launch default browser with OIDC login address.
+  skip_browser=<bool>
+    Toggle the automatic launching of the default browser to the login URL. (default: false).
 `
 
 	return strings.TrimSpace(help)
