@@ -8,9 +8,13 @@
 #     CLIENT_ID
 #     CLIENT_SECRET
 #     ISSUER
+# 3. Export VAULT_IMAGE to test the image of your choice.
+# 4. Export VAULT_LICENSE if you are running an enterprise image.
 
-# Vault logs will be written to VAULT_OUTFILE
-# BATs test logs will be written to SETUP_TEARDOWN_OUTFILE
+# Logs
+#
+# Vault logs will be written to VAULT_OUTFILE.
+# BATs test logs will be written to SETUP_TEARDOWN_OUTFILE.
 
 export VAULT_ADDR='http://127.0.0.1:8200'
 SETUP_TEARDOWN_OUTFILE=/tmp/bats-test.log
