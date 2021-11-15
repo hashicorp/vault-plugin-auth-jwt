@@ -1,5 +1,10 @@
 #!/usr/bin/env bats
 
+# Prerequisites
+#
+# 1. Install Bats Core: https://bats-core.readthedocs.io/en/stable/installation.html#homebrew
+# 2. Docker
+
 # Setup
 #
 # 1. Configure an OIDC provider. See https://www.vaultproject.io/docs/auth/jwt/oidc_providers
@@ -9,7 +14,7 @@
 #     CLIENT_SECRET
 #     ISSUER
 # 3. Export VAULT_IMAGE to test the image of your choice.
-# 4. Export VAULT_LICENSE. This test will only work for enterprise images
+# 4. Export VAULT_LICENSE. This test will only work for enterprise images.
 
 # Logs
 #
