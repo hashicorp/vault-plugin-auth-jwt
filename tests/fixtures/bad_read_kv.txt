@@ -1,0 +1,7 @@
+Error reading kv/data/your-secret/secret-2: Error making API request.
+
+URL: GET http://127.0.0.1:8200/v1/kv/data/your-secret/secret-2
+Code: 403. Errors:
+
+* 1 error occurred:
+	* permission denied
