@@ -9,6 +9,9 @@
 #     CLIENT_SECRET
 #     ISSUER
 
+# Vault logs will be written to VAULT_OUTFILE
+# BATs test logs will be written to SETUP_TEARDOWN_OUTFILE
+
 export VAULT_ADDR='http://127.0.0.1:8200'
 SETUP_TEARDOWN_OUTFILE=/tmp/bats-test.log
 VAULT_OUTFILE=/tmp/vault.log
