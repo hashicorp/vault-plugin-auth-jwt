@@ -9,7 +9,7 @@
 #     CLIENT_SECRET
 #     ISSUER
 # 3. Export VAULT_IMAGE to test the image of your choice.
-# 4. Export VAULT_LICENSE if you are running an enterprise image.
+# 4. Export VAULT_LICENSE. This test will only work for enterprise images
 
 # Logs
 #
