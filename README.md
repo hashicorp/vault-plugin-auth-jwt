@@ -148,7 +148,7 @@ Additionally, there are some BATs tests in the `tests` dir.
 #### Prerequisites
 
 - [Install Bats Core](https://bats-core.readthedocs.io/en/stable/installation.html#homebrew)
-- Docker or a vault binary in the working directory. i.e. "./vault"
+- Docker or a vault binary in the `tests` directory.
 
 #### Setup
 
@@ -158,7 +158,7 @@ Additionally, there are some BATs tests in the `tests` dir.
   - `CLIENT_SECRET`
   - `ISSUER`
 - Export `VAULT_IMAGE` to test the image of your choice or place a vault binary
-  in the working directory.
+  in the `tests` directory.
 - Export `VAULT_LICENSE`. This test will only work for enterprise images.
 
 #### Logs
