@@ -1,4 +1,0 @@
-Keys
-----
-test-role
-test-role-2

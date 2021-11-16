@@ -1,4 +1,0 @@
-==== Data ====
-Key      Value
----      -----
-value    1234
