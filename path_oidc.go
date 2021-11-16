@@ -457,7 +457,7 @@ func (b *jwtAuthBackend) createOIDCRequest(config *jwtConfig, role *jwtRole, rol
 	} else {
 		v, err := oidc.NewCodeVerifier()
 		if err != nil {
-			return nil, fmt.Errorf("error creating verifier: %w", err)
+			return nil, fmt.Errorf("error creating code challenge: %w", err)
 		}
 
 		options = append(options, oidc.WithPKCE(v))
