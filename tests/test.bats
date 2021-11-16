@@ -1,31 +1,15 @@
 #!/usr/bin/env bats
 
-# Prerequisites
-#
-# 1. Install Bats Core: https://bats-core.readthedocs.io/en/stable/installation.html#homebrew
-# 2. Docker
+# See the vault-plugin-auth-jwt README for prereqs and setup.
 
-# Setup
-#
-# 1. Configure an OIDC provider. See https://www.vaultproject.io/docs/auth/jwt/oidc_providers
-#     for examples.
-# 2. Save and export the following values to your shell:
-#     CLIENT_ID
-#     CLIENT_SECRET
-#     ISSUER
-# 3. Export VAULT_IMAGE to test the image of your choice.
-# 4. Export VAULT_LICENSE. This test will only work for enterprise images.
-
-# Logs
-#
 # Vault logs will be written to VAULT_OUTFILE.
 # BATs test logs will be written to SETUP_TEARDOWN_OUTFILE.
 
 export VAULT_ADDR='http://127.0.0.1:8200'
 SETUP_TEARDOWN_OUTFILE=/tmp/bats-test.log
 VAULT_OUTFILE=/tmp/vault.log
-export VAULT_TOKEN='root'
-export VAULT_IMAGE="${VAULT_IMAGE:-hashicorp/vault-enterprise:1.9.0-rc1_ent}"
+VAULT_TOKEN='root'
+VAULT_STARTUP_TIMEOUT=15
 
 # assert_status evaluates if $1 is equal to $2. If they are not equal a log
 # is written to the output file.
@@ -35,18 +19,8 @@ assert_status() {
   got="$1"
   expect="$2"
 
-  [ "${expect?}" -eq "${got}" ] || log_err "status - expect: ${expect} got: ${got}"
-}
-
-# assert_output_partial performs a string match of $1 and $2. A partial match
-# will evaluate to true. If no match is found a log is written to the output file.
-assert_output_partial() {
-  local got
-  local expect
-  got="$1"
-  expect="$2"
-
-  [[ "${output}" =~ "$(cat $expect)" ]] || log_err "output - expect: ${expect} got: ${got}"
+  [ "${expect?}" -eq "${got}" ] || \
+    log_err "bad status: expect: ${expect}, got: ${got} \noutput:\n${output}"
 }
 
 log() {
@@ -54,7 +28,7 @@ log() {
 }
 
 log_err() {
-  echo "ERROR: $(date): $@" >> $SETUP_TEARDOWN_OUTFILE
+  echo -e "ERROR: $(date): $@" >> $SETUP_TEARDOWN_OUTFILE
   exit 1
 }
 
@@ -73,25 +47,35 @@ setup_file(){
     [ ${ISSUER?} ]
     [ ${VAULT_LICENSE?} ]
 
-    log "VAULT_LICENSE: $VAULT_LICENSE"
+    if [[ -n ${VAULT_IMAGE} ]]; then
+      # user docker to run vault
+      docker pull ${VAULT_IMAGE?}
 
-    docker pull ${VAULT_IMAGE?}
-
-    docker run \
-      --name=vault \
-      --hostname=vault \
-      -p 8200:8200 \
-      -e VAULT_DEV_ROOT_TOKEN_ID="root" \
-      -e VAULT_ADDR="http://localhost:8200" \
-      -e VAULT_DEV_LISTEN_ADDRESS="0.0.0.0:8200" \
-      -e VAULT_LICENSE="${VAULT_LICENSE?}" \
-      --privileged \
-      --detach ${VAULT_IMAGE?}
+      docker run \
+        --name=vault \
+        --hostname=vault \
+        -p 8200:8200 \
+        -e VAULT_DEV_ROOT_TOKEN_ID="root" \
+        -e VAULT_ADDR="http://localhost:8200" \
+        -e VAULT_DEV_LISTEN_ADDRESS="0.0.0.0:8200" \
+        -e VAULT_LICENSE="${VAULT_LICENSE?}" \
+        --privileged \
+        --detach ${VAULT_IMAGE?}
+    else
+      # use local vault binary
+      ./vault server -dev -dev-root-token-id=root \
+        -log-level=trace > $VAULT_OUTFILE 2>&1 &
+    fi
 
     } >> $SETUP_TEARDOWN_OUTFILE
 
     log "waiting for vault..."
-    while ! vault status >/dev/null 2>&1; do sleep 1; done; echo
+    i=0
+    while ! vault status >/dev/null 2>&1; do
+      sleep 1
+      ((i=i+1))
+      [ $i -gt $VAULT_STARTUP_TIMEOUT ] && log_err "timed out waiting for vault to start"
+    done
 
     vault login ${VAULT_TOKEN?}
 
@@ -106,16 +90,23 @@ setup_file(){
 teardown_file(){
     log "BEGIN TEARDOWN"
 
-    docker rm vault --force
+    if [[ -n ${VAULT_IMAGE} ]]; then
+      log "removing vault docker container"
+      docker rm vault --force
+    else
+      log "killing vault process"
+      pkill vault
+    fi
 
     log "END TEARDOWN"
 }
 
-@test "Setup namespace" {
+@test "Read license" {
     run vault read -format=json sys/license/status
-    log "${output}"
     assert_status "${status}" 0
+}
 
+@test "Setup namespace" {
     run vault namespace create ns1
     assert_status "${status}" 0
 
@@ -183,13 +174,11 @@ EOF
 @test "LIST /auth/oidc/role - list roles" {
     run vault list auth/oidc/role
     assert_status "${status}" 0
-    assert_output_partial "${output}" fixtures/list_roles.txt
 }
 
 @test "GET /auth/oidc/role/:name - read a role" {
     run vault read auth/oidc/role/test-role
     assert_status "${status}" 0
-    assert_output_partial "${output}" fixtures/read_role.txt
 }
 
 @test "DELETE /auth/oidc/role/:name - delete a role" {
@@ -203,19 +192,16 @@ EOF
     unset VAULT_TOKEN
     run vault login -method=oidc
     assert_status "${status}" 0
-    assert_output_partial "${output}" fixtures/oidc_login.txt
 }
 
 @test "Test policy prevents kv read" {
     unset VAULT_TOKEN
     run vault kv get kv/your-secret/secret-2
     assert_status "${status}" 2
-    assert_output_partial "${output}" fixtures/bad_read_kv.txt
 }
 
 @test "Test policy allows kv read" {
     unset VAULT_TOKEN
     run vault kv get kv/my-secret/secret-1
     assert_status "${status}" 0
-    assert_output_partial "${output}" fixtures/good_read_kv.txt
 }
