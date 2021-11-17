@@ -11,16 +11,22 @@ VAULT_OUTFILE=/tmp/vault.log
 VAULT_TOKEN='root'
 VAULT_STARTUP_TIMEOUT=15
 
-# assert_status evaluates if $1 is equal to $2. If they are not equal a log
-# is written to the output file.
-assert_status() {
-  local got
-  local expect
-  got="$1"
-  expect="$2"
 
-  [ "${expect?}" -eq "${got}" ] || \
-    log_err "bad status: expect: ${expect}, got: ${got} \noutput:\n${output}"
+# assert_status evaluates if `status` is equal to $1. If they are not equal a
+# log is written to the output file. This makes use of the BATs `status` and
+# `output` globals.
+#
+# Parameters:
+#   expect
+# Globals:
+#   status
+#   output
+assert_status() {
+  local expect
+  expect="$1"
+
+  [ "${status}" -eq "${expect}" ] || \
+    log_err "bad status: expect: ${expect}, got: ${status} \noutput:\n${output}"
 }
 
 log() {
@@ -80,7 +86,7 @@ setup_file(){
     vault login ${VAULT_TOKEN?}
 
     run vault status
-    assert_status "${status}" 0
+    assert_status 0
     log "vault started successfully"
 
     log "END SETUP"
@@ -103,12 +109,12 @@ teardown_file(){
 
 @test "Read license" {
     run vault read -format=json sys/license/status
-    assert_status "${status}" 0
+    assert_status 0
 }
 
 @test "Setup namespace" {
     run vault namespace create ns1
-    assert_status "${status}" 0
+    assert_status 0
 
     VAULT_NAMESPACE=ns1
 }
@@ -116,18 +122,18 @@ teardown_file(){
 @test "Enable oidc auth" {
     run vault auth enable oidc
     log "${output}"
-    assert_status "${status}" 0
+    assert_status 0
 }
 
 @test "Setup kv and policies" {
     run vault secrets enable -version=2 kv
-    assert_status "${status}" 0
+    assert_status 0
 
     run vault kv put kv/my-secret/secret-1 value=1234
-    assert_status "${status}" 0
+    assert_status 0
 
     run vault kv put kv/your-secret/secret-2 value=5678
-    assert_status "${status}" 0
+    assert_status 0
 
     run vault policy write test-policy -<<EOF
 path "kv/data/my-secret/*" {
@@ -135,7 +141,7 @@ path "kv/data/my-secret/*" {
 }
 
 EOF
-    assert_status "${status}" 0
+    assert_status 0
 
 }
 
@@ -146,7 +152,7 @@ EOF
       oidc_client_secret="$CLIENT_SECRET" \
       default_role="test-role" \
       bound_issuer="localhost"
-    assert_status "${status}" 0
+    assert_status 0
 }
 
 @test "POST /auth/oidc/role/:name - create a role" {
@@ -158,7 +164,7 @@ EOF
       ttl=1h \
       policies="test-policy" \
       verbose_oidc_logging=true
-    assert_status "${status}" 0
+    assert_status 0
 
     run vault write auth/oidc/role/test-role-2 \
       user_claim="sub" \
@@ -168,22 +174,22 @@ EOF
       ttl=1h \
       policies="test-policy" \
       verbose_oidc_logging=true
-    assert_status "${status}" 0
+    assert_status 0
 }
 
 @test "LIST /auth/oidc/role - list roles" {
     run vault list auth/oidc/role
-    assert_status "${status}" 0
+    assert_status 0
 }
 
 @test "GET /auth/oidc/role/:name - read a role" {
     run vault read auth/oidc/role/test-role
-    assert_status "${status}" 0
+    assert_status 0
 }
 
 @test "DELETE /auth/oidc/role/:name - delete a role" {
     run vault delete auth/oidc/role/test-role-2
-    assert_status "${status}" 0
+    assert_status 0
 }
 
 # this test will open your default browser and ask you to login with your
@@ -191,17 +197,17 @@ EOF
 @test "Login with oidc auth" {
     unset VAULT_TOKEN
     run vault login -method=oidc
-    assert_status "${status}" 0
+    assert_status 0
 }
 
 @test "Test policy prevents kv read" {
     unset VAULT_TOKEN
     run vault kv get kv/your-secret/secret-2
-    assert_status "${status}" 2
+    assert_status 2
 }
 
 @test "Test policy allows kv read" {
     unset VAULT_TOKEN
     run vault kv get kv/my-secret/secret-1
-    assert_status "${status}" 0
+    assert_status 0
 }
