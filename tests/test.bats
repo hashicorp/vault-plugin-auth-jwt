@@ -11,6 +11,7 @@ VAULT_OUTFILE=/tmp/vault.log
 VAULT_TOKEN='root'
 VAULT_STARTUP_TIMEOUT=15
 
+# error if these are not set
 [ ${CLIENT_ID?} ]
 [ ${CLIENT_SECRET?} ]
 [ ${ISSUER?} ]
@@ -34,11 +35,11 @@ assert_status() {
 }
 
 log() {
-  echo "INFO: $(date): $@" >> $SETUP_TEARDOWN_OUTFILE
+  echo "INFO: $(date): [$BATS_TEST_NAME]: $@" >> $SETUP_TEARDOWN_OUTFILE
 }
 
 log_err() {
-  echo -e "ERROR: $(date): $@" >> $SETUP_TEARDOWN_OUTFILE
+  echo -e "ERROR: $(date): [$BATS_TEST_NAME]: $@" >> $SETUP_TEARDOWN_OUTFILE
   exit 1
 }
 
@@ -51,10 +52,8 @@ setup_file(){
 
     log "BEGIN SETUP"
 
-    {
-
     if [[ -n ${VAULT_IMAGE} ]]; then
-      # user docker to run vault
+      log "docker using VAULT_IMAGE: $VAULT_IMAGE"
       docker pull ${VAULT_IMAGE?}
 
       docker run \
@@ -68,12 +67,10 @@ setup_file(){
         --privileged \
         --detach ${VAULT_IMAGE?}
     else
-      # use local vault binary
+      log "using local vault binary"
       ./vault server -dev -dev-root-token-id=root \
         -log-level=trace > $VAULT_OUTFILE 2>&1 &
     fi
-
-    } >> $SETUP_TEARDOWN_OUTFILE
 
     log "waiting for vault..."
     i=0
@@ -88,6 +85,8 @@ setup_file(){
     run vault status
     assert_status 0
     log "vault started successfully"
+
+    vault namespace create ns1
 
     log "END SETUP"
 }
@@ -112,30 +111,22 @@ teardown_file(){
     assert_status 0
 }
 
-@test "Setup namespace" {
-    run vault namespace create ns1
-    assert_status 0
-
-    VAULT_NAMESPACE=ns1
-}
-
 @test "Enable oidc auth" {
-    run vault auth enable oidc
-    log "${output}"
+    run vault auth enable --namespace=ns1 oidc
     assert_status 0
 }
 
 @test "Setup kv and policies" {
-    run vault secrets enable -version=2 kv
+    run vault secrets enable --namespace=ns1 -version=2 kv
     assert_status 0
 
-    run vault kv put kv/my-secret/secret-1 value=1234
+    run vault kv put --namespace=ns1 kv/my-secret/secret-1 value=1234
     assert_status 0
 
-    run vault kv put kv/your-secret/secret-2 value=5678
+    run vault kv put --namespace=ns1 kv/your-secret/secret-2 value=5678
     assert_status 0
 
-    run vault policy write test-policy -<<EOF
+    run vault policy write --namespace=ns1 test-policy -<<EOF
 path "kv/data/my-secret/*" {
   capabilities = [ "read" ]
 }
@@ -146,7 +137,7 @@ EOF
 }
 
 @test "POST /auth/oidc/config - write config" {
-    run vault write auth/oidc/config \
+    run vault write --namespace=ns1 auth/oidc/config \
       oidc_discovery_url="$ISSUER" \
       oidc_client_id="$CLIENT_ID" \
       oidc_client_secret="$CLIENT_SECRET" \
@@ -156,7 +147,7 @@ EOF
 }
 
 @test "POST /auth/oidc/role/:name - create a role" {
-    run vault write auth/oidc/role/test-role \
+    run vault write --namespace=ns1 auth/oidc/role/test-role \
       user_claim="sub" \
       allowed_redirect_uris="http://localhost:8250/oidc/callback,http://localhost:8200/ui/vault/auth/oidc/oidc/callback" \
       bound_audiences="$CLIENT_ID" \
@@ -166,7 +157,7 @@ EOF
       verbose_oidc_logging=true
     assert_status 0
 
-    run vault write auth/oidc/role/test-role-2 \
+    run vault write --namespace=ns1 auth/oidc/role/test-role-2 \
       user_claim="sub" \
       allowed_redirect_uris="http://localhost:8250/oidc/callback,http://localhost:8200/ui/vault/auth/oidc/oidc/callback" \
       bound_audiences="$CLIENT_ID" \
@@ -178,17 +169,17 @@ EOF
 }
 
 @test "LIST /auth/oidc/role - list roles" {
-    run vault list auth/oidc/role
+    run vault list --namespace=ns1 auth/oidc/role
     assert_status 0
 }
 
 @test "GET /auth/oidc/role/:name - read a role" {
-    run vault read auth/oidc/role/test-role
+    run vault read --namespace=ns1 auth/oidc/role/test-role
     assert_status 0
 }
 
 @test "DELETE /auth/oidc/role/:name - delete a role" {
-    run vault delete auth/oidc/role/test-role-2
+    run vault delete --namespace=ns1 auth/oidc/role/test-role-2
     assert_status 0
 }
 
@@ -196,18 +187,18 @@ EOF
 # OIDC Provider
 @test "Login with oidc auth" {
     unset VAULT_TOKEN
-    run vault login -method=oidc
+    run vault login --namespace=ns1 -method=oidc
     assert_status 0
 }
 
 @test "Test policy prevents kv read" {
     unset VAULT_TOKEN
-    run vault kv get kv/your-secret/secret-2
+    run vault kv get --namespace=ns1 kv/your-secret/secret-2
     assert_status 2
 }
 
 @test "Test policy allows kv read" {
     unset VAULT_TOKEN
-    run vault kv get kv/my-secret/secret-1
+    run vault kv get --namespace=ns1 kv/my-secret/secret-1
     assert_status 0
 }
