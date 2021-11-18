@@ -12,10 +12,10 @@ VAULT_TOKEN='root'
 VAULT_STARTUP_TIMEOUT=15
 
 # error if these are not set
-[ ${CLIENT_ID?} ]
-[ ${CLIENT_SECRET?} ]
-[ ${ISSUER?} ]
-[ ${VAULT_LICENSE?} ]
+[ ${CLIENT_ID:?} ]
+[ ${CLIENT_SECRET:?} ]
+[ ${ISSUER:?} ]
+[ ${VAULT_LICENSE:?} ]
 
 # assert_status evaluates if `status` is equal to $1. If they are not equal a
 # log is written to the output file. This makes use of the BATs `status` and

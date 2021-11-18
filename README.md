@@ -165,3 +165,17 @@ Additionally, there are some BATs tests in the `tests` dir.
 
 Vault logs will be written to `VAULT_OUTFILE`. BATs test logs will be written to
 `SETUP_TEARDOWN_OUTFILE`.
+
+#### Run Bats tests
+
+```
+# export env vars
+export CLIENT_ID="12345"
+export CLIENT_SECRET="6789"
+export ISSUER="my-issuer-url"
+export VAULT_LICENSE="abcde"
+
+# run tests
+cd tests/
+./test.bats
+```
