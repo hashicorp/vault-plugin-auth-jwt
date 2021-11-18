@@ -214,7 +214,6 @@ func TestOIDC_AuthURL(t *testing.T) {
 }
 
 func TestOIDC_AuthURL_namespace(t *testing.T) {
-
 	type testCase struct {
 		namespaceInState    string
 		allowedRedirectURIs []string
@@ -365,7 +364,6 @@ func TestOIDC_AuthURL_namespace(t *testing.T) {
 			if !matchState {
 				t.Fatalf("expected state to match regex: %s, %s", test.expectedStateRegEx, state)
 			}
-
 		})
 	}
 }
@@ -586,7 +584,6 @@ func TestOIDC_ResponseTypeIDToken(t *testing.T) {
 
 func TestOIDC_Callback(t *testing.T) {
 	t.Run("successful login", func(t *testing.T) {
-
 		// run test with and without bound_cidrs configured
 		for _, useBoundCIDRs := range []bool{false, true} {
 			b, storage, s := getBackendAndServer(t, useBoundCIDRs)
@@ -623,7 +620,7 @@ func TestOIDC_Callback(t *testing.T) {
 			// save PKCE challenge
 			s.codeChallenge = getQueryParam(t, authURL, "code_challenge")
 
-			// invoke the callback, which will in to try to exchange the code
+			// invoke the callback, which will try to exchange the code
 			// with the mock provider.
 			req = &logical.Request{
 				Operation: logical.ReadOperation,
@@ -1223,7 +1220,7 @@ func TestOIDC_Callback(t *testing.T) {
 	})
 }
 
-// oidcProvider is local server the mocks the basis endpoints used by the
+// oidcProvider is a local server that mocks the basis endpoints used by the
 // OIDC callback process.
 type oidcProvider struct {
 	t             *testing.T
