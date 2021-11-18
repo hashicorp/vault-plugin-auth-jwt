@@ -454,7 +454,7 @@ func (b *jwtAuthBackend) createOIDCRequest(config *jwtConfig, role *jwtRole, rol
 
 	if config.hasType(responseTypeIDToken) {
 		options = append(options, oidc.WithImplicitFlow())
-	} else {
+	} else if config.hasType(responseTypeCode) {
 		v, err := oidc.NewCodeVerifier()
 		if err != nil {
 			return nil, fmt.Errorf("error creating code challenge: %w", err)
