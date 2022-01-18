@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	github.com/go-test/deep v1.0.8
-	github.com/hashicorp/cap v0.1.1
+	github.com/hashicorp/cap v0.1.2-0.20220118183415-dab9cdc6ab6a
 	github.com/hashicorp/errwrap v1.1.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-hclog v1.0.0
@@ -19,7 +19,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/ryanuber/go-glob v1.0.0
 	github.com/stretchr/testify v1.7.0
-	golang.org/x/oauth2 v0.0.0-20211028175245-ba495a64dcb5
+	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	google.golang.org/api v0.59.0
 	gopkg.in/square/go-jose.v2 v2.6.0
