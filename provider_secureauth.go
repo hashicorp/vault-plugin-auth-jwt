@@ -10,8 +10,6 @@ import (
 
 // SecureAuthProvider is used for SecureAuth-specific configuration
 type SecureAuthProvider struct {
-	// Context for secureauth calls
-	ctx context.Context
 }
 
 // Initialize anything in the SecureAuthProvider struct - satisfying the CustomProvider interface
