@@ -46,8 +46,3 @@ func (a *SecureAuthProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, a
 	b.Logger().Debug(fmt.Sprintf("post: groups claim raw is %v", groupsClaimRaw))
 	return groupsClaimRaw, nil
 }
-
-
-type secureauthGroups struct {
-	Value []interface{} `json:"value"`
-}
