@@ -1436,6 +1436,62 @@ func TestResolveRole(t *testing.T) {
 	}
 }
 
+func TestResolveRole_OIDC(t *testing.T) {
+	cfg := testConfig{
+		audience:      true,
+		jwks:          true,
+		defaultLeeway: -1,
+	}
+	b, storage := setupBackend(t, cfg)
+	role := "testrole"
+
+	dummyRoleData := map[string]interface{}{
+		"role_type":             "oidc",
+		"bound_subject":         "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+		"user_claim":            "https://vault/user",
+		"policies":              "test",
+		"allowed_redirect_uris": "false",
+		"period":                "3s",
+		"ttl":                   "1s",
+		"num_uses":              12,
+		"max_ttl":               "5s",
+	}
+
+	req := &logical.Request{
+		Operation: logical.CreateOperation,
+		Path:      "role/" + role,
+		Storage:   storage,
+		Data:      dummyRoleData,
+	}
+
+	resp, err := b.HandleRequest(context.Background(), req)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("err:%s resp:%#v\n", err, resp)
+	}
+
+	loginData := map[string]interface{}{
+		"role": role,
+	}
+	loginReq := &logical.Request{
+		Operation: logical.ResolveRoleOperation,
+		Path:      "login",
+		Storage:   storage,
+		Data:      loginData,
+		Connection: &logical.Connection{
+			RemoteAddr: "127.0.0.1",
+		},
+	}
+
+	resp, err = b.HandleRequest(context.Background(), loginReq)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("err:%v resp:%#v", err, resp)
+	}
+
+	if resp.Data["role"] != role {
+		t.Fatalf("Role was not as expected. Expected %s, received %s", role, resp.Data["role"])
+	}
+}
+
 func TestResolveRole_RoleDoesNotExist(t *testing.T) {
 	cfg := testConfig{
 		audience:      true,

@@ -77,9 +77,6 @@ func (b *jwtAuthBackend) getRoleNameAndRoleFromLoginRequest(config *jwtConfig, c
 		return "", nil, logical.ErrorResponse("role %q could not be found", roleName), nil
 	}
 
-	if role.RoleType == "oidc" {
-		return "", nil, logical.ErrorResponse("role with oidc role_type is not allowed"), nil
-	}
 	return roleName, role, nil, nil
 }
 
@@ -95,6 +92,10 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 	roleName, role, resp, err := b.getRoleNameAndRoleFromLoginRequest(config, ctx, req, d)
 	if resp != nil || err != nil {
 		return resp, err
+	}
+
+	if role.RoleType == "oidc" {
+		return logical.ErrorResponse("role with oidc role_type is not allowed"), nil
 	}
 
 	token := d.Get("jwt").(string)
