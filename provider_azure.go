@@ -16,6 +16,7 @@ import (
 
 const (
 	// Deprecated: The host of the Azure Active Directory (AAD) graph API
+	// Conversion List: https://docs.microsoft.com/en-us/graph/migrate-azure-ad-graph-request-differences 
 	azureADGraphHost   = "graph.windows.net"
 	azureADGraphUShost = "graph.microsoftazure.us"
 
