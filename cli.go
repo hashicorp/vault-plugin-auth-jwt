@@ -204,7 +204,7 @@ func callbackHandler(c *api.Client, mount string, clientNonce string, doneCh cha
 	}
 }
 
-func fetchAuthURL(c *api.Client, role, mount, callbackport string, callbackMethod string, callbackHost string) (string, string, error) {
+func fetchAuthURL(c *api.Client, role, mount, callbackPort string, callbackMethod string, callbackHost string) (string, string, error) {
 	var authURL string
 
 	clientNonce, err := base62.Random(20)
@@ -212,7 +212,7 @@ func fetchAuthURL(c *api.Client, role, mount, callbackport string, callbackMetho
 		return "", "", err
 	}
 
-	redirectURI := fmt.Sprintf("%s://%s:%s/oidc/callback", callbackMethod, callbackHost, callbackport)
+	redirectURI := fmt.Sprintf("%s://%s:%s/oidc/callback", callbackMethod, callbackHost, callbackPort)
 	data := map[string]interface{}{
 		"role":         role,
 		"redirect_uri": redirectURI,
