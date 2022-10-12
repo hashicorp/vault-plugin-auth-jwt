@@ -81,27 +81,30 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 		callbackPort = port
 	}
 
-	parseBool := func(f string) (bool, error) {
-		if s, ok := m[f]; ok {
-			v, err := strconv.ParseBool(s)
-			if err != nil {
-				return false, fmt.Errorf(
-					"failed to parse value for %q, err=%w", f, err)
-			}
-			return v, nil
+	parseBool := func(f string, d bool) (bool, error) {
+		s, ok := m[f]
+		if !ok {
+			return d, nil
 		}
-		return false, nil
+
+		v, err := strconv.ParseBool(s)
+		if err != nil {
+			return false, fmt.Errorf(
+				"failed to parse value for %q, err=%w", f, err)
+		}
+
+		return v, nil
 	}
 
 	var skipBrowserLaunch bool
-	if v, err := parseBool(FieldSkipBrowser); err != nil {
+	if v, err := parseBool(FieldSkipBrowser, false); err != nil {
 		return nil, err
 	} else {
 		skipBrowserLaunch = v
 	}
 
 	var abortOnError bool
-	if v, err := parseBool(FieldAbortOnError); err != nil {
+	if v, err := parseBool(FieldAbortOnError, false); err != nil {
 		return nil, err
 	} else {
 		abortOnError = v
