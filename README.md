@@ -64,15 +64,13 @@ Put the plugin binary into a location of your choice. This directory
 will be specified as the [`plugin_directory`](https://www.vaultproject.io/docs/configuration/index.html#plugin_directory)
 in the Vault config used to start the server.
 
-```json
-...
+```hcl
 plugin_directory = "path/to/plugin/directory"
-...
 ```
 
 Start a Vault server with this config file:
 ```sh
-$ vault server -config=path/to/config.json ...
+$ vault server -config=path/to/config.hcl ...
 ...
 ```
 
