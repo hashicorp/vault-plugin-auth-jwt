@@ -113,7 +113,7 @@ func setupBackend(t *testing.T, cfg testConfig) (closeableBackend, logical.Stora
 			"first_name":   "name",
 			"/org/primary": "primary_org",
 		},
-		"use_role_name_as_entity_alias": cfg.roleNameAsAlias,
+		"role_name_as_entity_alias": cfg.roleNameAsAlias,
 	}
 	if cfg.role_type_oidc {
 		data["role_type"] = "oidc"
@@ -1386,7 +1386,7 @@ func TestLogin_JWKS_Concurrent(t *testing.T) {
 	}
 }
 
-func TestLogin_UseRoleNameAsEntityAlias(t *testing.T) {
+func TestLogin_RoleNameAsEntityAlias(t *testing.T) {
 	cfg := testConfig{
 		audience:        true,
 		roleNameAsAlias: true,

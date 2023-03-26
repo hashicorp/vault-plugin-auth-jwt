@@ -156,7 +156,7 @@ in OIDC responses.`,
 				Description: `Specifies the allowable elapsed time in seconds since the last time the 
 user was actively authenticated.`,
 			},
-			"use_role_name_as_entity_alias": {
+			"role_name_as_entity_alias": {
 				Type: framework.TypeBool,
 				Description: `If true, the name of the role will be used as the entity alias name when
 establishing user identity at login. Overrides user_claim, if set.`,
@@ -209,19 +209,19 @@ type jwtRole struct {
 	ClockSkewLeeway time.Duration `json:"clock_skew_leeway"`
 
 	// Role binding properties
-	BoundAudiences           []string               `json:"bound_audiences"`
-	BoundSubject             string                 `json:"bound_subject"`
-	BoundClaimsType          string                 `json:"bound_claims_type"`
-	BoundClaims              map[string]interface{} `json:"bound_claims"`
-	ClaimMappings            map[string]string      `json:"claim_mappings"`
-	UserClaim                string                 `json:"user_claim"`
-	GroupsClaim              string                 `json:"groups_claim"`
-	OIDCScopes               []string               `json:"oidc_scopes"`
-	AllowedRedirectURIs      []string               `json:"allowed_redirect_uris"`
-	VerboseOIDCLogging       bool                   `json:"verbose_oidc_logging"`
-	MaxAge                   time.Duration          `json:"max_age"`
-	UserClaimJSONPointer     bool                   `json:"user_claim_json_pointer"`
-	UseRoleNameAsEntityAlias bool                   `json:"use_role_name_as_entity_alias"`
+	BoundAudiences        []string               `json:"bound_audiences"`
+	BoundSubject          string                 `json:"bound_subject"`
+	BoundClaimsType       string                 `json:"bound_claims_type"`
+	BoundClaims           map[string]interface{} `json:"bound_claims"`
+	ClaimMappings         map[string]string      `json:"claim_mappings"`
+	UserClaim             string                 `json:"user_claim"`
+	GroupsClaim           string                 `json:"groups_claim"`
+	OIDCScopes            []string               `json:"oidc_scopes"`
+	AllowedRedirectURIs   []string               `json:"allowed_redirect_uris"`
+	VerboseOIDCLogging    bool                   `json:"verbose_oidc_logging"`
+	MaxAge                time.Duration          `json:"max_age"`
+	UserClaimJSONPointer  bool                   `json:"user_claim_json_pointer"`
+	RoleNameAsEntityAlias bool                   `json:"role_name_as_entity_alias"`
 
 	// Deprecated by TokenParams
 	Policies   []string                      `json:"policies"`
@@ -314,23 +314,23 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 
 	// Create a map of data to be returned
 	d := map[string]interface{}{
-		"role_type":                     role.RoleType,
-		"expiration_leeway":             int64(role.ExpirationLeeway.Seconds()),
-		"not_before_leeway":             int64(role.NotBeforeLeeway.Seconds()),
-		"clock_skew_leeway":             int64(role.ClockSkewLeeway.Seconds()),
-		"bound_audiences":               role.BoundAudiences,
-		"bound_subject":                 role.BoundSubject,
-		"bound_claims_type":             role.BoundClaimsType,
-		"bound_claims":                  role.BoundClaims,
-		"claim_mappings":                role.ClaimMappings,
-		"user_claim":                    role.UserClaim,
-		"user_claim_json_pointer":       role.UserClaimJSONPointer,
-		"groups_claim":                  role.GroupsClaim,
-		"allowed_redirect_uris":         role.AllowedRedirectURIs,
-		"oidc_scopes":                   role.OIDCScopes,
-		"verbose_oidc_logging":          role.VerboseOIDCLogging,
-		"max_age":                       int64(role.MaxAge.Seconds()),
-		"use_role_name_as_entity_alias": role.UseRoleNameAsEntityAlias,
+		"role_type":                 role.RoleType,
+		"expiration_leeway":         int64(role.ExpirationLeeway.Seconds()),
+		"not_before_leeway":         int64(role.NotBeforeLeeway.Seconds()),
+		"clock_skew_leeway":         int64(role.ClockSkewLeeway.Seconds()),
+		"bound_audiences":           role.BoundAudiences,
+		"bound_subject":             role.BoundSubject,
+		"bound_claims_type":         role.BoundClaimsType,
+		"bound_claims":              role.BoundClaims,
+		"claim_mappings":            role.ClaimMappings,
+		"user_claim":                role.UserClaim,
+		"user_claim_json_pointer":   role.UserClaimJSONPointer,
+		"groups_claim":              role.GroupsClaim,
+		"allowed_redirect_uris":     role.AllowedRedirectURIs,
+		"oidc_scopes":               role.OIDCScopes,
+		"verbose_oidc_logging":      role.VerboseOIDCLogging,
+		"max_age":                   int64(role.MaxAge.Seconds()),
+		"role_name_as_entity_alias": role.RoleNameAsEntityAlias,
 	}
 
 	role.PopulateTokenData(d)
@@ -544,8 +544,8 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 			"'allowed_redirect_uris' must be set if 'role_type' is 'oidc' or unspecified."), nil
 	}
 
-	if useRoleNameAsEntityAlias, ok := data.GetOk("use_role_name_as_entity_alias"); ok {
-		role.UseRoleNameAsEntityAlias = useRoleNameAsEntityAlias.(bool)
+	if roleNameAsEntityAlias, ok := data.GetOk("role_name_as_entity_alias"); ok {
+		role.RoleNameAsEntityAlias = roleNameAsEntityAlias.(bool)
 	}
 
 	// OIDC verification will enforce that the audience match the configured client_id.

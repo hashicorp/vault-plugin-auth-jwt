@@ -213,7 +213,7 @@ func (b *jwtAuthBackend) pathLoginRenew(ctx context.Context, req *logical.Reques
 // definition and received claims.
 func (b *jwtAuthBackend) createIdentity(ctx context.Context, allClaims map[string]interface{}, roleName string, role *jwtRole, tokenSource oauth2.TokenSource) (*logical.Alias, []*logical.Alias, error) {
 	var userClaimRaw interface{}
-	if role.UseRoleNameAsEntityAlias {
+	if role.RoleNameAsEntityAlias {
 		userClaimRaw = roleName
 	} else if role.UserClaimJSONPointer {
 		userClaimRaw = getClaim(b.Logger(), allClaims, role.UserClaim)
