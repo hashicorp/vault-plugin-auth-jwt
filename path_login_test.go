@@ -29,16 +29,17 @@ import (
 type H map[string]interface{}
 
 type testConfig struct {
-	oidc           bool
-	role_type_oidc bool
-	audience       bool
-	boundClaims    bool
-	boundCIDRs     bool
-	jwks           bool
-	defaultLeeway  int
-	expLeeway      int
-	nbfLeeway      int
-	groupsClaim    string
+	oidc            bool
+	role_type_oidc  bool
+	audience        bool
+	boundClaims     bool
+	boundCIDRs      bool
+	jwks            bool
+	defaultLeeway   int
+	expLeeway       int
+	nbfLeeway       int
+	groupsClaim     string
+	roleNameAsAlias bool
 }
 
 type closeableBackend struct {
@@ -112,6 +113,7 @@ func setupBackend(t *testing.T, cfg testConfig) (closeableBackend, logical.Stora
 			"first_name":   "name",
 			"/org/primary": "primary_org",
 		},
+		"use_role_name_as_entity_alias": cfg.roleNameAsAlias,
 	}
 	if cfg.role_type_oidc {
 		data["role_type"] = "oidc"
@@ -1381,6 +1383,60 @@ func TestLogin_JWKS_Concurrent(t *testing.T) {
 
 	if err := g.Wait(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLogin_UseRoleNameAsEntityAlias(t *testing.T) {
+	cfg := testConfig{
+		audience:        true,
+		roleNameAsAlias: true,
+	}
+	b, storage := setupBackend(t, cfg)
+
+	cl := sqjwt.Claims{
+		Subject:  "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+		Issuer:   "https://team-vault.auth0.com/",
+		Expiry:   sqjwt.NewNumericDate(time.Now().Add(5 * time.Second)),
+		Audience: sqjwt.Audience{"https://vault.plugin.auth.jwt.test"},
+	}
+
+	privateCl := struct {
+		Groups []string `json:"https://vault/groups"`
+	}{
+		[]string{"foo", "bar"},
+	}
+	jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
+
+	roleName := "plugin-test"
+	data := map[string]interface{}{
+		"role": roleName,
+		"jwt":  jwtData,
+	}
+
+	req := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      "login",
+		Storage:   storage,
+		Data:      data,
+		Connection: &logical.Connection{
+			RemoteAddr: "127.0.0.1",
+		},
+	}
+
+	resp, err := b.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp == nil {
+		t.Fatal("got nil response")
+	}
+	if resp.IsError() {
+		t.Fatalf("got error: %v", resp.Error())
+	}
+
+	aliasName := resp.Auth.Alias.Name
+	if aliasName != roleName {
+		t.Fatalf("Entity alias name did not match JWT role name. Expected %s, received %s", roleName, aliasName)
 	}
 }
 

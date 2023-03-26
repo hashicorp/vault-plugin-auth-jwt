@@ -295,7 +295,7 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		}
 	}
 
-	alias, groupAliases, err := b.createIdentity(ctx, allClaims, role, tokenSource)
+	alias, groupAliases, err := b.createIdentity(ctx, allClaims, roleName, role, tokenSource)
 	if err != nil {
 		return logical.ErrorResponse(err.Error()), nil
 	}
