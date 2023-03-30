@@ -19,6 +19,12 @@ import (
 func pathLogin(b *jwtAuthBackend) *framework.Path {
 	return &framework.Path{
 		Pattern: `login$`,
+
+		DisplayAttrs: &framework.DisplayAttributes{
+			OperationPrefix: operationPrefixJWT,
+			OperationVerb:   "log-in",
+		},
+
 		Fields: map[string]*framework.FieldSchema{
 			"role": {
 				Type:        framework.TypeLowerCaseString,
