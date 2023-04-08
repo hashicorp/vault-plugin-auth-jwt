@@ -18,20 +18,20 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type secureauthServer struct {
+type ibmisamServer struct {
 	t      *testing.T
 	server *httptest.Server
 }
 
-func newsecureauthServer(t *testing.T) *secureauthServer {
-	a := new(secureauthServer)
+func newibmisamServer(t *testing.T) *ibmisamServer {
+	a := new(ibmisamServer)
 	a.t = t
 	a.server = httptest.NewTLSServer(a)
 
 	return a
 }
 
-func (a *secureauthServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (a *ibmisamServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	switch r.URL.Path {
@@ -50,7 +50,7 @@ func (a *secureauthServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // getTLSCert returns the certificate for this provider in PEM format
-func (a *secureauthServer) getTLSCert() (string, error) {
+func (a *ibmisamServer) getTLSCert() (string, error) {
 	cert := a.server.Certificate()
 	block := &pem.Block{
 		Type:  "CERTIFICATE",
@@ -65,8 +65,8 @@ func (a *secureauthServer) getTLSCert() (string, error) {
 	return pemBuf.String(), nil
 }
 
-func TestLogin_secureauth_fetchGroups(t *testing.T) {
-	aServer := newsecureauthServer(t)
+func TestLogin_ibmisam_fetchGroups(t *testing.T) {
+	aServer := newibmisamServer(t)
 	aCert, err := aServer.getTLSCert()
 	require.NoError(t, err)
 
@@ -81,7 +81,7 @@ func TestLogin_secureauth_fetchGroups(t *testing.T) {
 		"default_role":          "test",
 		"bound_issuer":          "http://vault.example.com/",
 		"provider_config": map[string]interface{}{
-			"provider": "secureauth",
+			"provider": "ibmisam",
 		},
 	}
 
@@ -121,7 +121,7 @@ func TestLogin_secureauth_fetchGroups(t *testing.T) {
 		GroupsClaim: "groups",
 	}
 	allClaims := map[string]interface{}{
-		"groups": "a-group,another-group",
+		"groups": "a-group another-group",
 	}
 
 	// Ensure b.cachedConfig is populated
@@ -130,7 +130,7 @@ func TestLogin_secureauth_fetchGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Initialize the secureauth provider
+	// Initialize the ibmisam provider
 	provider, err := NewProviderConfig(ctx, config, ProviderMap())
 	if err != nil {
 		t.Fatal(err)
