@@ -22,7 +22,7 @@ func pathLogin(b *jwtAuthBackend) *framework.Path {
 
 		DisplayAttrs: &framework.DisplayAttributes{
 			OperationPrefix: operationPrefixJWT,
-			OperationVerb:   "log-in",
+			OperationVerb:   "login",
 		},
 
 		Fields: map[string]*framework.FieldSchema{
