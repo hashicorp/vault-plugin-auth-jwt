@@ -263,7 +263,8 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 			_, err = jwt.NewOIDCDiscoveryKeySet(ctx, config.OIDCDiscoveryURL, config.OIDCDiscoveryCAPEM)
 		}
 		if err != nil {
-			return logical.ErrorResponse("error checking oidc discovery URL: %s", err.Error()), nil
+			b.Logger().Error("error checking oidc discovery URL", "error", err)
+			return logical.ErrorResponse("error checking oidc discovery URL"), nil
 		}
 
 	case config.OIDCClientID != "" && config.OIDCDiscoveryURL == "":
@@ -272,7 +273,8 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	case config.JWKSURL != "":
 		keyset, err := jwt.NewJSONWebKeySet(ctx, config.JWKSURL, config.JWKSCAPEM)
 		if err != nil {
-			return logical.ErrorResponse(errwrap.Wrapf("error checking jwks_ca_pem: {{err}}", err).Error()), nil
+			b.Logger().Error("error checking jwks_ca_pem", "error", err)
+			return logical.ErrorResponse("error checking jwks_ca_pem"), nil
 		}
 
 		// Try to verify a correctly formatted JWT. The signature will fail to match, but other
@@ -284,7 +286,8 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		}
 
 		if !strings.Contains(err.Error(), "failed to verify id token signature") {
-			return logical.ErrorResponse(errwrap.Wrapf("error checking jwks URL: {{err}}", err).Error()), nil
+			b.Logger().Error("error checking jwks URL", "error", err)
+			return logical.ErrorResponse("error checking jwks URL"), nil
 		}
 
 	case len(config.JWTValidationPubKeys) != 0:
