@@ -244,7 +244,7 @@ func TestConfig_JWKS_Update_Invalid(t *testing.T) {
 	if resp == nil || !resp.IsError() {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(resp.Error().Error(), "get keys failed") {
+	if !strings.Contains(resp.Error().Error(), "error checking jwks URL") {
 		t.Fatalf("got unexpected error: %v", resp.Error())
 	}
 
@@ -264,7 +264,7 @@ func TestConfig_JWKS_Update_Invalid(t *testing.T) {
 	if resp == nil || !resp.IsError() {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(resp.Error().Error(), "failed to decode keys") {
+	if !strings.Contains(resp.Error().Error(), "error checking jwks URL") {
 		t.Fatalf("got unexpected error: %v", resp.Error())
 	}
 }
