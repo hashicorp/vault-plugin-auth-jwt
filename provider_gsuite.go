@@ -45,8 +45,8 @@ type GSuiteProviderConfig struct {
 	// Workspace Directory API through domain-wide delegation of authority,
 	// without using a service account key. The service account vault is
 	// running under must be granted the `iam.serviceAccounts.signJwt`
-	// permission on this service account. If AdminEmail is specifed, that
-	// Workspace user will be impersonated.
+	// permission on this service account. If AdminImpersonateEmail is
+	// specifed, that Workspace user will be impersonated.
 	ImpersonatePrincipal string `mapstructure:"impersonate_principal"`
 
 	// If set to true, groups will be fetched from the Google Workspace
@@ -122,15 +122,15 @@ func (g *GSuiteProvider) Initialize(ctx context.Context, jc *jwtConfig) error {
 			Subject:         config.AdminImpersonateEmail,
 		})
 		if err != nil {
-			return fmt.Errorf("impersonate %q: %w", config.ImpersonatePrincipal, err)
+			return fmt.Errorf("failed to impersonate principal: %q: %w", config.ImpersonatePrincipal, err)
 		}
 
 		ts = its
-	// Assume Aplication Default Credentials and no impersonation.
+	// Assume Application Default Credentials and no impersonation.
 	default:
 		creds, err := google.FindDefaultCredentials(ctx, scopes...)
 		if err != nil {
-			return fmt.Errorf("find application default credentials: %w", err)
+			return fmt.Errorf("failed to find application default credentials: %w", err)
 		}
 
 		ts = creds.TokenSource
