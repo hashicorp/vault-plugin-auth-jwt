@@ -1,6 +1,9 @@
 ## Unreleased
 
 ## 0.17.0
+
+IMPROVEMENTS:
+* Support ADC for Google Workspace [[GH-240](https://github.com/hashicorp/vault-plugin-auth-jwt/pull/240)]
 * Updated dependencies:
    * `github.com/hashicorp/cap` v0.3.1 -> v0.3.4
    * `github.com/hashicorp/vault/sdk` v0.9.1 -> v0.9.2
