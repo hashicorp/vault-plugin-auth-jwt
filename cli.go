@@ -14,7 +14,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/hashicorp/cap/util"
@@ -52,7 +51,7 @@ type loginResp struct {
 func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, error) {
 	// handle ctrl-c while waiting for the callback
 	sigintCh := make(chan os.Signal, 1)
-	signal.Notify(sigintCh, os.Interrupt, os.Kill, syscall.SIGTSTP)
+	RegisterNotify(sigintCh)
 	defer signal.Stop(sigintCh)
 
 	mount, ok := m["mount"]
