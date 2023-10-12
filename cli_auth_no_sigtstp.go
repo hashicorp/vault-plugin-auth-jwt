@@ -1,4 +1,4 @@
-//go:build linux || freebsd || netbsd || openbsd || darwin || wasip1 || aix || solaris || dragonfly
+//go:build !(linux || freebsd || netbsd || openbsd || darwin || wasip1 || aix || solaris || dragonfly)
 
 package jwtauth
 
