@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path"
@@ -115,7 +116,7 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 
 	role := m["role"]
 
-	authURL, clientNonce, err := fetchAuthURL(c, role, mount, callbackPort, callbackMethod, callbackHost)
+	authURL, clientNonce, err := fetchAuthURL(c, role, mount, callbackPort, callbackMethod, callbackHost, c.Namespace())
 	if err != nil {
 		return nil, err
 	}
@@ -210,15 +211,26 @@ func callbackHandler(c *api.Client, mount string, clientNonce string, doneCh cha
 	}
 }
 
-func fetchAuthURL(c *api.Client, role, mount, callbackPort string, callbackMethod string, callbackHost string) (string, string, error) {
+// cleanNamespace removes leading and trailing space and /'s from the namespace path.
+func cleanNamespace(ns string) string {
+	ns = strings.TrimSpace(ns)
+	ns = strings.Trim(ns, "/")
+	return ns
+}
+
+func fetchAuthURL(c *api.Client, role, mount, callbackPort string, callbackMethod string, callbackHost string, namespace string) (string, string, error) {
 	var authURL string
+	var query string = ""
 
 	clientNonce, err := base62.Random(20)
 	if err != nil {
 		return "", "", err
 	}
 
-	redirectURI := fmt.Sprintf("%s://%s:%s/oidc/callback", callbackMethod, callbackHost, callbackPort)
+	if namespace != "" {
+		query = "?namespace=" + url.QueryEscape(cleanNamespace(namespace))
+	}
+	redirectURI := fmt.Sprintf("%s://%s:%s/oidc/callback%s", callbackMethod, callbackHost, callbackPort, query)
 	data := map[string]interface{}{
 		"role":         role,
 		"redirect_uri": redirectURI,
