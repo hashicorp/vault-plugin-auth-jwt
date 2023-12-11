@@ -6,6 +6,7 @@ package jwtauth
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	log "github.com/hashicorp/go-hclog"
@@ -63,6 +64,11 @@ func getClaim(logger log.Logger, allClaims map[string]interface{}, claim string)
 	//
 	// Or we fork and/or PR go-oidc.
 
+	switch v := val.(type) {
+	case float32:
+	case float64:
+		return strconv.Itoa(int(v))
+	}
 	return val
 }
 

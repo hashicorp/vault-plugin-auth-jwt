@@ -37,10 +37,10 @@ func TestGetClaim(t *testing.T) {
 		claim string
 		value interface{}
 	}{
-		{"a", float64(42)},
-		{"/a", float64(42)},
+		{"a", "42"},
+		{"/a", "42"},
 		{"b", "bar"},
-		{"/c/d", float64(95)},
+		{"/c/d", "95"},
 		{"/c/e/1", "cat"},
 		{"/c/f/g", "zebra"},
 		{"nope", nil},
@@ -83,10 +83,10 @@ func TestSetClaim(t *testing.T) {
 		claim string
 		value interface{}
 	}{
-		{"a", float64(43)},
-		{"/a", float64(43)},
+		{"a", "43"},
+		{"/a", "43"},
 		{"b", "foo"},
-		{"/c/d", float64(96)},
+		{"/c/d", "96"},
 		{"/c/e/1", "dog"},
 		{"/c/f/g", "elephant"},
 	}
