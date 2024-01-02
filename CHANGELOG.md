@@ -13,7 +13,7 @@ IMPROVEMENTS:
   * `google.golang.org/api` v0.138.0 -> v0.143.0
 
 FIXES:
-* Add missing error check to main() for parsing CLI flags https://github.com/hashicorp/vault-plugin-auth-jwt/pull/245
+* Add missing error check for parsing CLI flags https://github.com/hashicorp/vault-plugin-auth-jwt/pull/245
 
 ## 0.17.2
 
