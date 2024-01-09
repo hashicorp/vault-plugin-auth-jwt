@@ -66,6 +66,7 @@ func getClaim(logger log.Logger, allClaims map[string]interface{}, claim string)
 
 	switch v := val.(type) {
 	case float32:
+		return strconv.Itoa(int(v))
 	case float64:
 		return strconv.Itoa(int(v))
 	}
