@@ -123,7 +123,7 @@ func setupBackend(t *testing.T, cfg testConfig) (closeableBackend, logical.Stora
 	if cfg.boundClaims {
 		data["bound_claims"] = map[string]interface{}{
 			"color": "green",
-			"pnum":  "123",
+			"pnum":  json.Number("123"),
 		}
 	}
 	if cfg.boundCIDRs {

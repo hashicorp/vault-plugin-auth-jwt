@@ -37,10 +37,10 @@ func TestGetClaim(t *testing.T) {
 		claim string
 		value interface{}
 	}{
-		{"a", "42"},
-		{"/a", "42"},
+		{"a", json.Number("42")},
+		{"/a", json.Number("42")},
 		{"b", "bar"},
-		{"/c/d", "95"},
+		{"/c/d", json.Number("95")},
 		{"/c/e/1", "cat"},
 		{"/c/f/g", "zebra"},
 		{"nope", nil},
@@ -83,10 +83,10 @@ func TestSetClaim(t *testing.T) {
 		claim string
 		value interface{}
 	}{
-		{"a", "43"},
-		{"/a", "43"},
+		{"a", json.Number("43")},
+		{"/a", json.Number("43")},
 		{"b", "foo"},
-		{"/c/d", "96"},
+		{"/c/d", json.Number("96")},
 		{"/c/e/1", "dog"},
 		{"/c/f/g", "elephant"},
 	}
