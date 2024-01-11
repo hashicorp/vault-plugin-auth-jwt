@@ -292,6 +292,54 @@ func TestValidateBoundClaims(t *testing.T) {
 			errExpected: false,
 		},
 		{
+			name:            "valid match with numeric claim conversion from float64",
+			boundClaimsType: "string",
+			boundClaims: map[string]interface{}{
+				// Numeric bound claims from Vault API are json.Number type
+				"foo": json.Number("123"),
+			},
+			allClaims: map[string]interface{}{
+				"foo": float64(123),
+			},
+			errExpected: false,
+		},
+		{
+			name:            "valid match with numeric claim conversion from float32",
+			boundClaimsType: "string",
+			boundClaims: map[string]interface{}{
+				// Numeric bound claims from Vault API are json.Number type
+				"foo": json.Number("123"),
+			},
+			allClaims: map[string]interface{}{
+				"foo": float32(123),
+			},
+			errExpected: false,
+		},
+		{
+			name:            "invalid match with numeric claim conversion from float64",
+			boundClaimsType: "string",
+			boundClaims: map[string]interface{}{
+				// Numeric bound claims from Vault API are json.Number type
+				"foo": json.Number("456"),
+			},
+			allClaims: map[string]interface{}{
+				"foo": float64(123),
+			},
+			errExpected: true,
+		},
+		{
+			name:            "invalid match with numeric claim conversion from float32",
+			boundClaimsType: "string",
+			boundClaims: map[string]interface{}{
+				// Numeric bound claims from Vault API are json.Number type
+				"foo": json.Number("123"),
+			},
+			allClaims: map[string]interface{}{
+				"foo": float32(456),
+			},
+			errExpected: true,
+		},
+		{
 			name:            "invalid - no match within list",
 			boundClaimsType: "string",
 			boundClaims: map[string]interface{}{
