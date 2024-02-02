@@ -103,6 +103,10 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 					Value: true,
 				},
 			},
+			"acr_values": {
+				Type:        framework.TypeCommaStringSlice,
+				Description: "Authentication Context Class Reference values for all the authentication requests made with this provider. Addition to possible 'acr_values' of a role. Optional.",
+			},
 		},
 
 		Operations: map[logical.Operation]framework.OperationHandler{
@@ -204,6 +208,7 @@ func (b *jwtAuthBackend) pathConfigRead(ctx context.Context, req *logical.Reques
 			"bound_issuer":           config.BoundIssuer,
 			"provider_config":        providerConfig,
 			"namespace_in_state":     config.NamespaceInState,
+			"acr_values":             config.ACRValues,
 		},
 	}
 
@@ -225,6 +230,7 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		JWTSupportedAlgs:     d.Get("jwt_supported_algs").([]string),
 		BoundIssuer:          d.Get("bound_issuer").(string),
 		ProviderConfig:       d.Get("provider_config").(map[string]interface{}),
+		ACRValues:            d.Get("acr_values").([]string),
 	}
 
 	// Check if the config already exists, to determine if this is a create or
@@ -418,6 +424,7 @@ type jwtConfig struct {
 	DefaultRole          string                 `json:"default_role"`
 	ProviderConfig       map[string]interface{} `json:"provider_config"`
 	NamespaceInState     bool                   `json:"namespace_in_state"`
+	ACRValues            []string               `json:"acr_values"`
 
 	ParsedJWTPubKeys []crypto.PublicKey `json:"-"`
 }

@@ -1638,3 +1638,125 @@ func TestParseMount(t *testing.T) {
 		t.Fatalf("unexpected result: %s", result)
 	}
 }
+
+// The acr_values parameter refers to authentication context class reference.
+func TestOIDC_AuthURL_acr_values(t *testing.T) {
+	b, storage := getBackend(t)
+
+	// Configure the backend without any ACRs, will be added later in the tests
+	req := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      configPath,
+		Storage:   storage,
+		Data: map[string]interface{}{
+			"oidc_discovery_url": "https://team-vault.auth0.com/",
+			"oidc_client_id":     "abc",
+			"oidc_client_secret": "def",
+		},
+	}
+	resp, err := b.HandleRequest(context.Background(), req)
+	require.NoError(t, err)
+	require.False(t, resp.IsError())
+
+	// Configure the role without any ACRs, will be added later in the tests
+	req = &logical.Request{
+		Operation: logical.CreateOperation,
+		Path:      "role/test",
+		Storage:   storage,
+		Data: map[string]interface{}{
+			"user_claim":            "email",
+			"allowed_redirect_uris": []string{"https://example.com"},
+		},
+	}
+	resp, err = b.HandleRequest(context.Background(), req)
+	require.NoError(t, err)
+	require.False(t, resp.IsError())
+
+	tests := map[string]struct {
+		config_acr_values []string
+		role_acr_values   []string
+		expectedAcrValue  string
+		shouldExist       bool
+	}{
+		"auth URL with acr_values for role": {
+			role_acr_values:   []string{"role_acr1", "role_acr2"},
+			config_acr_values: []string{},
+			expectedAcrValue:  "role_acr1 role_acr2",
+			shouldExist:       true,
+		},
+		"auth URL with acr_values for config": {
+			role_acr_values:   []string{},
+			config_acr_values: []string{"config_acr1", "config_acr2"},
+			expectedAcrValue:  "config_acr1 config_acr2",
+			shouldExist:       true,
+		},
+		"auth URL with acr_values for both role and config": {
+			role_acr_values:   []string{"role_acr1", "role_acr2"},
+			config_acr_values: []string{"config_acr1", "config_acr2"},
+			expectedAcrValue:  "role_acr1 role_acr2 config_acr1 config_acr2",
+			shouldExist:       true,
+		},
+		"auth URL for empty role acr_values": {
+			role_acr_values:   []string{},
+			config_acr_values: []string{},
+			shouldExist:       false,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			req = &logical.Request{
+				Operation: logical.UpdateOperation,
+				Path:      configPath,
+				Storage:   storage,
+				Data: map[string]interface{}{
+					"oidc_discovery_url": "https://team-vault.auth0.com/",
+					"oidc_client_id":     "abc",
+					"oidc_client_secret": "def",
+					"acr_values":         tt.config_acr_values,
+				},
+			}
+			resp, err = b.HandleRequest(context.Background(), req)
+			require.NoError(t, err)
+			require.False(t, resp.IsError())
+
+			req = &logical.Request{
+				Operation: logical.UpdateOperation,
+				Path:      "role/test",
+				Storage:   storage,
+				Data: map[string]interface{}{
+					"user_claim":            "email",
+					"allowed_redirect_uris": []string{"https://example.com"},
+					"acr_values":            tt.role_acr_values,
+				},
+			}
+			resp, err = b.HandleRequest(context.Background(), req)
+			require.NoError(t, err)
+			require.False(t, resp.IsError())
+
+			// Request for generation of an auth URL
+			req = &logical.Request{
+				Operation: logical.UpdateOperation,
+				Path:      "oidc/auth_url",
+				Storage:   storage,
+				Data: map[string]interface{}{
+					"role":         "test",
+					"redirect_uri": "https://example.com",
+				},
+			}
+			resp, err = b.HandleRequest(context.Background(), req)
+			require.NoError(t, err)
+			require.False(t, resp.IsError())
+
+			// Parse the auth URL and assert the expected acr_values query parameter
+			parsedAuthURL, err := url.Parse(resp.Data["auth_url"].(string))
+			require.NoError(t, err)
+			queryParams := parsedAuthURL.Query()
+			if tt.shouldExist {
+				assert.Equal(t, tt.expectedAcrValue, queryParams.Get("acr_values"))
+			} else {
+				assert.Empty(t, queryParams.Get("acr_values"))
+			}
+		})
+	}
+}

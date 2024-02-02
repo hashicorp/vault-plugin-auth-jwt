@@ -493,6 +493,18 @@ func (b *jwtAuthBackend) createOIDCRequest(config *jwtConfig, role *jwtRole, rol
 		options = append(options, oidc.WithMaxAge(uint(role.MaxAge.Seconds())))
 	}
 
+	acrValues := []string{}
+
+	if len(role.ACRValues) > 0 {
+		acrValues = append(acrValues, role.ACRValues...)
+	}
+	if len(config.ACRValues) > 0 {
+		acrValues = append(acrValues, config.ACRValues...)
+	}
+	if len(acrValues) > 0 {
+		options = append(options, oidc.WithACRValues(strings.Join(acrValues[:], " ")))
+	}
+
 	request, err := oidc.NewRequest(oidcRequestTimeout, redirectURI, options...)
 	if err != nil {
 		return nil, err
