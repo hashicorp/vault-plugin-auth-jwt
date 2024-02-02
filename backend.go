@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/cap/jwt"
 	"github.com/hashicorp/cap/oidc"
+	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/patrickmn/go-cache"
@@ -145,15 +146,28 @@ func (b *jwtAuthBackend) jwtValidator(config *jwtConfig) (*jwt.Validator, error)
 
 	var err error
 	var keySet jwt.KeySet
+	var keySets []jwt.KeySet
 
 	// Configure the key set for the validator
 	switch config.authType() {
 	case JWKS:
 		keySet, err = jwt.NewJSONWebKeySet(b.providerCtx, config.JWKSURL, config.JWKSCAPEM)
+		keySets = []jwt.KeySet{keySet}
+	case MultiJWKS:
+		for k, v := range config.JWKSPairs {
+			// TODO (@johnlanda): read this in as map[string]string in config so we don't need type conversion.
+			keySet, keySetErr := jwt.NewJSONWebKeySet(b.providerCtx, k, v.(string))
+			if keySetErr != nil {
+				err = multierror.Append(err, keySetErr)
+			}
+			keySets = append(keySets, keySet)
+		}
 	case StaticKeys:
 		keySet, err = jwt.NewStaticKeySet(config.ParsedJWTPubKeys)
+		keySets = []jwt.KeySet{keySet}
 	case OIDCDiscovery:
 		keySet, err = jwt.NewOIDCDiscoveryKeySet(b.providerCtx, config.OIDCDiscoveryURL, config.OIDCDiscoveryCAPEM)
+		keySets = []jwt.KeySet{keySet}
 	default:
 		return nil, errors.New("unsupported config type")
 	}
@@ -162,7 +176,7 @@ func (b *jwtAuthBackend) jwtValidator(config *jwtConfig) (*jwt.Validator, error)
 		return nil, fmt.Errorf("keyset configuration error: %w", err)
 	}
 
-	validator, err := jwt.NewValidator(keySet)
+	validator, err := jwt.NewValidator(keySets...)
 	if err != nil {
 		return nil, fmt.Errorf("JWT validator configuration error: %w", err)
 	}
