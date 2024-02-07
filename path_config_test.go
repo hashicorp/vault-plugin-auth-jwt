@@ -156,6 +156,45 @@ func TestConfig_JWT_Write(t *testing.T) {
 	}
 }
 
+func TestConfig_JWKS_Write_Invalid(t *testing.T) {
+	b, storage := getBackend(t)
+
+	// Create a config with invalid jwks_pairs format
+	data := map[string]interface{}{
+		"jwks_url":    "",
+		"jwks_ca_pem": "",
+		"jwks_pairs": []interface{}{
+			"foo",
+			"bar",
+		},
+		"oidc_discovery_url":     "",
+		"oidc_discovery_ca_pem":  "",
+		"oidc_client_id":         "",
+		"default_role":           "",
+		"jwt_validation_pubkeys": []string{},
+		"jwt_supported_algs":     []string{},
+		"bound_issuer":           "",
+	}
+
+	req := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      configPath,
+		Storage:   storage,
+		Data:      data,
+	}
+
+	resp, err := b.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp == nil || !resp.IsError() {
+		t.Fatal("expected error")
+	}
+	if !strings.HasPrefix(resp.Error().Error(), "invalid jwks_pairs") {
+		t.Fatalf("got unexpected error: %v", resp.Error())
+	}
+}
+
 func TestConfig_JWKS_Update(t *testing.T) {
 	b, storage := getBackend(t)
 
