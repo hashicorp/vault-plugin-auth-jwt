@@ -154,9 +154,10 @@ func (b *jwtAuthBackend) jwtValidator(config *jwtConfig) (*jwt.Validator, error)
 		keySet, err = jwt.NewJSONWebKeySet(b.providerCtx, config.JWKSURL, config.JWKSCAPEM)
 		keySets = []jwt.KeySet{keySet}
 	case MultiJWKS:
-		for k, v := range config.JWKSPairs {
-			// TODO (@johnlanda): read this in as map[string]string in config so we don't need type conversion.
-			keySet, keySetErr := jwt.NewJSONWebKeySet(b.providerCtx, k, v.(string))
+		pairs, err := NewJWKSPairsConfig(config)
+
+		for _, p := range pairs {
+			keySet, keySetErr := jwt.NewJSONWebKeySet(b.providerCtx, p.JWKSUrl, p.JWKSCAPEM)
 			if keySetErr != nil {
 				err = multierror.Append(err, keySetErr)
 			}

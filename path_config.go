@@ -74,7 +74,7 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 				Description: "The CA certificate or chain of certificates, in PEM format, to use to validate connections to the JWKS URL. If not set, system certificates are used.",
 			},
 			"jwks_pairs": {
-				Type:        framework.TypeMap,
+				Type:        framework.TypeSlice,
 				Description: `Set of JWKS Url and CA certificate (or chain of certificates) pairs. CA certificates must be in PEM format. Cannot be used with "jwks_url" or "jwks_ca_pem".`,
 			},
 			"default_role": {
@@ -225,7 +225,7 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		OIDCResponseMode:     d.Get("oidc_response_mode").(string),
 		OIDCResponseTypes:    d.Get("oidc_response_types").([]string),
 		JWKSURL:              d.Get("jwks_url").(string),
-		JWKSPairs:            d.Get("jwks_pairs").(map[string]interface{}),
+		JWKSPairs:            d.Get("jwks_pairs").([]interface{}),
 		JWKSCAPEM:            d.Get("jwks_ca_pem").(string),
 		DefaultRole:          d.Get("default_role").(string),
 		JWTValidationPubKeys: d.Get("jwt_validation_pubkeys").([]string),
@@ -266,6 +266,7 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		methodCount++
 	}
 
+	var jwksPairs []*JWKSPair
 	switch {
 	case methodCount != 1:
 		return logical.ErrorResponse("exactly one of 'jwt_validation_pubkeys', 'jwks_url', 'jwks_pairs' or 'oidc_discovery_url' must be set"), nil
@@ -298,10 +299,12 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		}
 
 	case len(config.JWKSPairs) > 0:
-		for k, v := range config.JWKSPairs {
-			// TODO (@johnlanda): we should just read this in as a map[string]string if possible so we don't have to do
-			// the type conversion.
-			if r := b.validateJWKSURL(ctx, k, v.(string)); r != nil {
+		if jwksPairs, err = NewJWKSPairsConfig(config); err != nil {
+			return logical.ErrorResponse("invalid jwks_pairs: %s", err), nil
+		}
+
+		for _, p := range jwksPairs {
+			if r := b.validateJWKSURL(ctx, p.JWKSUrl, p.JWKSCAPEM); r != nil {
 				return r, nil
 			}
 		}
@@ -442,7 +445,7 @@ type jwtConfig struct {
 	OIDCResponseTypes    []string               `json:"oidc_response_types"`
 	JWKSURL              string                 `json:"jwks_url"`
 	JWKSCAPEM            string                 `json:"jwks_ca_pem"`
-	JWKSPairs            map[string]interface{} `json:"jwks_pairs"`
+	JWKSPairs            []interface{}          `json:"jwks_pairs"`
 	JWTValidationPubKeys []string               `json:"jwt_validation_pubkeys"`
 	JWTSupportedAlgs     []string               `json:"jwt_supported_algs"`
 	BoundIssuer          string                 `json:"bound_issuer"`
