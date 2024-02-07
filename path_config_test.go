@@ -298,9 +298,9 @@ func TestConfig_JWKS_Pairs_Update(t *testing.T) {
 	data := map[string]interface{}{
 		"jwks_url":    "",
 		"jwks_ca_pem": "",
-		"jwks_pairs": []map[string]interface{}{
-			{"jwks_url": s.server.URL + "/certs", "jwks_ca_pem": cert},
-			{"jwks_url": s2.server.URL + "/certs", "jwks_ca_pem": cert2},
+		"jwks_pairs": []interface{}{
+			map[string]interface{}{"jwks_url": s.server.URL + "/certs", "jwks_ca_pem": cert},
+			map[string]interface{}{"jwks_url": s2.server.URL + "/certs", "jwks_ca_pem": cert2},
 		},
 		"oidc_discovery_url":     "",
 		"oidc_discovery_ca_pem":  "",
@@ -366,9 +366,9 @@ func TestConfig_JWKS_Pairs_Update_Invalid(t *testing.T) {
 	data := map[string]interface{}{
 		"jwks_url":    "",
 		"jwks_ca_pem": "",
-		"jwks_pairs": []map[string]interface{}{
-			{"jwks_url": s.server.URL + "/certs_missing", "jwks_ca_pem": cert},
-			{"jwks_url": s2.server.URL + "/certs", "jwks_ca_pem": cert2},
+		"jwks_pairs": []interface{}{
+			map[string]interface{}{"jwks_url": s.server.URL + "/certs_missing", "jwks_ca_pem": cert},
+			map[string]interface{}{"jwks_url": s2.server.URL + "/certs", "jwks_ca_pem": cert2},
 		},
 		"oidc_discovery_url":     "",
 		"oidc_discovery_ca_pem":  "",
@@ -397,10 +397,13 @@ func TestConfig_JWKS_Pairs_Update_Invalid(t *testing.T) {
 		t.Fatalf("got unexpected error: %v", resp.Error())
 	}
 
-	// remove the /certs_missing url from the map
-	delete(data["jwks_pairs"].(map[string]interface{}), s.server.URL+"/certs_missing")
+	// remove the /certs_missing url from the config
+	newPairs := []interface{}{
+		map[string]interface{}{"jwks_url": s.server.URL + "/certs_invalid", "jwks_ca_pem": cert},
+		map[string]interface{}{"jwks_url": s2.server.URL + "/certs", "jwks_ca_pem": cert2},
+	}
 
-	data["jwks_pairs"].(map[string]interface{})[s.server.URL+"/certs_invalid"] = cert
+	data["jwks_pairs"] = newPairs
 
 	req = &logical.Request{
 		Operation: logical.UpdateOperation,
