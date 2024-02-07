@@ -293,6 +293,9 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	case config.JWKSCAPEM != "" && len(config.JWKSPairs) > 0:
 		return logical.ErrorResponse("CA PEMs must be provided as part of the 'jwks_pairs' when using multiple JWKS URLs"), nil
 
+	case len(config.JWKSPairs) > 0 && config.BoundIssuer != "":
+		return logical.ErrorResponse("Bound issuer is not supported for use with 'jwks_pairs'"), nil
+
 	case config.JWKSURL != "":
 		if r := b.validateJWKSURL(ctx, config.JWKSURL, config.JWKSCAPEM); r != nil {
 			return r, nil
