@@ -3,7 +3,7 @@
 ## v0.20.0
 
 IMPROVEMENTS:
-* auth/jwt: adds the ability to specify more than one JWKS URL used to verify tokens
+* auth/jwt: adds the ability to specify more than one JWKS URL used to verify tokens https://github.com/hashicorp/vault-plugin-auth-jwt/pull/277
 * Updated dependencies:
   * `github.com/hashicorp/vault/api` v1.10.0 -> v1.12.0
   * `github.com/hashicorp/vault/sdk` v0.10.2 -> v0.11.0
