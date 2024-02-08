@@ -1,5 +1,16 @@
 ## Unreleased
 
+## v0.20.0
+
+IMPROVEMENTS:
+* auth/jwt: adds the ability to specify more than one JWKS URL used to verify tokens https://github.com/hashicorp/vault-plugin-auth-jwt/pull/277
+* Updated dependencies:
+  * `github.com/hashicorp/vault/api` v1.10.0 -> v1.12.0
+  * `github.com/hashicorp/vault/sdk` v0.10.2 -> v0.11.0
+  * `golang.org/x/oauth2` v0.15.0 -> v0.17.0
+  * `golang.org/x/sync` v0.5.0 -> v0.6.0
+  * `google.golang.org/api` v0.154.0 -> v0.163.0
+
 ## v0.19.0
 
 IMPROVEMENTS:
