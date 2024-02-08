@@ -30,6 +30,7 @@ func TestConfig_JWT_Read(t *testing.T) {
 		"jwt_supported_algs":     []string{},
 		"jwks_url":               "",
 		"jwks_ca_pem":            "",
+		"jwks_pairs":             []interface{}{},
 		"bound_issuer":           "http://vault.example.com/",
 		"provider_config":        map[string]interface{}{},
 		"namespace_in_state":     false,
@@ -139,6 +140,7 @@ func TestConfig_JWT_Write(t *testing.T) {
 		JWTValidationPubKeys: []string{testJWTPubKey},
 		JWTSupportedAlgs:     []string{},
 		OIDCResponseTypes:    []string{},
+		JWKSPairs:            []interface{}{},
 		BoundIssuer:          "http://vault.example.com/",
 		ProviderConfig:       map[string]interface{}{},
 		NamespaceInState:     true,
@@ -151,6 +153,84 @@ func TestConfig_JWT_Write(t *testing.T) {
 
 	if !reflect.DeepEqual(expected, conf) {
 		t.Fatalf("expected did not match actual: expected %#v\n got %#v\n", expected, conf)
+	}
+}
+
+func TestConfig_JWKS_Write_Invalid(t *testing.T) {
+	b, storage := getBackend(t)
+
+	// Create a config with invalid jwks_pairs format
+	data := map[string]interface{}{
+		"jwks_url":    "",
+		"jwks_ca_pem": "",
+		"jwks_pairs": []interface{}{
+			"foo",
+			"bar",
+		},
+		"oidc_discovery_url":     "",
+		"oidc_discovery_ca_pem":  "",
+		"oidc_client_id":         "",
+		"default_role":           "",
+		"jwt_validation_pubkeys": []string{},
+		"jwt_supported_algs":     []string{},
+		"bound_issuer":           "",
+	}
+
+	req := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      configPath,
+		Storage:   storage,
+		Data:      data,
+	}
+
+	resp, err := b.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp == nil || !resp.IsError() {
+		t.Fatal("expected error")
+	}
+	if !strings.HasPrefix(resp.Error().Error(), "invalid jwks_pairs") {
+		t.Fatalf("got unexpected error: %v", resp.Error())
+	}
+}
+
+func TestConfig_JWKS_Write_BoundIssuer_Invalid(t *testing.T) {
+	b, storage := getBackend(t)
+
+	// Create a config with invalid jwks_pairs and bound issuer combination
+	data := map[string]interface{}{
+		"jwks_url":    "",
+		"jwks_ca_pem": "",
+		"jwks_pairs": []interface{}{
+			map[string]interface{}{"jwks_url": "https://www.foobar.com/certs", "jwks_ca_pem": "cert"},
+			map[string]interface{}{"jwks_url": "https://www.barbaz.com/certs", "jwks_ca_pem": "cert2"},
+		},
+		"oidc_discovery_url":     "",
+		"oidc_discovery_ca_pem":  "",
+		"oidc_client_id":         "",
+		"default_role":           "",
+		"jwt_validation_pubkeys": []string{},
+		"jwt_supported_algs":     []string{},
+		"bound_issuer":           "foobar",
+	}
+
+	req := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      configPath,
+		Storage:   storage,
+		Data:      data,
+	}
+
+	resp, err := b.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp == nil || !resp.IsError() {
+		t.Fatal("expected error")
+	}
+	if !strings.HasPrefix(resp.Error().Error(), "Bound issuer is not supported for use with 'jwks_pairs'") {
+		t.Fatalf("got unexpected error: %v", resp.Error())
 	}
 }
 
@@ -168,6 +248,7 @@ func TestConfig_JWKS_Update(t *testing.T) {
 	data := map[string]interface{}{
 		"jwks_url":               s.server.URL + "/certs",
 		"jwks_ca_pem":            cert,
+		"jwks_pairs":             []interface{}{},
 		"oidc_discovery_url":     "",
 		"oidc_discovery_ca_pem":  "",
 		"oidc_client_id":         "",
@@ -224,6 +305,7 @@ func TestConfig_JWKS_Update_Invalid(t *testing.T) {
 	data := map[string]interface{}{
 		"jwks_url":               s.server.URL + "/certs_missing",
 		"jwks_ca_pem":            cert,
+		"jwks_pairs":             map[string]interface{}{},
 		"oidc_discovery_url":     "",
 		"oidc_discovery_ca_pem":  "",
 		"oidc_client_id":         "",
@@ -252,6 +334,154 @@ func TestConfig_JWKS_Update_Invalid(t *testing.T) {
 	}
 
 	data["jwks_url"] = s.server.URL + "/certs_invalid"
+
+	req = &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      configPath,
+		Storage:   storage,
+		Data:      data,
+	}
+
+	resp, err = b.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp == nil || !resp.IsError() {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(resp.Error().Error(), "error checking jwks URL") {
+		t.Fatalf("got unexpected error: %v", resp.Error())
+	}
+}
+
+func TestConfig_JWKS_Pairs_Update(t *testing.T) {
+	b, storage := getBackend(t)
+
+	s := newOIDCProvider(t)
+	defer s.server.Close()
+
+	s2 := newOIDCProvider(t)
+	defer s2.server.Close()
+
+	cert, err := s.getTLSCert()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cert2, err := s2.getTLSCert()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data := map[string]interface{}{
+		"jwks_url":    "",
+		"jwks_ca_pem": "",
+		"jwks_pairs": []interface{}{
+			map[string]interface{}{"jwks_url": s.server.URL + "/certs", "jwks_ca_pem": cert},
+			map[string]interface{}{"jwks_url": s2.server.URL + "/certs", "jwks_ca_pem": cert2},
+		},
+		"oidc_discovery_url":     "",
+		"oidc_discovery_ca_pem":  "",
+		"oidc_client_id":         "",
+		"oidc_response_mode":     "form_post",
+		"oidc_response_types":    []string{},
+		"default_role":           "",
+		"jwt_validation_pubkeys": []string{},
+		"jwt_supported_algs":     []string{},
+		"bound_issuer":           "",
+		"provider_config":        map[string]interface{}{},
+		"namespace_in_state":     false,
+	}
+
+	req := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      configPath,
+		Storage:   storage,
+		Data:      data,
+	}
+
+	resp, err := b.HandleRequest(context.Background(), req)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("err:%s resp:%#v\n", err, resp)
+	}
+
+	req = &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      configPath,
+		Storage:   storage,
+		Data:      nil,
+	}
+
+	resp, err = b.HandleRequest(context.Background(), req)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("err:%s resp:%#v\n", err, resp)
+	}
+
+	if diff := deep.Equal(resp.Data, data); diff != nil {
+		t.Fatalf("Expected did not equal actual: %v", diff)
+	}
+}
+
+func TestConfig_JWKS_Pairs_Update_Invalid(t *testing.T) {
+	b, storage := getBackend(t)
+
+	s := newOIDCProvider(t)
+	defer s.server.Close()
+
+	s2 := newOIDCProvider(t)
+	defer s.server.Close()
+
+	cert, err := s.getTLSCert()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cert2, err := s2.getTLSCert()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data := map[string]interface{}{
+		"jwks_url":    "",
+		"jwks_ca_pem": "",
+		"jwks_pairs": []interface{}{
+			map[string]interface{}{"jwks_url": s.server.URL + "/certs_missing", "jwks_ca_pem": cert},
+			map[string]interface{}{"jwks_url": s2.server.URL + "/certs", "jwks_ca_pem": cert2},
+		},
+		"oidc_discovery_url":     "",
+		"oidc_discovery_ca_pem":  "",
+		"oidc_client_id":         "",
+		"default_role":           "",
+		"jwt_validation_pubkeys": []string{},
+		"jwt_supported_algs":     []string{},
+		"bound_issuer":           "",
+	}
+
+	req := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      configPath,
+		Storage:   storage,
+		Data:      data,
+	}
+
+	resp, err := b.HandleRequest(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp == nil || !resp.IsError() {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(resp.Error().Error(), "error checking jwks URL") {
+		t.Fatalf("got unexpected error: %v", resp.Error())
+	}
+
+	// remove the /certs_missing url from the config
+	newPairs := []interface{}{
+		map[string]interface{}{"jwks_url": s.server.URL + "/certs_invalid", "jwks_ca_pem": cert},
+		map[string]interface{}{"jwks_url": s2.server.URL + "/certs", "jwks_ca_pem": cert2},
+	}
+
+	data["jwks_pairs"] = newPairs
 
 	req = &logical.Request{
 		Operation: logical.UpdateOperation,
@@ -348,6 +578,7 @@ func TestConfig_OIDC_Write(t *testing.T) {
 	expected := &jwtConfig{
 		JWTValidationPubKeys: []string{},
 		JWTSupportedAlgs:     []string{},
+		JWKSPairs:            []interface{}{},
 		OIDCResponseTypes:    []string{},
 		OIDCDiscoveryURL:     "https://team-vault.auth0.com/",
 		OIDCClientID:         "abc",
@@ -439,6 +670,7 @@ func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
 		expected := &jwtConfig{
 			JWTValidationPubKeys: []string{},
 			JWTSupportedAlgs:     []string{},
+			JWKSPairs:            []interface{}{},
 			OIDCResponseTypes:    []string{},
 			OIDCDiscoveryURL:     "https://team-vault.auth0.com/",
 			ProviderConfig: map[string]interface{}{
@@ -499,6 +731,7 @@ func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
 		expected := &jwtConfig{
 			JWTValidationPubKeys: []string{},
 			JWTSupportedAlgs:     []string{},
+			JWKSPairs:            []interface{}{},
 			OIDCResponseTypes:    []string{},
 			OIDCDiscoveryURL:     "https://team-vault.auth0.com/",
 			ProviderConfig:       map[string]interface{}{},
@@ -530,6 +763,7 @@ func TestConfig_OIDC_Create_Namespace(t *testing.T) {
 				OIDCDiscoveryURL:     "https://team-vault.auth0.com/",
 				NamespaceInState:     true,
 				OIDCResponseTypes:    []string{},
+				JWKSPairs:            []interface{}{},
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
@@ -544,6 +778,7 @@ func TestConfig_OIDC_Create_Namespace(t *testing.T) {
 				OIDCDiscoveryURL:     "https://team-vault.auth0.com/",
 				NamespaceInState:     true,
 				OIDCResponseTypes:    []string{},
+				JWKSPairs:            []interface{}{},
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
@@ -558,6 +793,7 @@ func TestConfig_OIDC_Create_Namespace(t *testing.T) {
 				OIDCDiscoveryURL:     "https://team-vault.auth0.com/",
 				NamespaceInState:     false,
 				OIDCResponseTypes:    []string{},
+				JWKSPairs:            []interface{}{},
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
@@ -606,6 +842,7 @@ func TestConfig_OIDC_Update_Namespace(t *testing.T) {
 				OIDCDiscoveryURL:     "https://team-vault.auth0.com/",
 				NamespaceInState:     true,
 				OIDCResponseTypes:    []string{},
+				JWKSPairs:            []interface{}{},
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
@@ -625,6 +862,7 @@ func TestConfig_OIDC_Update_Namespace(t *testing.T) {
 				NamespaceInState:     false,
 				DefaultRole:          "ui",
 				OIDCResponseTypes:    []string{},
+				JWKSPairs:            []interface{}{},
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
@@ -643,6 +881,7 @@ func TestConfig_OIDC_Update_Namespace(t *testing.T) {
 				OIDCDiscoveryURL:     "https://team-vault.auth0.com/",
 				NamespaceInState:     false,
 				OIDCResponseTypes:    []string{},
+				JWKSPairs:            []interface{}{},
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
@@ -662,6 +901,7 @@ func TestConfig_OIDC_Update_Namespace(t *testing.T) {
 				NamespaceInState:     true,
 				DefaultRole:          "ui",
 				OIDCResponseTypes:    []string{},
+				JWKSPairs:            []interface{}{},
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
