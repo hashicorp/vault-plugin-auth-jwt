@@ -122,6 +122,53 @@ func TestOIDC_AuthURL(t *testing.T) {
 		}
 	})
 
+	t.Run("case insensitive", func(t *testing.T) {
+		t.Parallel()
+
+		// normal cases, both passing the role name explicitly and relying on the default
+		for _, rolename := range []string{"test", ""} {
+			data := map[string]interface{}{
+				"role":         rolename,
+				"redirect_uri": "https://EXAMPLE.com",
+			}
+			req := &logical.Request{
+				Operation: logical.UpdateOperation,
+				Path:      "oidc/auth_url",
+				Storage:   storage,
+				Data:      data,
+			}
+
+			resp, err := b.HandleRequest(context.Background(), req)
+			if err != nil || (resp != nil && resp.IsError()) {
+				t.Fatalf("err:%v resp:%#v\n", err, resp)
+			}
+
+			authURL := resp.Data["auth_url"].(string)
+
+			expected := []string{
+				`client_id=abc`,
+				`https://team-vault\.auth0\.com/authorize`,
+				`scope=openid`,
+				`nonce=n_\w{20}`,
+				`state=st_\w{20}`,
+				`redirect_uri=https%3A%2F%2FEXAMPLE.com`,
+				`response_type=code`,
+				`code_challenge=\w+`,
+				`scope=openid`,
+			}
+
+			for _, test := range expected {
+				matched, err := regexp.MatchString(test, authURL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !matched {
+					t.Fatalf("expected auth_url %q to match regex: %s", authURL, test)
+				}
+			}
+		}
+	})
+
 	t.Run("missing role", func(t *testing.T) {
 		t.Parallel()
 
@@ -1518,6 +1565,7 @@ func TestOIDC_ValidRedirect(t *testing.T) {
 		{"https://127.0.0.1:9000", []string{"a", "b", "https://127.0.0.1:5000"}, true},
 		{"https://[::1]:9000", []string{"a", "b", "https://[::1]:5000"}, true},
 		{"https://[::1]:9000/x/y?r=42", []string{"a", "b", "https://[::1]:5000/x/y?r=42"}, true},
+		{"https://EXAMPLE.com:5000", []string{"a", "b", "https://example.com:5000"}, true},
 
 		// invalid
 		{"https://example.com", []string{}, false},

@@ -547,7 +547,7 @@ func validRedirect(uri string, allowed []string) bool {
 
 	// if uri isn't a loopback, just string search the allowed list
 	if !strutil.StrListContains([]string{"localhost", "127.0.0.1", "::1"}, inputURI.Hostname()) {
-		return strutil.StrListContains(allowed, uri)
+		return strutil.StrListContainsCaseInsensitive(allowed, uri)
 	}
 
 	// otherwise, search for a match in a port-agnostic manner, per the OAuth RFC.
