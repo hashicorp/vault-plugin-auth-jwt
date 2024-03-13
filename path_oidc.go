@@ -538,7 +538,7 @@ func (b *jwtAuthBackend) verifyOIDCRequest(stateID string) *oidcRequest {
 	return nil
 }
 
-func isLoopbackAddress(hostname string) bool {
+func isLocalAddr(hostname string) bool {
 	ip := net.ParseIP(hostname)
 	if ip != nil {
 		return ip.IsLoopback()
@@ -558,7 +558,7 @@ func validRedirect(uri string, allowed []string) bool {
 	}
 
 	// if uri isn't a loopback, just string search the allowed list
-	if !isLoopbackAddress(inputURI.Hostname()) {
+	if !isLocalAddr(inputURI.Hostname()) {
 		return strutil.StrListContainsCaseInsensitive(allowed, uri)
 	}
 
