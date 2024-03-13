@@ -157,13 +157,13 @@ func TestOIDC_AuthURL(t *testing.T) {
 				`scope=openid`,
 			}
 
-			for _, test := range expected {
-				matched, err := regexp.MatchString(test, authURL)
+			for _, testPattern := range expected {
+				matched, err := regexp.MatchString(testPattern, authURL)
 				if err != nil {
 					t.Fatal(err)
 				}
 				if !matched {
-					t.Fatalf("expected auth_url %q to match regex: %s", authURL, test)
+					t.Fatalf("expected auth_url %q to match regex: %s", authURL, testPattern)
 				}
 			}
 		}
