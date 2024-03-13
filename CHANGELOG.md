@@ -1,5 +1,10 @@
 ## Unreleased
 
+## v0.20.1
+
+IMPROVEMENTS:
+* Make redirect uri validation case-insensitive https://github.com/hashicorp/vault-plugin-auth-jwt/pull/282
+
 ## v0.20.0
 
 IMPROVEMENTS:
