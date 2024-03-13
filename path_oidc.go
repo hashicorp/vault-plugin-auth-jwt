@@ -542,11 +542,11 @@ func isLocalAddr(hostname string) bool {
 	ip := net.ParseIP(hostname)
 	if ip != nil {
 		return ip.IsLoopback()
-	} else {
-		// localhost is not guaranteed to map back to a loopback interface address
-		// however, this is historically how the plugin has behaved
-		return hostname == "localhost"
 	}
+
+	// localhost is not guaranteed to map back to a loopback interface address
+	// however, this is historically how the plugin has behaved
+	return hostname == "localhost"
 }
 
 // validRedirect checks whether uri is in allowed using special handling for loopback uris.
