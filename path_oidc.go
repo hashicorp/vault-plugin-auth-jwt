@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -537,6 +538,17 @@ func (b *jwtAuthBackend) verifyOIDCRequest(stateID string) *oidcRequest {
 	return nil
 }
 
+func isLoopbackAddress(hostname string) bool {
+	ip := net.ParseIP(hostname)
+	if ip != nil {
+		return ip.IsLoopback()
+	} else {
+		// localhost is not guaranteed to map back to a loopback interface address
+		// however, this is historically how the plugin has behaved
+		return hostname == "localhost"
+	}
+}
+
 // validRedirect checks whether uri is in allowed using special handling for loopback uris.
 // Ref: https://tools.ietf.org/html/rfc8252#section-7.3
 func validRedirect(uri string, allowed []string) bool {
@@ -546,7 +558,7 @@ func validRedirect(uri string, allowed []string) bool {
 	}
 
 	// if uri isn't a loopback, just string search the allowed list
-	if !strutil.StrListContains([]string{"localhost", "127.0.0.1", "::1"}, inputURI.Hostname()) {
+	if !isLoopbackAddress(inputURI.Hostname()) {
 		return strutil.StrListContainsCaseInsensitive(allowed, uri)
 	}
 

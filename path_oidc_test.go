@@ -1563,6 +1563,7 @@ func TestOIDC_ValidRedirect(t *testing.T) {
 		{"https://example.com/a/b/c", []string{"a", "b", "https://example.com/a/b/c"}, true},
 		{"https://localhost:9000", []string{"a", "b", "https://localhost:5000"}, true},
 		{"https://127.0.0.1:9000", []string{"a", "b", "https://127.0.0.1:5000"}, true},
+		{"https://127.0.0.2:9000", []string{"a", "b", "https://127.0.0.2:5000"}, true},
 		{"https://[::1]:9000", []string{"a", "b", "https://[::1]:5000"}, true},
 		{"https://[::1]:9000/x/y?r=42", []string{"a", "b", "https://[::1]:5000/x/y?r=42"}, true},
 		{"https://EXAMPLE.com:5000", []string{"a", "b", "https://example.com:5000"}, true},
