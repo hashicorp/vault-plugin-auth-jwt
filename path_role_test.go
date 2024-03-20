@@ -92,6 +92,7 @@ func TestPath_Create(t *testing.T) {
 			BoundCIDRs:           []*sockaddr.SockAddrMarshaler{{SockAddr: expectedSockAddr}},
 			AllowedRedirectURIs:  []string(nil),
 			MaxAge:               60 * time.Second,
+			ACRValues:            []string(nil),
 		}
 
 		req := &logical.Request{
@@ -792,6 +793,7 @@ func TestPath_Read(t *testing.T) {
 		"token_no_default_policy": false,
 		"token_explicit_max_ttl":  int64(0),
 		"max_age":                 int64(0),
+		"acr_values":              []string(nil),
 	}
 
 	req := &logical.Request{

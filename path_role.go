@@ -165,6 +165,10 @@ in OIDC responses.`,
 				Description: `Specifies the allowable elapsed time in seconds since the last time the 
 user was actively authenticated.`,
 			},
+			"acr_values": {
+				Type:        framework.TypeCommaStringSlice,
+				Description: `Specifies the Authentication Context Class Reference values for the authentication request made for this role. Addition to possible 'acr_values' of global config. Optional.`,
+			},
 		},
 		ExistenceCheck: b.pathRoleExistenceCheck,
 		Operations: map[logical.Operation]framework.OperationHandler{
@@ -225,6 +229,7 @@ type jwtRole struct {
 	VerboseOIDCLogging   bool                   `json:"verbose_oidc_logging"`
 	MaxAge               time.Duration          `json:"max_age"`
 	UserClaimJSONPointer bool                   `json:"user_claim_json_pointer"`
+	ACRValues            []string               `json:"acr_values"`
 
 	// Deprecated by TokenParams
 	Policies   []string                      `json:"policies"`
@@ -333,6 +338,7 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 		"oidc_scopes":             role.OIDCScopes,
 		"verbose_oidc_logging":    role.VerboseOIDCLogging,
 		"max_age":                 int64(role.MaxAge.Seconds()),
+		"acr_values":              role.ACRValues,
 	}
 
 	role.PopulateTokenData(d)
@@ -468,6 +474,10 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 
 	if maxAgeRaw, ok := data.GetOk("max_age"); ok {
 		role.MaxAge = time.Duration(maxAgeRaw.(int)) * time.Second
+	}
+
+	if acrValues, ok := data.GetOk("acr_values"); ok {
+		role.ACRValues = acrValues.([]string)
 	}
 
 	boundClaimsType := data.Get("bound_claims_type").(string)
