@@ -22,8 +22,8 @@ import (
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
-	"gopkg.in/square/go-jose.v2"
-	sqjwt "gopkg.in/square/go-jose.v2/jwt"
+	"gopkg.in/go-jose/go-jose.v2"
+	sqjwt "gopkg.in/go-jose/go-jose.v2/jwt"
 )
 
 type H map[string]interface{}
