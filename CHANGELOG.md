@@ -1,5 +1,12 @@
 ## Unreleased
 
+IMPROVEMENTS:
+* Updated dependencies:
+  * `gopkg.in/square/go-jose.v2` v2.6.0 -> `gopkg.in/go-jose/go-jose.v2` v2.6.3
+  * `github.com/docker/docker` v24.0.7+incompatible -> v24.0.9+incompatible
+  * `golang.org/x/net` v0.22.0 -> v0.24.0
+  * `golang.org/x/sys` v0.18.0 -> v0.19.0
+
 ## v0.20.1
 
 IMPROVEMENTS:
