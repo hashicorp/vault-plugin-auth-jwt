@@ -1,11 +1,16 @@
 ## Unreleased
 
+## v0.20.2
+
 IMPROVEMENTS:
 * Updated dependencies:
   * `gopkg.in/square/go-jose.v2` v2.6.0 -> `gopkg.in/go-jose/go-jose.v2` v2.6.3
   * `github.com/docker/docker` v24.0.7+incompatible -> v24.0.9+incompatible
   * `golang.org/x/net` v0.22.0 -> v0.24.0
   * `golang.org/x/sys` v0.18.0 -> v0.19.0
+
+BUG FIXES:
+* Prevent error writing plugin config when run as a Vault built-in plugin for Vault version 1.16.1 https://github.com/hashicorp/vault-plugin-auth-jwt/pull/290
 
 ## v0.20.1
 
