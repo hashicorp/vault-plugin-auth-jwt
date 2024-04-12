@@ -157,9 +157,20 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 
 	// If there are no bound audiences for the role, then the existence of any audience
 	// in the audience claim should result in an error.
-	aud, ok := getClaim(b.Logger(), allClaims, "aud").([]interface{})
-	if ok && len(aud) > 0 && len(role.BoundAudiences) == 0 {
-		return logical.ErrorResponse("audience claim found in JWT but no audiences bound to the role"), nil
+	// "aud" value may be a single case-sensitive string if JWT has one audience
+	// See https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+	if len(role.BoundAudiences) == 0 {
+		audClaim := getClaim(b.Logger(), allClaims, "aud")
+		switch aud := audClaim.(type) {
+		case []interface{}:
+			if len(aud) > 0 {
+				return logical.ErrorResponse("audience claim found in JWT but no audiences bound to the role"), nil
+			}
+		case string:
+			if aud != "" {
+				return logical.ErrorResponse("audience claim found in JWT but no audiences bound to the role"), nil
+			}
+		}
 	}
 
 	alias, groupAliases, err := b.createIdentity(ctx, allClaims, role, nil)
