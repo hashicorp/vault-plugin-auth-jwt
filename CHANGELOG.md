@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 0.16.1
+
+BUG FIXES:
+* Invalidate JWT with single non-empty string aud on empty bound audiences https://github.com/hashicorp/vault-plugin-auth-jwt/pull/295
+
 ## 0.16.0
 
 IMPROVEMENTS:
