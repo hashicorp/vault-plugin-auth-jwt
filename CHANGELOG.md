@@ -5,6 +5,14 @@
 BUG FIXES:
 * Invalidate JWT with single non-empty string aud on empty bound audiences https://github.com/hashicorp/vault-plugin-auth-jwt/pull/295
 
+IMPROVEMENTS:
+* Updated dependencies:
+    * `github.com/hashicorp/vault/api` v1.9.1 -> v1.9.2
+    * `github.com/stretchr/testify` v1.8.3 -> v1.8.4
+    * `golang.org/x/oauth2` v0.8.0 -> v0.18.0
+    * `golang.org/x/sync` v0.2.0 -> v0.7.0
+    * `google.golang.org/api` v0.124.0 -> v0.163.0
+
 ## 0.16.0
 
 IMPROVEMENTS:
