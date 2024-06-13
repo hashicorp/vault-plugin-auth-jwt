@@ -1,5 +1,10 @@
 ## Unreleased
 
+## v0.20.4
+
+CHANGES:
+* Revert [GH-295](https://github.com/hashicorp/vault-plugin-auth-jwt/pull/295) which changed the way JWT `aud` claims were validated [GH-310](https://github.com/hashicorp/vault-plugin-auth-jwt/pull/310)
+
 ## v0.20.3
 
 BUG FIXES:
