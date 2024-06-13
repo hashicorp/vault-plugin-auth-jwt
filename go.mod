@@ -3,6 +3,7 @@ module github.com/hashicorp/vault-plugin-auth-jwt
 go 1.21
 
 require (
+	github.com/go-jose/go-jose/v3 v3.0.3
 	github.com/go-test/deep v1.1.0
 	github.com/hashicorp/cap v0.6.0
 	github.com/hashicorp/errwrap v1.1.0
@@ -22,7 +23,6 @@ require (
 	golang.org/x/oauth2 v0.18.0
 	golang.org/x/sync v0.6.0
 	google.golang.org/api v0.163.0
-	gopkg.in/go-jose/go-jose.v2 v2.6.3
 )
 
 require (
@@ -41,7 +41,6 @@ require (
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/go-jose/go-jose/v3 v3.0.3 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.1 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
