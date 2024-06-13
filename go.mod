@@ -22,7 +22,6 @@ require (
 	golang.org/x/oauth2 v0.11.0
 	golang.org/x/sync v0.7.0
 	google.golang.org/api v0.138.0
-	gopkg.in/square/go-jose.v2 v2.6.0
 )
 
 require (
