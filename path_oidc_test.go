@@ -21,14 +21,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/hashicorp/cap/oidc"
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
 )
 
 func TestOIDC_AuthURL(t *testing.T) {
