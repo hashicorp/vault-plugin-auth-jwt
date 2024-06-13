@@ -17,13 +17,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	sqjwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/go-test/deep"
 	"github.com/hashicorp/cap/jwt"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"gopkg.in/go-jose/go-jose.v2"
+	sqjwt "gopkg.in/go-jose/go-jose.v2/jwt"
 )
 
 type H map[string]interface{}
@@ -270,7 +270,7 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 		}
 	}
 
-	// Test bound audiences unset, claims "aud" set
+	// Test missing audience
 	{
 
 		cfg := testConfig{
@@ -278,58 +278,50 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 		}
 		b, storage := setupBackend(t, cfg)
 
-		nonZeroAudCnts := []int{1, 3}
-		for _, nonZeroAudCnt := range nonZeroAudCnts {
-			aud := sqjwt.Audience{}
-			for i := 0; i < nonZeroAudCnt; i++ {
-				aud = append(aud, fmt.Sprintf("https://vault.plugin.auth.jwt.test%d", i))
-			}
+		cl := sqjwt.Claims{
+			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+			Issuer:    "https://team-vault.auth0.com/",
+			NotBefore: sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
+			Audience:  sqjwt.Audience{"https://vault.plugin.auth.jwt.test"},
+		}
 
-			cl := sqjwt.Claims{
-				Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
-				Issuer:    "https://team-vault.auth0.com/",
-				NotBefore: sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
-				Audience:  aud,
-			}
+		privateCl := struct {
+			User   string   `json:"https://vault/user"`
+			Groups []string `json:"https://vault/groups"`
+		}{
+			"jeff",
+			[]string{"foo", "bar"},
+		}
 
-			privateCl := struct {
-				User   string   `json:"https://vault/user"`
-				Groups []string `json:"https://vault/groups"`
-			}{
-				"jeff",
-				[]string{"foo", "bar"},
-			}
+		jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
 
-			jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
+		data := map[string]interface{}{
+			"role": "plugin-test",
+			"jwt":  jwtData,
+		}
 
-			data := map[string]interface{}{
-				"role": "plugin-test",
-				"jwt":  jwtData,
-			}
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "login",
+			Storage:   storage,
+			Data:      data,
+			Connection: &logical.Connection{
+				RemoteAddr: "127.0.0.1",
+			},
+		}
 
-			req := &logical.Request{
-				Operation: logical.UpdateOperation,
-				Path:      "login",
-				Storage:   storage,
-				Data:      data,
-				Connection: &logical.Connection{
-					RemoteAddr: "127.0.0.1",
-				},
-			}
-
-			resp, err := b.HandleRequest(context.Background(), req)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if resp == nil {
-				t.Fatal("got nil response")
-			}
-			if !resp.IsError() {
-				t.Fatal("expected error")
-			}
-			if !strings.Contains(resp.Error().Error(), "no audiences bound to the role") {
-				t.Fatalf("unexpected error: %v", resp.Error())
-			}
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp == nil {
+			t.Fatal("got nil response")
+		}
+		if !resp.IsError() {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(resp.Error().Error(), "no audiences bound to the role") {
+			t.Fatalf("unexpected error: %v", resp.Error())
 		}
 	}
 
