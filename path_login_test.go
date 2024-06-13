@@ -221,7 +221,6 @@ func TestLoginBoundAudiences(t *testing.T) {
 	}{
 		{
 			name: "jwt with string aud and no bound_audiences",
-			// bound_audiences is unset
 			roleData: map[string]interface{}{
 				"role_type":     "jwt",
 				"bound_subject": "subject",
@@ -241,7 +240,7 @@ func TestLoginBoundAudiences(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name: "jwt with array aud is checked",
+			name: "jwt with array aud and no bound_audiences",
 			// bound_audiences is unset
 			roleData: map[string]interface{}{
 				"role_type":     "jwt",
@@ -262,7 +261,7 @@ func TestLoginBoundAudiences(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name: "jwt with array aud is checked with role bound_audiences",
+			name: "jwt with array aud and role with bound_audiences",
 			roleData: map[string]interface{}{
 				"role_type":       "jwt",
 				"bound_audiences": []string{"https://vault.plugin.auth.jwt.test", "another_audience"},
@@ -284,7 +283,7 @@ func TestLoginBoundAudiences(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "jwt with string aud and role with bound_audiences",
+			name: "error jwt with string aud and role with no match of bound_audiences",
 			roleData: map[string]interface{}{
 				"role_type":       "jwt",
 				"bound_audiences": []string{"https://vault.plugin.auth.jwt.test", "another_audience"},
@@ -304,6 +303,47 @@ func TestLoginBoundAudiences(t *testing.T) {
 				"nbf": sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
 			},
 			expectErr: true,
+		},
+		{
+			name: "jwt with string aud and role with bound_audiences",
+			roleData: map[string]interface{}{
+				"role_type":       "jwt",
+				"bound_audiences": []string{"https://vault.plugin.auth.jwt.test", "another_audience"},
+				"bound_subject":   "subject",
+				"user_claim":      "https://vault/user",
+				"policies":        "test",
+				"period":          "3s",
+				"ttl":             "1s",
+				"num_uses":        12,
+				"max_ttl":         "5s",
+			},
+			jwtData: map[string]interface{}{
+				"sub": "subject",
+				"iss": "https://team-vault.auth0.com/",
+				"aud": "https://vault.plugin.auth.jwt.test",
+				"nbf": sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
+			},
+			expectErr: false,
+		},
+		{
+			name: "jwt with no aud and role with no bound_audiences",
+			roleData: map[string]interface{}{
+				"role_type":     "jwt",
+				"bound_subject": "subject",
+				"user_claim":    "https://vault/user",
+				"policies":      "test",
+				"period":        "3s",
+				"ttl":           "1s",
+				"num_uses":      12,
+				"max_ttl":       "5s",
+			},
+			// aud is not set
+			jwtData: map[string]interface{}{
+				"sub": "subject",
+				"iss": "https://team-vault.auth0.com/",
+				"nbf": sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
+			},
+			expectErr: false,
 		},
 	}
 
