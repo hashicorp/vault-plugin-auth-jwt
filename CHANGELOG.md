@@ -1,5 +1,15 @@
 ## Unreleased
 
+## 0.17.4
+
+CHANGES:
+* Revert [GH-295](https://github.com/hashicorp/vault-plugin-auth-jwt/pull/295) which changed the way JWT `aud` claims were validated [GH-308](https://github.com/hashicorp/vault-plugin-auth-jwt/pull/308)
+
+## 0.17.3
+
+IMPROVEMENTS:
+* Invalidate JWT with single non-empty string aud on empty bound audiences https://github.com/hashicorp/vault-plugin-auth-jwt/pull/295
+
 ## 0.17.2
 FIXES:
 * Ensure SIGTSTP is only used in unix builds [[GH-255](https://github.com/hashicorp/vault-plugin-auth-jwt/pull/255)]
