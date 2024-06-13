@@ -21,13 +21,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/hashicorp/cap/oidc"
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 func TestOIDC_AuthURL(t *testing.T) {
@@ -867,7 +867,6 @@ func TestOIDC_Callback(t *testing.T) {
 		}
 
 		resp, err = b.HandleRequest(context.Background(), req)
-
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1345,7 +1344,6 @@ func TestOIDC_Callback(t *testing.T) {
 			}
 
 			resp, err = b.HandleRequest(context.Background(), req)
-
 			if err != nil {
 				t.Fatal(err)
 			}
