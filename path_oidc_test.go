@@ -97,6 +97,9 @@ func TestOIDC_AuthURL(t *testing.T) {
 			}
 
 			authURL := resp.Data["auth_url"].(string)
+			fmt.Println()
+			fmt.Println(authURL)
+			fmt.Println()
 
 			expected := []string{
 				`client_id=abc`,
@@ -867,7 +870,6 @@ func TestOIDC_Callback(t *testing.T) {
 		}
 
 		resp, err = b.HandleRequest(context.Background(), req)
-
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1345,7 +1347,6 @@ func TestOIDC_Callback(t *testing.T) {
 			}
 
 			resp, err = b.HandleRequest(context.Background(), req)
-
 			if err != nil {
 				t.Fatal(err)
 			}

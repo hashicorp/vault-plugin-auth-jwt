@@ -150,7 +150,7 @@ func setupBackend(t *testing.T, cfg testConfig) (closeableBackend, logical.Stora
 	return cb, storage
 }
 
-func getTestJWT(t *testing.T, privKey string, cl sqjwt.Claims, privateCl interface{}) (string, *ecdsa.PrivateKey) {
+func getTestJWT(t *testing.T, privKey string, cl interface{}, privateCl interface{}) (string, *ecdsa.PrivateKey) {
 	t.Helper()
 	var key *ecdsa.PrivateKey
 	block, _ := pem.Decode([]byte(privKey))
@@ -205,6 +205,182 @@ func getTestOIDC(t *testing.T) string {
 	}
 
 	return out.AccessToken
+}
+
+// TestLoginBoundAudiences tests that the login JWT's aud claim is ignored if
+// it is a single string. This is a case that is fixed in later versions of
+// the plugin.
+// See https://github.com/hashicorp/vault-plugin-auth-jwt/pull/308
+func TestLoginBoundAudiences(t *testing.T) {
+	testCases := []struct {
+		name      string
+		roleData  map[string]interface{}
+		jwtData   map[string]interface{}
+		expectErr bool
+	}{
+		{
+			name: "jwt with string aud is ignored",
+			// bound_audiences is unset
+			roleData: map[string]interface{}{
+				"role_type":     "jwt",
+				"bound_subject": "subject",
+				"user_claim":    "https://vault/user",
+				"policies":      "test",
+				"period":        "3s",
+				"ttl":           "1s",
+				"num_uses":      12,
+				"max_ttl":       "5s",
+			},
+			jwtData: map[string]interface{}{
+				"sub": "subject",
+				"iss": "https://team-vault.auth0.com/",
+				"aud": "https://vault.plugin.auth.jwt.test",
+				"nbf": sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
+			},
+			expectErr: false,
+		},
+		{
+			name: "jwt with array aud is checked",
+			// bound_audiences is unset
+			roleData: map[string]interface{}{
+				"role_type":     "jwt",
+				"bound_subject": "subject",
+				"user_claim":    "https://vault/user",
+				"policies":      "test",
+				"period":        "3s",
+				"ttl":           "1s",
+				"num_uses":      12,
+				"max_ttl":       "5s",
+			},
+			jwtData: map[string]interface{}{
+				"sub": "subject",
+				"iss": "https://team-vault.auth0.com/",
+				"aud": []string{"https://vault.plugin.auth.jwt.test"},
+				"nbf": sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
+			},
+			expectErr: true,
+		},
+		{
+			name: "jwt with array aud is checked with role bound_audiences",
+			roleData: map[string]interface{}{
+				"role_type":       "jwt",
+				"bound_audiences": []string{"https://vault.plugin.auth.jwt.test", "another_audience"},
+				"bound_subject":   "subject",
+				"user_claim":      "https://vault/user",
+				"policies":        "test",
+				"period":          "3s",
+				"ttl":             "1s",
+				"num_uses":        12,
+				"max_ttl":         "5s",
+			},
+			// aud is an array
+			jwtData: map[string]interface{}{
+				"sub": "subject",
+				"iss": "https://team-vault.auth0.com/",
+				"aud": []string{"https://vault.plugin.auth.jwt.test"},
+				"nbf": sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
+			},
+			expectErr: false,
+		},
+		{
+			name: "jwt with string aud is ignored with role bound_audiences",
+			roleData: map[string]interface{}{
+				"role_type":       "jwt",
+				"bound_audiences": []string{"https://vault.plugin.auth.jwt.test", "another_audience"},
+				"bound_subject":   "subject",
+				"user_claim":      "https://vault/user",
+				"policies":        "test",
+				"period":          "3s",
+				"ttl":             "1s",
+				"num_uses":        12,
+				"max_ttl":         "5s",
+			},
+			// aud is a string
+			jwtData: map[string]interface{}{
+				"sub": "subject",
+				"iss": "https://team-vault.auth0.com/",
+				"aud": "https://foo.com",
+				"nbf": sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			b, storage := getBackend(t)
+
+			configData := map[string]interface{}{
+				"bound_issuer":           "https://team-vault.auth0.com/",
+				"jwt_validation_pubkeys": ecdsaPubKey,
+			}
+
+			req := &logical.Request{
+				Operation: logical.UpdateOperation,
+				Path:      configPath,
+				Storage:   storage,
+				Data:      configData,
+			}
+
+			resp, err := b.HandleRequest(context.Background(), req)
+			if err != nil || (resp != nil && resp.IsError()) {
+				t.Fatalf("err:%s resp:%#v\n", err, resp)
+			}
+
+			req = &logical.Request{
+				Operation: logical.CreateOperation,
+				Path:      "role/plugin-test",
+				Storage:   storage,
+				Data:      tt.roleData,
+			}
+
+			resp, err = b.HandleRequest(context.Background(), req)
+			if err != nil || (resp != nil && resp.IsError()) {
+				t.Fatalf("err:%s resp:%#v\n", err, resp)
+			}
+
+			privateCl := struct {
+				User   string   `json:"https://vault/user"`
+				Groups []string `json:"https://vault/groups"`
+			}{
+				"jeff",
+				[]string{"foo", "bar"},
+			}
+
+			jwtData, _ := getTestJWT(t, ecdsaPrivKey, tt.jwtData, privateCl)
+
+			loginData := map[string]interface{}{
+				"role": "plugin-test",
+				"jwt":  jwtData,
+			}
+
+			req = &logical.Request{
+				Operation: logical.UpdateOperation,
+				Path:      "login",
+				Storage:   storage,
+				Data:      loginData,
+				Connection: &logical.Connection{
+					RemoteAddr: "127.0.0.1",
+				},
+			}
+
+			resp, err = b.HandleRequest(context.Background(), req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resp == nil {
+				t.Fatal("got nil response")
+			}
+			if tt.expectErr {
+				if !resp.IsError() {
+					t.Fatal("expected error")
+				}
+				if !strings.Contains(resp.Error().Error(), "no audiences bound to the role") {
+					t.Fatalf("unexpected error: %v", resp.Error())
+				}
+			}
+		})
+	}
 }
 
 func TestLogin_JWT(t *testing.T) {
@@ -266,69 +442,6 @@ func testLogin_JWT(t *testing.T, jwks bool) {
 		}
 		if !strings.Contains(resp.Error().Error(), "role with oidc role_type is not allowed") {
 			t.Fatalf("unexpected error: %v", resp.Error())
-		}
-	}
-
-	// Test bound audiences unset, claims "aud" set
-	{
-
-		cfg := testConfig{
-			jwks: jwks,
-		}
-		b, storage := setupBackend(t, cfg)
-
-		nonZeroAudCnts := []int{1, 3}
-		for _, nonZeroAudCnt := range nonZeroAudCnts {
-			aud := sqjwt.Audience{}
-			for i := 0; i < nonZeroAudCnt; i++ {
-				aud = append(aud, fmt.Sprintf("https://vault.plugin.auth.jwt.test%d", i))
-			}
-
-			cl := sqjwt.Claims{
-				Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
-				Issuer:    "https://team-vault.auth0.com/",
-				NotBefore: sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
-				Audience:  aud,
-			}
-
-			privateCl := struct {
-				User   string   `json:"https://vault/user"`
-				Groups []string `json:"https://vault/groups"`
-			}{
-				"jeff",
-				[]string{"foo", "bar"},
-			}
-
-			jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
-
-			data := map[string]interface{}{
-				"role": "plugin-test",
-				"jwt":  jwtData,
-			}
-
-			req := &logical.Request{
-				Operation: logical.UpdateOperation,
-				Path:      "login",
-				Storage:   storage,
-				Data:      data,
-				Connection: &logical.Connection{
-					RemoteAddr: "127.0.0.1",
-				},
-			}
-
-			resp, err := b.HandleRequest(context.Background(), req)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if resp == nil {
-				t.Fatal("got nil response")
-			}
-			if !resp.IsError() {
-				t.Fatal("expected error")
-			}
-			if !strings.Contains(resp.Error().Error(), "no audiences bound to the role") {
-				t.Fatalf("unexpected error: %v", resp.Error())
-			}
 		}
 	}
 
