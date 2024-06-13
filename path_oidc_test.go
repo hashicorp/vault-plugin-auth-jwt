@@ -97,6 +97,9 @@ func TestOIDC_AuthURL(t *testing.T) {
 			}
 
 			authURL := resp.Data["auth_url"].(string)
+			fmt.Println()
+			fmt.Println(authURL)
+			fmt.Println()
 
 			expected := []string{
 				`client_id=abc`,
