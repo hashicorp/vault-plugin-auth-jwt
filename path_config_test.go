@@ -34,6 +34,7 @@ func TestConfig_JWT_Read(t *testing.T) {
 		"bound_issuer":           "http://vault.example.com/",
 		"provider_config":        map[string]interface{}{},
 		"namespace_in_state":     false,
+		"acr_values":             []string{},
 	}
 
 	req := &logical.Request{
@@ -144,6 +145,7 @@ func TestConfig_JWT_Write(t *testing.T) {
 		BoundIssuer:          "http://vault.example.com/",
 		ProviderConfig:       map[string]interface{}{},
 		NamespaceInState:     true,
+		ACRValues:            []string{},
 	}
 
 	conf, err := b.(*jwtAuthBackend).config(context.Background(), storage)
@@ -260,6 +262,7 @@ func TestConfig_JWKS_Update(t *testing.T) {
 		"bound_issuer":           "",
 		"provider_config":        map[string]interface{}{},
 		"namespace_in_state":     false,
+		"acr_values":             []string{},
 	}
 
 	req := &logical.Request{
@@ -585,6 +588,7 @@ func TestConfig_OIDC_Write(t *testing.T) {
 		OIDCClientSecret:     "def",
 		ProviderConfig:       map[string]interface{}{},
 		NamespaceInState:     true,
+		ACRValues:            []string{},
 	}
 
 	conf, err := b.(*jwtAuthBackend).config(context.Background(), storage)
@@ -678,6 +682,7 @@ func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
 				"extraOptions": "abound",
 			},
 			NamespaceInState: true,
+			ACRValues:            []string{},
 		}
 
 		conf, err := b.(*jwtAuthBackend).config(context.Background(), storage)
@@ -736,6 +741,7 @@ func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
 			OIDCDiscoveryURL:     "https://team-vault.auth0.com/",
 			ProviderConfig:       map[string]interface{}{},
 			NamespaceInState:     true,
+			ACRValues:            []string{},
 		}
 
 		conf, err := b.(*jwtAuthBackend).config(context.Background(), storage)
@@ -767,6 +773,7 @@ func TestConfig_OIDC_Create_Namespace(t *testing.T) {
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
+				ACRValues:            []string{},
 			},
 		},
 		"namespace_in_state true": {
@@ -782,6 +789,7 @@ func TestConfig_OIDC_Create_Namespace(t *testing.T) {
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
+				ACRValues:            []string{},
 			},
 		},
 		"namespace_in_state false": {
@@ -797,6 +805,7 @@ func TestConfig_OIDC_Create_Namespace(t *testing.T) {
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
+				ACRValues:            []string{},
 			},
 		},
 	}
@@ -846,6 +855,7 @@ func TestConfig_OIDC_Update_Namespace(t *testing.T) {
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
+				ACRValues:            []string{},
 			},
 		},
 		"existing false, update something else": {
@@ -866,6 +876,7 @@ func TestConfig_OIDC_Update_Namespace(t *testing.T) {
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
+				ACRValues:            []string{},
 			},
 		},
 		"existing true, update to false": {
@@ -885,6 +896,7 @@ func TestConfig_OIDC_Update_Namespace(t *testing.T) {
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
+				ACRValues:            []string{},
 			},
 		},
 		"existing true, update something else": {
@@ -905,6 +917,7 @@ func TestConfig_OIDC_Update_Namespace(t *testing.T) {
 				JWTSupportedAlgs:     []string{},
 				JWTValidationPubKeys: []string{},
 				ProviderConfig:       map[string]interface{}{},
+				ACRValues:            []string{},
 			},
 		},
 	}
