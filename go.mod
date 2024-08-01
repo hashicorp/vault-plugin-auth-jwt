@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/go-jose/go-jose/v3 v3.0.3
 	github.com/go-test/deep v1.1.0
-	github.com/hashicorp/cap v0.6.0
+	github.com/hashicorp/cap v0.6.1-0.20240801183234-3dae6e2fed81
 	github.com/hashicorp/errwrap v1.1.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-hclog v1.6.2
@@ -58,6 +58,7 @@ require (
 	github.com/hashicorp/go-plugin v1.6.0 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
+	github.com/hashicorp/go-secure-stdlib v0.1.1-0.20240801184542-be66c7f88420 // indirect
 	github.com/hashicorp/go-secure-stdlib/mlock v0.1.2 // indirect
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.7 // indirect
 	github.com/hashicorp/go-secure-stdlib/plugincontainer v0.3.0 // indirect
