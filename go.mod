@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-secure-stdlib/base62 v0.1.2
-	github.com/hashicorp/go-secure-stdlib/httputil v0.0.0-20240802160855-e48fe7957da7
+	github.com/hashicorp/go-secure-stdlib/httputil v0.1.0
 	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2
 	github.com/hashicorp/go-sockaddr v1.0.6
 	github.com/hashicorp/vault/api v1.12.0
