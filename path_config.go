@@ -397,7 +397,7 @@ func (b *jwtAuthBackend) createProvider(config *jwtConfig) (*oidc.Provider, erro
 			}
 			oids = append(oids, oid)
 		}
-		ietripper := httputil.NewIgnoreUnsupportedExtensionsRoundTripper(nil, oids)
+		ietripper := httputil.NewIgnoreUnhandledExtensionsRoundTripper(b.Logger(), nil, oids)
 		opts = append(opts, oidc.WithRoundTripper(ietripper))
 	}
 	c, err := oidc.NewConfig(config.OIDCDiscoveryURL, config.OIDCClientID,
