@@ -63,6 +63,10 @@ func setupBackend(t *testing.T, cfg testConfig) (closeableBackend, logical.Stora
 		data = map[string]interface{}{
 			"bound_issuer":       "https://team-vault.auth0.com/",
 			"oidc_discovery_url": "https://team-vault.auth0.com/",
+			"unsupported_critical_cert_extensions": []string{
+				"2.5.29.54",
+				"2.5.29.36",
+			},
 		}
 	} else {
 		if !cfg.jwks {
