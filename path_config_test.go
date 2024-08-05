@@ -429,6 +429,10 @@ func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
 				"provider":     "azure",
 				"extraOptions": "abound",
 			},
+			"unsupported_critical_cert_extensions": []string{
+				"2.5.29.54",
+				"2.5.29.36",
+			},
 		}
 
 		resp, err := b.HandleRequest(context.Background(), req)
@@ -446,6 +450,10 @@ func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
 				"extraOptions": "abound",
 			},
 			NamespaceInState: true,
+			UnsupportedCriticalCertExtensions: []string{
+				"2.5.29.54",
+				"2.5.29.36",
+			},
 		}
 
 		conf, err := b.(*jwtAuthBackend).config(context.Background(), storage)

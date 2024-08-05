@@ -8,7 +8,9 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/asn1"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/hashicorp/cap/oidc"
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/go-cleanhttp"
+	httputil "github.com/hashicorp/go-secure-stdlib/httputil"
 	"github.com/hashicorp/go-secure-stdlib/strutil"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/certutil"
@@ -100,6 +103,10 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 					Value: true,
 				},
 			},
+			"unsupported_critical_cert_extensions": {
+				Type:        framework.TypeCommaStringSlice,
+				Description: `A list of ASN1 OIDs of certificate extensions marked Critical that are unsupported by Vault and should be ignored.  This option should very rarely be needed except in specialized PKI environments.`,
+			},
 		},
 
 		Operations: map[logical.Operation]framework.OperationHandler{
@@ -182,19 +189,20 @@ func (b *jwtAuthBackend) pathConfigRead(ctx context.Context, req *logical.Reques
 
 	resp := &logical.Response{
 		Data: map[string]interface{}{
-			"oidc_discovery_url":     config.OIDCDiscoveryURL,
-			"oidc_discovery_ca_pem":  config.OIDCDiscoveryCAPEM,
-			"oidc_client_id":         config.OIDCClientID,
-			"oidc_response_mode":     config.OIDCResponseMode,
-			"oidc_response_types":    config.OIDCResponseTypes,
-			"default_role":           config.DefaultRole,
-			"jwt_validation_pubkeys": config.JWTValidationPubKeys,
-			"jwt_supported_algs":     config.JWTSupportedAlgs,
-			"jwks_url":               config.JWKSURL,
-			"jwks_ca_pem":            config.JWKSCAPEM,
-			"bound_issuer":           config.BoundIssuer,
-			"provider_config":        providerConfig,
-			"namespace_in_state":     config.NamespaceInState,
+			"oidc_discovery_url":                   config.OIDCDiscoveryURL,
+			"oidc_discovery_ca_pem":                config.OIDCDiscoveryCAPEM,
+			"oidc_client_id":                       config.OIDCClientID,
+			"oidc_response_mode":                   config.OIDCResponseMode,
+			"oidc_response_types":                  config.OIDCResponseTypes,
+			"default_role":                         config.DefaultRole,
+			"jwt_validation_pubkeys":               config.JWTValidationPubKeys,
+			"jwt_supported_algs":                   config.JWTSupportedAlgs,
+			"jwks_url":                             config.JWKSURL,
+			"jwks_ca_pem":                          config.JWKSCAPEM,
+			"bound_issuer":                         config.BoundIssuer,
+			"provider_config":                      providerConfig,
+			"namespace_in_state":                   config.NamespaceInState,
+			"unsupported_critical_cert_extensions": config.UnsupportedCriticalCertExtensions,
 		},
 	}
 
@@ -203,19 +211,20 @@ func (b *jwtAuthBackend) pathConfigRead(ctx context.Context, req *logical.Reques
 
 func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	config := &jwtConfig{
-		OIDCDiscoveryURL:     d.Get("oidc_discovery_url").(string),
-		OIDCDiscoveryCAPEM:   d.Get("oidc_discovery_ca_pem").(string),
-		OIDCClientID:         d.Get("oidc_client_id").(string),
-		OIDCClientSecret:     d.Get("oidc_client_secret").(string),
-		OIDCResponseMode:     d.Get("oidc_response_mode").(string),
-		OIDCResponseTypes:    d.Get("oidc_response_types").([]string),
-		JWKSURL:              d.Get("jwks_url").(string),
-		JWKSCAPEM:            d.Get("jwks_ca_pem").(string),
-		DefaultRole:          d.Get("default_role").(string),
-		JWTValidationPubKeys: d.Get("jwt_validation_pubkeys").([]string),
-		JWTSupportedAlgs:     d.Get("jwt_supported_algs").([]string),
-		BoundIssuer:          d.Get("bound_issuer").(string),
-		ProviderConfig:       d.Get("provider_config").(map[string]interface{}),
+		OIDCDiscoveryURL:                  d.Get("oidc_discovery_url").(string),
+		OIDCDiscoveryCAPEM:                d.Get("oidc_discovery_ca_pem").(string),
+		OIDCClientID:                      d.Get("oidc_client_id").(string),
+		OIDCClientSecret:                  d.Get("oidc_client_secret").(string),
+		OIDCResponseMode:                  d.Get("oidc_response_mode").(string),
+		OIDCResponseTypes:                 d.Get("oidc_response_types").([]string),
+		JWKSURL:                           d.Get("jwks_url").(string),
+		JWKSCAPEM:                         d.Get("jwks_ca_pem").(string),
+		DefaultRole:                       d.Get("default_role").(string),
+		JWTValidationPubKeys:              d.Get("jwt_validation_pubkeys").([]string),
+		JWTSupportedAlgs:                  d.Get("jwt_supported_algs").([]string),
+		BoundIssuer:                       d.Get("bound_issuer").(string),
+		ProviderConfig:                    d.Get("provider_config").(map[string]interface{}),
+		UnsupportedCriticalCertExtensions: d.Get("unsupported_critical_cert_extensions").([]string),
 	}
 
 	// Check if the config already exists, to determine if this is a create or
@@ -266,7 +275,6 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 			b.Logger().Error("error checking oidc discovery URL", "error", err)
 			return logical.ErrorResponse("error checking oidc discovery URL"), nil
 		}
-
 	case config.OIDCClientID != "" && config.OIDCDiscoveryURL == "":
 		return logical.ErrorResponse("'oidc_discovery_url' must be set for OIDC"), nil
 
@@ -294,6 +302,12 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		for _, v := range config.JWTValidationPubKeys {
 			if _, err := certutil.ParsePublicKeyPEM([]byte(v)); err != nil {
 				return logical.ErrorResponse(errwrap.Wrapf("error parsing public key: {{err}}", err).Error()), nil
+			}
+		}
+	case len(config.UnsupportedCriticalCertExtensions) > 0:
+		for _, v := range config.UnsupportedCriticalCertExtensions {
+			if _, err := certutil.StringToOid(v); err != nil {
+				return logical.ErrorResponse(fmt.Errorf("error parsing extension OID: %w", err).Error()), nil
 			}
 		}
 
@@ -352,9 +366,25 @@ func (b *jwtAuthBackend) createProvider(config *jwtConfig) (*oidc.Provider, erro
 		supportedSigAlgs = []oidc.Alg{oidc.RS256}
 	}
 
+	opts := []oidc.Option{oidc.WithProviderCA(config.OIDCDiscoveryCAPEM)}
+	if len(config.UnsupportedCriticalCertExtensions) > 0 {
+		var oids []asn1.ObjectIdentifier
+		for _, v := range config.UnsupportedCriticalCertExtensions {
+			oid, err := certutil.StringToOid(v)
+			if err != nil {
+				return nil, errwrap.Wrapf("error creating provider: {{err}}", err)
+			}
+			oids = append(oids, oid)
+		}
+		ietripper, err := httputil.NewIgnoreUnhandledExtensionsRoundTripper(nil, oids)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, oidc.WithRoundTripper(ietripper))
+	}
 	c, err := oidc.NewConfig(config.OIDCDiscoveryURL, config.OIDCClientID,
 		oidc.ClientSecret(config.OIDCClientSecret), supportedSigAlgs, []string{},
-		oidc.WithProviderCA(config.OIDCDiscoveryCAPEM))
+		opts...)
 	if err != nil {
 		return nil, errwrap.Wrapf("error creating provider: {{err}}", err)
 	}
@@ -395,20 +425,21 @@ func (b *jwtAuthBackend) createCAContext(ctx context.Context, caPEM string) (con
 }
 
 type jwtConfig struct {
-	OIDCDiscoveryURL     string                 `json:"oidc_discovery_url"`
-	OIDCDiscoveryCAPEM   string                 `json:"oidc_discovery_ca_pem"`
-	OIDCClientID         string                 `json:"oidc_client_id"`
-	OIDCClientSecret     string                 `json:"oidc_client_secret"`
-	OIDCResponseMode     string                 `json:"oidc_response_mode"`
-	OIDCResponseTypes    []string               `json:"oidc_response_types"`
-	JWKSURL              string                 `json:"jwks_url"`
-	JWKSCAPEM            string                 `json:"jwks_ca_pem"`
-	JWTValidationPubKeys []string               `json:"jwt_validation_pubkeys"`
-	JWTSupportedAlgs     []string               `json:"jwt_supported_algs"`
-	BoundIssuer          string                 `json:"bound_issuer"`
-	DefaultRole          string                 `json:"default_role"`
-	ProviderConfig       map[string]interface{} `json:"provider_config"`
-	NamespaceInState     bool                   `json:"namespace_in_state"`
+	OIDCDiscoveryURL                  string                 `json:"oidc_discovery_url"`
+	OIDCDiscoveryCAPEM                string                 `json:"oidc_discovery_ca_pem"`
+	OIDCClientID                      string                 `json:"oidc_client_id"`
+	OIDCClientSecret                  string                 `json:"oidc_client_secret"`
+	OIDCResponseMode                  string                 `json:"oidc_response_mode"`
+	OIDCResponseTypes                 []string               `json:"oidc_response_types"`
+	JWKSURL                           string                 `json:"jwks_url"`
+	JWKSCAPEM                         string                 `json:"jwks_ca_pem"`
+	JWTValidationPubKeys              []string               `json:"jwt_validation_pubkeys"`
+	JWTSupportedAlgs                  []string               `json:"jwt_supported_algs"`
+	BoundIssuer                       string                 `json:"bound_issuer"`
+	DefaultRole                       string                 `json:"default_role"`
+	ProviderConfig                    map[string]interface{} `json:"provider_config"`
+	NamespaceInState                  bool                   `json:"namespace_in_state"`
+	UnsupportedCriticalCertExtensions []string               `json:"unsupported_critical_cert_extensions"`
 
 	ParsedJWTPubKeys []crypto.PublicKey `json:"-"`
 }
