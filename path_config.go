@@ -366,7 +366,7 @@ func (b *jwtAuthBackend) createProvider(config *jwtConfig) (*oidc.Provider, erro
 		supportedSigAlgs = []oidc.Alg{oidc.RS256}
 	}
 
-	opts := []oidc.Option{oidc.WithProviderCA(config.OIDCDiscoveryCAPEM)}
+	var opts []oidc.Option
 	if len(config.UnsupportedCriticalCertExtensions) > 0 {
 		var oids []asn1.ObjectIdentifier
 		for _, v := range config.UnsupportedCriticalCertExtensions {
@@ -397,6 +397,8 @@ func (b *jwtAuthBackend) createProvider(config *jwtConfig) (*oidc.Provider, erro
 
 		}
 		opts = append(opts, oidc.WithRoundTripper(ietripper))
+	} else if config.OIDCDiscoveryCAPEM != "" {
+		opts = append(opts, oidc.WithProviderCA(config.OIDCDiscoveryCAPEM))
 	}
 	c, err := oidc.NewConfig(config.OIDCDiscoveryURL, config.OIDCClientID,
 		oidc.ClientSecret(config.OIDCClientSecret), supportedSigAlgs, []string{},
