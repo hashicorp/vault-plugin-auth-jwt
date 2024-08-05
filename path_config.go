@@ -414,9 +414,6 @@ func (b *jwtAuthBackend) createProvider(config *jwtConfig) (*oidc.Provider, erro
 		if err != nil {
 			return nil, err
 		}
-		if config.OIDCDiscoveryCAPEM != "" {
-
-		}
 		opts = append(opts, oidc.WithRoundTripper(ietripper))
 	} else if config.OIDCDiscoveryCAPEM != "" {
 		opts = append(opts, oidc.WithProviderCA(config.OIDCDiscoveryCAPEM))
