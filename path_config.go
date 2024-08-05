@@ -397,9 +397,25 @@ func (b *jwtAuthBackend) createProvider(config *jwtConfig) (*oidc.Provider, erro
 			}
 			oids = append(oids, oid)
 		}
-		ietripper, err := httputil.NewIgnoreUnhandledExtensionsRoundTripper(nil, oids)
+
+		var tp http.RoundTripper
+
+		if config.OIDCDiscoveryCAPEM != "" {
+			certPool := x509.NewCertPool()
+			if ok := certPool.AppendCertsFromPEM([]byte(config.OIDCDiscoveryCAPEM)); ok {
+				tp = &http.Transport{
+					TLSClientConfig: &tls.Config{
+						RootCAs: certPool,
+					},
+				}
+			}
+		}
+		ietripper, err := httputil.NewIgnoreUnhandledExtensionsRoundTripper(tp, oids)
 		if err != nil {
 			return nil, err
+		}
+		if config.OIDCDiscoveryCAPEM != "" {
+
 		}
 		opts = append(opts, oidc.WithRoundTripper(ietripper))
 	}
