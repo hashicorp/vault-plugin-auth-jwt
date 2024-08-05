@@ -41,6 +41,10 @@ func TestOIDC_AuthURL(t *testing.T) {
 		"oidc_client_secret":    "def",
 		"default_role":          "test",
 		"bound_issuer":          "http://vault.example.com/",
+		"unsupported_critical_cert_extensions": []string{
+			"2.5.29.54",
+			"2.5.29.36",
+		},
 	}
 
 	// basic configuration
