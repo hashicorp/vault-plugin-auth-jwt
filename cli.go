@@ -151,18 +151,20 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 	var pollInterval string
 	var interval int
 	var state string
+	var userCode string
 	var listener net.Listener
 
 	if secret != nil {
 		pollInterval, _ = secret.Data["poll_interval"].(string)
 		state, _ = secret.Data["state"].(string)
+		userCode, _ = secret.Data["user_code"].(string)
 	}
-	if callbackMode == "direct" {
+	if callbackMode != "client" {
 		if state == "" {
-			return nil, errors.New("no state returned in direct callback mode")
+			return nil, errors.New("no state returned in " + callbackMode + " callback mode")
 		}
 		if pollInterval == "" {
-			return nil, errors.New("no poll_interval returned in direct callback mode")
+			return nil, errors.New("no poll_interval returned in " + callbackMode + " callback mode")
 		}
 		interval, err = strconv.Atoi(pollInterval)
 		if err != nil {
@@ -199,7 +201,11 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 	}
 	fmt.Fprintf(os.Stderr, "Waiting for OIDC authentication to complete...\n")
 
-	if callbackMode == "direct" {
+	if userCode != "" {
+		fmt.Fprintf(os.Stderr, "When prompted, enter code %s\n\n", userCode)
+	}
+
+	if callbackMode != "client" {
 		data := map[string]interface{}{
 			"state":        state,
 			"client_nonce": clientNonce,
@@ -212,7 +218,9 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 			if err == nil {
 				return secret, nil
 			}
-			if !strings.HasSuffix(err.Error(), "authorization_pending") {
+			if strings.HasSuffix(err.Error(), "slow_down") {
+				interval *= 2
+			} else if !strings.HasSuffix(err.Error(), "authorization_pending") {
 				return nil, err
 			}
 			// authorization is pending, try again
@@ -376,8 +384,9 @@ Configuration:
     Vault role of type "OIDC" to use for authentication.
 
   %s=<string>
-    Mode of callback: "direct" for direct connection to Vault or "client"
-    for connection to command line client (default: client).
+    Mode of callback: "direct" for direct connection to Vault, "client"
+    for connection to command line client, or "device" for device flow
+    which has no callback (default: client).
 
   %s=<string>
     Optional address to bind the OIDC callback listener to in client callback
