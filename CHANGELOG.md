@@ -1,5 +1,16 @@
 ## Unreleased
 
+## v0.22.0
+
+IMPROVEMENTS:
+* Updated dependencies:
+   * `github.com/go-test/deep` v1.1.0 -> v1.1.1
+   * `github.com/hashicorp/vault/api` v1.12.0 -> v1.15.0
+   * `github.com/hashicorp/vault/sdk` v0.11.0 -> v0.14.0
+   * `golang.org/x/oauth2` v0.21.0 -> v0.23.0
+   * `golang.org/x/sync` v0.7.0 -> v0.8.0
+   * `google.golang.org/api` v0.163.0 -> v0.197.0
+
 ## v0.21.0
 
 NO CHANGES
