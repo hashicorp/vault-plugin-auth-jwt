@@ -212,10 +212,8 @@ func getTestOIDC(t *testing.T) string {
 	return out.AccessToken
 }
 
-// TestLoginBoundAudiences tests that the login JWT's aud claim is ignored if
-// it is a single string. This is a case that is fixed in later versions of
-// the plugin.
-// See https://github.com/hashicorp/vault-plugin-auth-jwt/pull/308
+// TestLoginBoundAudiences tests that the login JWT's aud claim is not ignored
+// if it is set.
 func TestLoginBoundAudiences(t *testing.T) {
 	testCases := []struct {
 		name      string
