@@ -1,5 +1,11 @@
 ## Unreleased
 
+## v0.23.0
+
+IMPROVEMENTS:
+
+* Updated dependencies (https://github.com/hashicorp/vault-plugin-auth-jwt/pull/317)
+
 ## v0.22.0
 
 IMPROVEMENTS:
