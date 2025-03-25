@@ -96,19 +96,19 @@ func pathRole(b *jwtAuthBackend) *framework.Path {
 			},
 			"expiration_leeway": {
 				Type: framework.TypeSignedDurationSecond,
-				Description: `Duration in seconds of leeway when validating expiration of a token to account for clock skew. 
+				Description: `Duration in seconds of leeway when validating expiration of a token to account for clock skew.
 Defaults to 150 (2.5 minutes) if set to 0 and can be disabled if set to -1.`,
 				Default: claimDefaultLeeway,
 			},
 			"not_before_leeway": {
 				Type: framework.TypeSignedDurationSecond,
-				Description: `Duration in seconds of leeway when validating not before values of a token to account for clock skew. 
+				Description: `Duration in seconds of leeway when validating not before values of a token to account for clock skew.
 Defaults to 150 (2.5 minutes) if set to 0 and can be disabled if set to -1.`,
 				Default: claimDefaultLeeway,
 			},
 			"clock_skew_leeway": {
 				Type: framework.TypeSignedDurationSecond,
-				Description: `Duration in seconds of leeway when validating all claims to account for clock skew. 
+				Description: `Duration in seconds of leeway when validating all claims to account for clock skew.
 Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 				Default: jwt.DefaultLeeway,
 			},
@@ -139,7 +139,7 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 			},
 			"user_claim_json_pointer": {
 				Type: framework.TypeBool,
-				Description: `If true, the user_claim value will use JSON pointer syntax 
+				Description: `If true, the user_claim value will use JSON pointer syntax
 for referencing claims.`,
 			},
 			"groups_claim": {
@@ -156,13 +156,13 @@ for referencing claims.`,
 			},
 			"verbose_oidc_logging": {
 				Type: framework.TypeBool,
-				Description: `Log received OIDC tokens and claims when debug-level logging is active. 
-Not recommended in production since sensitive information may be present 
+				Description: `Log received OIDC tokens and claims when debug-level logging is active.
+Not recommended in production since sensitive information may be present
 in OIDC responses.`,
 			},
 			"max_age": {
 				Type: framework.TypeDurationSecond,
-				Description: `Specifies the allowable elapsed time in seconds since the last time the 
+				Description: `Specifies the allowable elapsed time in seconds since the last time the
 user was actively authenticated.`,
 			},
 		},
@@ -278,6 +278,17 @@ func (b *jwtAuthBackend) role(ctx context.Context, s logical.Storage, name strin
 	if len(role.TokenBoundCIDRs) == 0 && len(role.BoundCIDRs) > 0 {
 		role.TokenBoundCIDRs = role.BoundCIDRs
 	}
+
+	boundAudiences := []string{}
+	for _, boundAudience := range role.BoundAudiences {
+		boundAudiences = append(boundAudiences, boundAudience)
+
+		if len(boundAudience) > 0 && boundAudience[len(boundAudience)-1] == '/' {
+			boundAudiences = append(boundAudiences, boundAudience[:len(boundAudience)-1])
+		}
+	}
+
+	role.BoundAudiences = boundAudiences
 
 	return role, nil
 }
