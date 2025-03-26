@@ -124,8 +124,7 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 				Type: framework.TypeString,
 				Description: `Policy for handling trailing slashes in bound_audiences. Allowed values are "add" and "remove":
 				"add": Ensures each audience in bound_audiences is included both with and without a trailing slash, if the audience does not already have one.
-				"remove": Ensures each audience in bound_audiences is included both with and without a trailing slash, if it the audience has one already.
-				`,
+				"remove": Ensures each audience in bound_audiences is included both with and without a trailing slash, if it the audience has one already.`,
 			},
 			"bound_claims_type": {
 				Type:        framework.TypeString,
