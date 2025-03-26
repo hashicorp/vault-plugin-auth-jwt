@@ -218,6 +218,42 @@ func TestPath_Create(t *testing.T) {
 		}
 	})
 
+	t.Run("appends audience with trailing slash", func(t *testing.T) {
+		b, storage := getBackend(t)
+		// Test has audience
+		data := map[string]interface{}{
+			"role_type":                            "jwt",
+			"user_claim":                           "user",
+			"policies":                             "test",
+			"bound_audiences":                      "vault",
+			"bound_audience_trailing_slash_policy": "add",
+		}
+
+		req := &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "role/tes",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp != nil && resp.IsError() {
+			t.Fatalf("did not expect error")
+		}
+
+		role, err := b.(*jwtAuthBackend).role(context.Background(), storage, "tes")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(role.BoundAudiences) != 2 {
+			t.Fatalf("expected 2 audiences, got %d", len(role.BoundAudiences))
+		}
+	})
+
 	t.Run("has cidr", func(t *testing.T) {
 		b, storage := getBackend(t)
 		// Test has cidr

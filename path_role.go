@@ -120,6 +120,10 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 				Type:        framework.TypeCommaStringSlice,
 				Description: `Comma-separated list of 'aud' claims that are valid for login; any match is sufficient`,
 			},
+			"bound_audience_trailing_slash_policy": {
+				Type:        framework.TypeString,
+				Description: `Policy for handling trailing slashes in bound_audiences. Allowed values are "add" and "remove".`,
+			},
 			"bound_claims_type": {
 				Type:        framework.TypeString,
 				Description: `How to interpret values in the map of claims/values (which must match for login): allowed values are 'string' or 'glob'`,
@@ -278,17 +282,6 @@ func (b *jwtAuthBackend) role(ctx context.Context, s logical.Storage, name strin
 	if len(role.TokenBoundCIDRs) == 0 && len(role.BoundCIDRs) > 0 {
 		role.TokenBoundCIDRs = role.BoundCIDRs
 	}
-
-	boundAudiences := []string{}
-	for _, boundAudience := range role.BoundAudiences {
-		boundAudiences = append(boundAudiences, boundAudience)
-
-		if len(boundAudience) > 0 && boundAudience[len(boundAudience)-1] == '/' {
-			boundAudiences = append(boundAudiences, boundAudience[:len(boundAudience)-1])
-		}
-	}
-
-	role.BoundAudiences = boundAudiences
 
 	return role, nil
 }
@@ -467,6 +460,29 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 
 	if boundAudiences, ok := data.GetOk("bound_audiences"); ok {
 		role.BoundAudiences = boundAudiences.([]string)
+	}
+
+	// adds or removes trailing slashes from each bound audience based on the policy provided
+	boundAudienceTrailingSlashPolicy := data.Get("bound_audience_trailing_slash_policy")
+	if boundAudienceTrailingSlashPolicy != "" {
+		audiences := []string{}
+
+		for _, boundAudience := range role.BoundAudiences {
+			// Always include the original audience
+			audiences = append(audiences, boundAudience)
+
+			switch {
+			// add the audience with a trailing slash if it doesn't already have one and the policy is "add"
+			case boundAudienceTrailingSlashPolicy == "add" && !strings.HasSuffix(boundAudience, "/"):
+				audiences = append(audiences, boundAudience+"/")
+
+			// add the audience without a trailing slash if it has one and the policy is "remove"
+			case boundAudienceTrailingSlashPolicy == "remove" && strings.HasSuffix(boundAudience, "/"):
+				audiences = append(audiences, strings.TrimSuffix(boundAudience, "/"))
+			}
+		}
+
+		role.BoundAudiences = audiences
 	}
 
 	if boundSubject, ok := data.GetOk("bound_subject"); ok {
