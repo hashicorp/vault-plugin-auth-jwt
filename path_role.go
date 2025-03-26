@@ -121,8 +121,11 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 				Description: `Comma-separated list of 'aud' claims that are valid for login; any match is sufficient`,
 			},
 			"bound_audience_trailing_slash_policy": {
-				Type:        framework.TypeString,
-				Description: `Policy for handling trailing slashes in bound_audiences. Allowed values are "add" and "remove".`,
+				Type: framework.TypeString,
+				Description: `Policy for handling trailing slashes in bound_audiences. Allowed values are "add" and "remove":
+				"add": Ensures each audience in bound_audiences is included both with and without a trailing slash, if the audience does not already have one.
+				"remove": Ensures each audience in bound_audiences is included both with and without a trailing slash, if it the audience has one already.
+				`,
 			},
 			"bound_claims_type": {
 				Type:        framework.TypeString,
@@ -462,27 +465,32 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 		role.BoundAudiences = boundAudiences.([]string)
 	}
 
-	// adds or removes trailing slashes from each bound audience based on the policy provided
-	boundAudienceTrailingSlashPolicy := data.Get("bound_audience_trailing_slash_policy")
-	if boundAudienceTrailingSlashPolicy != "" {
-		audiences := []string{}
+	// ensure that all audiences are included with and without trailing slashes
+	// if the bound_audience_trailing_slash_policy is set
+	if policy, ok := data.GetOk("bound_audience_trailing_slash_policy"); ok {
+		boundAudiences := []string{}
+		// a map of audiences already processed by the policy to avoid duplicates
+		processedAudiences := make(map[string]bool)
 
 		for _, boundAudience := range role.BoundAudiences {
-			// Always include the original audience
-			audiences = append(audiences, boundAudience)
+			if !processedAudiences[boundAudience] {
+				// add the original audience back in the list
+				boundAudiences = append(boundAudiences, boundAudience)
 
-			switch {
-			// add the audience with a trailing slash if it doesn't already have one and the policy is "add"
-			case boundAudienceTrailingSlashPolicy == "add" && !strings.HasSuffix(boundAudience, "/"):
-				audiences = append(audiences, boundAudience+"/")
+				// add the audience with a trailing slash to the list if it didn't already have one and the policy is "add"
+				if policy.(string) == "add" && !strings.HasSuffix(boundAudience, "/") {
+					boundAudiences = append(boundAudiences, boundAudience+"/")
+				} else if policy.(string) == "remove" && strings.HasSuffix(boundAudience, "/") {
+					// add the audience without a trailing slash if it has one and the policy is "remove"
+					boundAudiences = append(boundAudiences, strings.TrimSuffix(boundAudience, "/"))
+				}
 
-			// add the audience without a trailing slash if it has one and the policy is "remove"
-			case boundAudienceTrailingSlashPolicy == "remove" && strings.HasSuffix(boundAudience, "/"):
-				audiences = append(audiences, strings.TrimSuffix(boundAudience, "/"))
+				// add the audience to those processed to avoid duplicates
+				processedAudiences[boundAudience] = true
 			}
 		}
 
-		role.BoundAudiences = audiences
+		role.BoundAudiences = boundAudiences
 	}
 
 	if boundSubject, ok := data.GetOk("bound_subject"); ok {
