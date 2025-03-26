@@ -218,42 +218,6 @@ func TestPath_Create(t *testing.T) {
 		}
 	})
 
-	t.Run("appends audience with trailing slash", func(t *testing.T) {
-		b, storage := getBackend(t)
-		// Test has audience
-		data := map[string]interface{}{
-			"role_type":                            "jwt",
-			"user_claim":                           "user",
-			"policies":                             "test",
-			"bound_audiences":                      "vault",
-			"bound_audience_trailing_slash_policy": "add",
-		}
-
-		req := &logical.Request{
-			Operation: logical.CreateOperation,
-			Path:      "role/tes",
-			Storage:   storage,
-			Data:      data,
-		}
-
-		resp, err := b.HandleRequest(context.Background(), req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resp != nil && resp.IsError() {
-			t.Fatalf("did not expect error")
-		}
-
-		role, err := b.(*jwtAuthBackend).role(context.Background(), storage, "tes")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if len(role.BoundAudiences) != 2 {
-			t.Fatalf("expected 2 audiences, got %d", len(role.BoundAudiences))
-		}
-	})
-
 	t.Run("has cidr", func(t *testing.T) {
 		b, storage := getBackend(t)
 		// Test has cidr
@@ -550,6 +514,145 @@ func TestPath_Create(t *testing.T) {
 		}
 		if resp.Error().Error() != "claim is not a string: 10" {
 			t.Fatalf("unexpected err: %v", resp)
+		}
+	})
+
+	t.Run("audience and audience with trailing slash included through add option", func(t *testing.T) {
+		b, storage := getBackend(t)
+		originalAudiences := []string{"audience-1", "audience-2", "audience-3"}
+
+		expectedAudiences := map[string]bool{}
+		for _, audience := range originalAudiences {
+			expectedAudiences[audience] = false
+			expectedAudiences[audience+"/"] = false
+		}
+
+		data := map[string]interface{}{
+			"role_type":                            "jwt",
+			"user_claim":                           "user",
+			"policies":                             "test",
+			"bound_audiences":                      strings.Join(originalAudiences, ", "),
+			"bound_audience_trailing_slash_policy": "add",
+		}
+
+		req := &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "role/test13",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp != nil && resp.IsError() {
+			t.Fatalf("did not expect error")
+		}
+
+		role, err := b.(*jwtAuthBackend).role(context.Background(), storage, "test13")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, audience := range role.BoundAudiences {
+			if _, ok := expectedAudiences[audience]; !ok {
+				t.Fatalf("unexpected audience: %s", audience)
+			}
+			expectedAudiences[audience] = true
+		}
+
+		for audience, included := range expectedAudiences {
+			if !included {
+				t.Fatalf("expected audience not included: %s", audience)
+			}
+		}
+	})
+
+	t.Run("audience and audience with trailing slash included through remove option", func(t *testing.T) {
+		b, storage := getBackend(t)
+		originalAudiences := []string{"audience-1/", "audience-2/", "audience-3/"}
+
+		expectedAudiences := map[string]bool{}
+		for _, audience := range originalAudiences {
+			expectedAudiences[audience] = false
+			expectedAudiences[audience[:len(audience)-1]] = false
+		}
+
+		data := map[string]interface{}{
+			"role_type":                            "jwt",
+			"user_claim":                           "user",
+			"policies":                             "test",
+			"bound_audiences":                      strings.Join(originalAudiences, ", "),
+			"bound_audience_trailing_slash_policy": "remove",
+		}
+
+		req := &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "role/test14",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp != nil && resp.IsError() {
+			t.Fatalf("did not expect error")
+		}
+
+		role, err := b.(*jwtAuthBackend).role(context.Background(), storage, "test14")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, audience := range role.BoundAudiences {
+			if _, ok := expectedAudiences[audience]; !ok {
+				t.Fatalf("unexpected audience: %s", audience)
+			}
+			expectedAudiences[audience] = true
+		}
+
+		for audience, included := range expectedAudiences {
+			if !included {
+				t.Fatalf("expected audience not included: %s", audience)
+			}
+		}
+	})
+
+	t.Run("duplicate audience is not included", func(t *testing.T) {
+		b, storage := getBackend(t)
+		data := map[string]interface{}{
+			"role_type":                            "jwt",
+			"user_claim":                           "user",
+			"policies":                             "test",
+			"bound_audiences":                      "audience-1, audience-1, audience-2",
+			"bound_audience_trailing_slash_policy": "add",
+		}
+
+		req := &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "role/test13",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp != nil && resp.IsError() {
+			t.Fatalf("did not expect error")
+		}
+
+		role, err := b.(*jwtAuthBackend).role(context.Background(), storage, "test13")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(role.BoundAudiences) != 4 {
+			t.Fatalf("expected 2 audiences, got %d", len(role.BoundAudiences))
 		}
 	})
 }
