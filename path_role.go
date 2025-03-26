@@ -462,9 +462,22 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 		role.BoundAudiences = boundAudiences.([]string)
 	}
 
-	// disregard the trailing slash on all bound audiences if
+	// disregard the trailing slash (if it exists) on all bound audiences if the flag is set
 	if _, ok := data.GetOk("bound_audience_disregard_trailing_slash"); ok {
+		audiencesWithoutTrailingSlash := make([]string, len(role.BoundAudiences))
+		processed := make(map[string]bool) // used to avoid duplicate entries
 
+		for _, audience := range role.BoundAudiences {
+			// trim the trailing slash from the audience if it exists
+			audienceWithoutTrailingSlash := strings.TrimRight(audience, "/")
+
+			if _, ok := processed[audienceWithoutTrailingSlash]; !ok {
+				audiencesWithoutTrailingSlash = append(audiencesWithoutTrailingSlash, audienceWithoutTrailingSlash)
+				processed[audienceWithoutTrailingSlash] = true
+			}
+		}
+
+		role.BoundAudiences = audiencesWithoutTrailingSlash
 	}
 
 	if boundSubject, ok := data.GetOk("bound_subject"); ok {
