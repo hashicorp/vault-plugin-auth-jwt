@@ -120,6 +120,10 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 				Type:        framework.TypeCommaStringSlice,
 				Description: `Comma-separated list of 'aud' claims that are valid for login; any match is sufficient`,
 			},
+			"bound_audience_disregard_trailing_slash": {
+				Type:        framework.TypeBool,
+				Description: `If true, ignores the trailing slash in each bound audience when matching the audience claim in the token.`,
+			},
 			"bound_claims_type": {
 				Type:        framework.TypeString,
 				Description: `How to interpret values in the map of claims/values (which must match for login): allowed values are 'string' or 'glob'`,
