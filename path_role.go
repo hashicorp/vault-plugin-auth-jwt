@@ -96,19 +96,19 @@ func pathRole(b *jwtAuthBackend) *framework.Path {
 			},
 			"expiration_leeway": {
 				Type: framework.TypeSignedDurationSecond,
-				Description: `Duration in seconds of leeway when validating expiration of a token to account for clock skew. 
+				Description: `Duration in seconds of leeway when validating expiration of a token to account for clock skew.
 Defaults to 150 (2.5 minutes) if set to 0 and can be disabled if set to -1.`,
 				Default: claimDefaultLeeway,
 			},
 			"not_before_leeway": {
 				Type: framework.TypeSignedDurationSecond,
-				Description: `Duration in seconds of leeway when validating not before values of a token to account for clock skew. 
+				Description: `Duration in seconds of leeway when validating not before values of a token to account for clock skew.
 Defaults to 150 (2.5 minutes) if set to 0 and can be disabled if set to -1.`,
 				Default: claimDefaultLeeway,
 			},
 			"clock_skew_leeway": {
 				Type: framework.TypeSignedDurationSecond,
-				Description: `Duration in seconds of leeway when validating all claims to account for clock skew. 
+				Description: `Duration in seconds of leeway when validating all claims to account for clock skew.
 Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 				Default: jwt.DefaultLeeway,
 			},
@@ -119,6 +119,10 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 			"bound_audiences": {
 				Type:        framework.TypeCommaStringSlice,
 				Description: `Comma-separated list of 'aud' claims that are valid for login; any match is sufficient`,
+			},
+			"bound_audience_disregard_trailing_slash": {
+				Type:        framework.TypeBool,
+				Description: `If true, ignores the trailing slash in each bound audience when matching the audience claim in the token.`,
 			},
 			"bound_claims_type": {
 				Type:        framework.TypeString,
@@ -139,7 +143,7 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 			},
 			"user_claim_json_pointer": {
 				Type: framework.TypeBool,
-				Description: `If true, the user_claim value will use JSON pointer syntax 
+				Description: `If true, the user_claim value will use JSON pointer syntax
 for referencing claims.`,
 			},
 			"groups_claim": {
@@ -156,13 +160,13 @@ for referencing claims.`,
 			},
 			"verbose_oidc_logging": {
 				Type: framework.TypeBool,
-				Description: `Log received OIDC tokens and claims when debug-level logging is active. 
-Not recommended in production since sensitive information may be present 
+				Description: `Log received OIDC tokens and claims when debug-level logging is active.
+Not recommended in production since sensitive information may be present
 in OIDC responses.`,
 			},
 			"max_age": {
 				Type: framework.TypeDurationSecond,
-				Description: `Specifies the allowable elapsed time in seconds since the last time the 
+				Description: `Specifies the allowable elapsed time in seconds since the last time the
 user was actively authenticated.`,
 			},
 		},
@@ -456,6 +460,26 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 
 	if boundAudiences, ok := data.GetOk("bound_audiences"); ok {
 		role.BoundAudiences = boundAudiences.([]string)
+	}
+
+	// disregard the trailing slash (if it exists) on all bound audiences if the flag is set
+	if _, ok := data.GetOk("bound_audience_disregard_trailing_slash"); ok {
+		boundAudiences := []string{}
+		processed := map[string]bool{} // used to prevent duplicate entries
+
+		for _, audience := range role.BoundAudiences {
+			// trim the trailing slash from the audience if it exists
+			audienceWithoutTrailingSlash := strings.TrimRight(audience, "/")
+
+			// add the audience to the list of bound audiences if the audience
+			// without the trailing slash has not already been processed
+			if _, ok := processed[audienceWithoutTrailingSlash]; !ok {
+				boundAudiences = append(boundAudiences, audienceWithoutTrailingSlash)
+				processed[audienceWithoutTrailingSlash] = true
+			}
+		}
+
+		role.BoundAudiences = boundAudiences
 	}
 
 	if boundSubject, ok := data.GetOk("bound_subject"); ok {
