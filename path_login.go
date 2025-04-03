@@ -34,7 +34,7 @@ func pathLogin(b *jwtAuthBackend) *framework.Path {
 				Type:        framework.TypeString,
 				Description: "The signed JWT to validate.",
 			},
-			"ms_graph_access_token": {
+			"distributed_claim_access_token": {
 				Type:        framework.TypeString,
 				Description: "An optional token used to fetch group memberships specified by the claim source in the jwt",
 			},
@@ -116,7 +116,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		return logical.ErrorResponse("missing token"), nil
 	}
 
-	msGraphAccessToken := d.Get("ms_graph_access_token").(string)
+	msGraphAccessToken := d.Get("distributed_claim_access_token").(string)
 
 	if len(role.TokenBoundCIDRs) > 0 {
 		if req.Connection == nil {
