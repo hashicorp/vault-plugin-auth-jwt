@@ -516,6 +516,84 @@ func TestPath_Create(t *testing.T) {
 			t.Fatalf("unexpected err: %v", resp)
 		}
 	})
+
+	t.Run("audiences have trailing slash removed if exists", func(t *testing.T) {
+		b, storage := getBackend(t)
+		originalAudiences := []string{"audience-1/", "audience-2/", "audience-3"}
+
+		data := map[string]interface{}{
+			"role_type":                 "jwt",
+			"user_claim":                "user",
+			"policies":                  "test",
+			"bound_audiences":           strings.Join(originalAudiences, ", "),
+			"normalize_bound_audiences": true,
+		}
+
+		req := &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "role/test13",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp != nil && resp.IsError() {
+			t.Fatalf("did not expect error")
+		}
+
+		role, err := b.(*jwtAuthBackend).role(context.Background(), storage, "test13")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// compare the expected audiences with the actual result
+		expectedAudiences := []string{"audience-1", "audience-2", "audience-3"}
+		if !reflect.DeepEqual(role.BoundAudiences, expectedAudiences) {
+			t.Fatalf("expected audiences: %v, got: %v", expectedAudiences, role.BoundAudiences)
+		}
+	})
+
+	t.Run("duplicate audiences are not included", func(t *testing.T) {
+		b, storage := getBackend(t)
+		originalAudiences := []string{"audience-1/", "audience-1", "audience-3/"}
+
+		data := map[string]interface{}{
+			"role_type":                 "jwt",
+			"user_claim":                "user",
+			"policies":                  "test",
+			"bound_audiences":           strings.Join(originalAudiences, ", "),
+			"normalize_bound_audiences": true,
+		}
+
+		req := &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "role/test14",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp != nil && resp.IsError() {
+			t.Fatalf("did not expect error")
+		}
+
+		role, err := b.(*jwtAuthBackend).role(context.Background(), storage, "test14")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// compare the expected audiences with the actual result
+		expectedAudiences := []string{"audience-1", "audience-3"}
+		if !reflect.DeepEqual(role.BoundAudiences, expectedAudiences) {
+			t.Fatalf("expected audiences: %v, got: %v", expectedAudiences, role.BoundAudiences)
+		}
+	})
 }
 
 func TestPath_OIDCCreate(t *testing.T) {
