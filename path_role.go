@@ -120,7 +120,7 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 				Type:        framework.TypeCommaStringSlice,
 				Description: `Comma-separated list of 'aud' claims that are valid for login; any match is sufficient`,
 			},
-			"bound_audience_disregard_trailing_slash": {
+			"normalize_bound_audiences": {
 				Type:        framework.TypeBool,
 				Description: `If true, ignores the trailing slash in each bound audience when matching the audience claim in the token.`,
 			},
@@ -463,19 +463,23 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 	}
 
 	// disregard the trailing slash (if it exists) on all bound audiences if the flag is set
-	if _, ok := data.GetOk("bound_audience_disregard_trailing_slash"); ok {
+	if _, ok := data.GetOk("normalize_bound_audiences"); ok {
 		boundAudiences := []string{}
 		processed := map[string]bool{} // used to prevent duplicate entries
 
 		for _, audience := range role.BoundAudiences {
+			normalizedAudience := audience
+
 			// trim the trailing slash from the audience if it exists
-			audienceWithoutTrailingSlash := strings.TrimRight(audience, "/")
+			if strings.HasSuffix(normalizedAudience, "/") {
+				normalizedAudience = normalizedAudience[:len(normalizedAudience)-1]
+			}
 
 			// add the audience to the list of bound audiences if the audience
 			// without the trailing slash has not already been processed
-			if _, ok := processed[audienceWithoutTrailingSlash]; !ok {
-				boundAudiences = append(boundAudiences, audienceWithoutTrailingSlash)
-				processed[audienceWithoutTrailingSlash] = true
+			if _, ok := processed[normalizedAudience]; !ok {
+				boundAudiences = append(boundAudiences, normalizedAudience)
+				processed[normalizedAudience] = true
 			}
 		}
 

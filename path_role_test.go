@@ -522,11 +522,11 @@ func TestPath_Create(t *testing.T) {
 		originalAudiences := []string{"audience-1/", "audience-2/", "audience-3"}
 
 		data := map[string]interface{}{
-			"role_type":       "jwt",
-			"user_claim":      "user",
-			"policies":        "test",
-			"bound_audiences": strings.Join(originalAudiences, ", "),
-			"bound_audience_disregard_trailing_slash": true,
+			"role_type":                 "jwt",
+			"user_claim":                "user",
+			"policies":                  "test",
+			"bound_audiences":           strings.Join(originalAudiences, ", "),
+			"normalize_bound_audiences": true,
 		}
 
 		req := &logical.Request{
@@ -561,11 +561,11 @@ func TestPath_Create(t *testing.T) {
 		originalAudiences := []string{"audience-1/", "audience-1", "audience-3/"}
 
 		data := map[string]interface{}{
-			"role_type":       "jwt",
-			"user_claim":      "user",
-			"policies":        "test",
-			"bound_audiences": strings.Join(originalAudiences, ", "),
-			"bound_audience_disregard_trailing_slash": true,
+			"role_type":                 "jwt",
+			"user_claim":                "user",
+			"policies":                  "test",
+			"bound_audiences":           strings.Join(originalAudiences, ", "),
+			"normalize_bound_audiences": true,
 		}
 
 		req := &logical.Request{
