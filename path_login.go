@@ -116,7 +116,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		return logical.ErrorResponse("missing token"), nil
 	}
 
-	msGraphAccessToken := d.Get("distributed_claim_access_token").(string)
+	distClaimAccessToken := d.Get("distributed_claim_access_token").(string)
 
 	if len(role.TokenBoundCIDRs) > 0 {
 		if req.Connection == nil {
@@ -178,7 +178,8 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 			}
 		}
 	}
-	alias, groupAliases, err := b.createIdentity(ctx, allClaims, roleName, role, &accessTokenSrc{accessToken: msGraphAccessToken})
+
+	alias, groupAliases, err := b.createIdentity(ctx, allClaims, roleName, role, &accessTokenSrc{accessToken: distClaimAccessToken})
 	if err != nil {
 		return logical.ErrorResponse(err.Error()), nil
 	}
