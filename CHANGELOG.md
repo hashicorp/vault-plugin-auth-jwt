@@ -3,7 +3,7 @@
 ## v0.23.1
 
 FEATURES:
-  * Added `bound_audience_disregard_trailing_slash` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
+  * Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
 
 IMPROVEMENTS:
 * Updated dependencies
@@ -12,9 +12,9 @@ IMPROVEMENTS:
   * `golang.org/x/oauth2` v0.25.0 -> v0.28.0
   * `golang.org/x/sync` v0.10.0 -> v0.12.0
   * `golang.org/x/crypto` v0.32.0 -> v0.36.0
- 	* `golang.org/x/net` v0.34.0 -> v0.38.0
-	* `golang.org/x/sys` v0.29.0 -> v0.31.0
-	* `golang.org/x/text` v0.21.0 -> v0.23.0
+  * `golang.org/x/net` v0.34.0 -> v0.38.0
+  * `golang.org/x/sys` v0.29.0 -> v0.31.0
+  * `golang.org/x/text` v0.21.0 -> v0.23.0
 
 ## v0.23.0
 
@@ -25,7 +25,7 @@ IMPROVEMENTS:
 ## v0.22.1
 
 FEATURES:
-  * Added `bound_audience_disregard_trailing_slash` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
+  * Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
 
 IMPROVEMENTS:
 * Updated dependencies
@@ -56,7 +56,7 @@ NO CHANGES
 ## v0.20.4
 
 FEATURES:
-  * Added `bound_audience_disregard_trailing_slash` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
+  * Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
 
 IMPROVEMENTS:
 * Updated dependencies:
@@ -108,7 +108,7 @@ IMPROVEMENTS:
 ## v0.19.1
 
 FEATURES:
-  * Added `bound_audience_disregard_trailing_slash` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
+  * Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
 
 IMPROVEMENTS:
 * Updated dependencies:
