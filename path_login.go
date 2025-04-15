@@ -36,7 +36,7 @@ func pathLogin(b *jwtAuthBackend) *framework.Path {
 			},
 			"distributed_claim_access_token": {
 				Type:        framework.TypeString,
-				Description: "An optional token used to fetch group memberships specified by the claim source in the jwt",
+				Description: "An optional token used to fetch group memberships specified by the distributed claim source in the jwt. This is supported by only supported on Azure/Entra ID",
 			},
 		},
 
