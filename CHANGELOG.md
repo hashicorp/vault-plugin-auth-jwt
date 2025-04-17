@@ -3,7 +3,7 @@
 ## v0.23.1
 
 IMPROVEMENTS:
-  * Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
+* Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
 
 * Updated dependencies
   * `github.com/go-jose/go-jose/v3` v3.0.3 -> v3.0.4
@@ -23,10 +23,9 @@ IMPROVEMENTS:
 
 ## v0.22.1
 
-FEATURES:
-  * Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
-
 IMPROVEMENTS:
+* Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
+
 * Updated dependencies
   * `github.com/go-jose/go-jose/v3` v3.0.3 -> v3.0.4
   * `github.com/go-jose/go-jose/v4` v4.0.4 -> v4.0.5
@@ -54,10 +53,9 @@ NO CHANGES
 
 ## v0.20.4
 
-FEATURES:
-  * Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
-
 IMPROVEMENTS:
+* Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
+
 * Updated dependencies:
   * `github.com/go-jose/go-jose/v3` v3.0.3 -> v3.0.4
   * `github.com/go-jose/go-jose/v4` v4.0.4 -> v4.0.5
@@ -106,10 +104,9 @@ IMPROVEMENTS:
 
 ## v0.19.1
 
-FEATURES:
-  * Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
-
 IMPROVEMENTS:
+* Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
+
 * Updated dependencies:
   * `github.com/go-jose/go-jose/v4` v4.0.4 -> v4.0.5
   * `github.com/stretchr/testify` v1.9.0 -> v1.10.0
