@@ -472,7 +472,7 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 
 			// trim the trailing slash from the audience if it exists
 			if strings.HasSuffix(normalizedAudience, "/") {
-				normalizedAudience = normalizedAudience[:len(normalizedAudience)-1]
+				normalizedAudience = strings.TrimSuffix(normalizedAudience, "/")
 			}
 
 			// add the audience to the list of bound audiences if the audience
