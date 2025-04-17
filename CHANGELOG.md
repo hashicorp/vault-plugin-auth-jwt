@@ -48,6 +48,7 @@ IMPROVEMENTS:
    * `google.golang.org/api` v0.163.0 -> v0.197.0
 
 ## v0.21.1
+
 IMPROVEMENTS:
 * Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
 
