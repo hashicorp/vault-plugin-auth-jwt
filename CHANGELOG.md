@@ -3,7 +3,7 @@
 ## v0.23.1
 
 IMPROVEMENTS:
-  * Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
+* Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
 
 * Updated dependencies
   * `github.com/go-jose/go-jose/v3` v3.0.3 -> v3.0.4
@@ -23,10 +23,9 @@ IMPROVEMENTS:
 
 ## v0.22.1
 
-FEATURES:
-  * Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
-
 IMPROVEMENTS:
+* Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
+
 * Updated dependencies
   * `github.com/go-jose/go-jose/v3` v3.0.3 -> v3.0.4
   * `github.com/go-jose/go-jose/v4` v4.0.4 -> v4.0.5
@@ -53,9 +52,23 @@ IMPROVEMENTS:
 NO CHANGES
 
 ## v0.20.4
-
 CHANGES:
 * Revert [GH-295](https://github.com/hashicorp/vault-plugin-auth-jwt/pull/295) which changed the way JWT `aud` claims were validated [GH-310](https://github.com/hashicorp/vault-plugin-auth-jwt/pull/310)
+
+IMPROVEMENTS:
+* Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
+
+* Updated dependencies:
+  * `github.com/go-jose/go-jose/v3` v3.0.3 -> v3.0.4
+  * `github.com/go-jose/go-jose/v4` v4.0.4 -> v4.0.5
+  * `github.com/stretchr/testify` v1.9.0 -> v1.10.0
+  * `golang.org/x/oauth2` v0.21.0 -> v0.28.0
+  * `golang.org/x/sync` v0.7.0 -> v0.12.0
+  * `github.com/hashicorp/go-retryablehttp` v0.7.1 -> v0.7.7
+  * `golang.org/x/crypto` v0.25.0 -> v0.36.0
+  * `golang.org/x/net` v0.27.0 -> v0.38.0
+  * `golang.org/x/sys` v0.22.0 -> v0.31.0
+  * `golang.org/x/text` v0.16.0 -> v0.23.0
 
 ## v0.20.3
 
@@ -92,10 +105,9 @@ IMPROVEMENTS:
 
 ## v0.19.1
 
-FEATURES:
-  * Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
-
 IMPROVEMENTS:
+* Added `normalize_bound_audiences` as a flag that can be enabled to ignore the trailing slash at the end of each bound audience. Bound audiences that differ by only a trailing slash are treated as equivalent. This feature is set to `false` by default.
+
 * Updated dependencies:
   * `github.com/go-jose/go-jose/v4` v4.0.4 -> v4.0.5
   * `github.com/stretchr/testify` v1.9.0 -> v1.10.0
