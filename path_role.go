@@ -463,7 +463,9 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 	}
 
 	// disregard the trailing slash (if it exists) on all bound audiences if the flag is set
-	if _, ok := data.GetOk("normalize_bound_audiences"); ok {
+	shouldNormalizeBoundAudiences := data.Get("normalize_bound_audiences").(bool)
+
+	if shouldNormalizeBoundAudiences {
 		boundAudiences := []string{}
 		processed := map[string]bool{} // used to prevent duplicate entries
 
