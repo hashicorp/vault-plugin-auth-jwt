@@ -468,8 +468,6 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 		processed := map[string]bool{} // used to prevent duplicate entries
 
 		for _, audience := range role.BoundAudiences {
-			normalizedAudience := audience
-
 			// trim the trailing slash from the audience if it exists
 			normalizedAudience = strings.TrimSuffix(normalizedAudience, "/")
 
