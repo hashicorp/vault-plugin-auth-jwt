@@ -217,18 +217,19 @@ type jwtRole struct {
 	ClockSkewLeeway time.Duration `json:"clock_skew_leeway"`
 
 	// Role binding properties
-	BoundAudiences       []string               `json:"bound_audiences"`
-	BoundSubject         string                 `json:"bound_subject"`
-	BoundClaimsType      string                 `json:"bound_claims_type"`
-	BoundClaims          map[string]interface{} `json:"bound_claims"`
-	ClaimMappings        map[string]string      `json:"claim_mappings"`
-	UserClaim            string                 `json:"user_claim"`
-	GroupsClaim          string                 `json:"groups_claim"`
-	OIDCScopes           []string               `json:"oidc_scopes"`
-	AllowedRedirectURIs  []string               `json:"allowed_redirect_uris"`
-	VerboseOIDCLogging   bool                   `json:"verbose_oidc_logging"`
-	MaxAge               time.Duration          `json:"max_age"`
-	UserClaimJSONPointer bool                   `json:"user_claim_json_pointer"`
+	BoundAudiences          []string               `json:"bound_audiences"`
+	NormalizeBoundAudiences bool                   `json:"normalize_bound_audiences"`
+	BoundSubject            string                 `json:"bound_subject"`
+	BoundClaimsType         string                 `json:"bound_claims_type"`
+	BoundClaims             map[string]interface{} `json:"bound_claims"`
+	ClaimMappings           map[string]string      `json:"claim_mappings"`
+	UserClaim               string                 `json:"user_claim"`
+	GroupsClaim             string                 `json:"groups_claim"`
+	OIDCScopes              []string               `json:"oidc_scopes"`
+	AllowedRedirectURIs     []string               `json:"allowed_redirect_uris"`
+	VerboseOIDCLogging      bool                   `json:"verbose_oidc_logging"`
+	MaxAge                  time.Duration          `json:"max_age"`
+	UserClaimJSONPointer    bool                   `json:"user_claim_json_pointer"`
 
 	// Deprecated by TokenParams
 	Policies   []string                      `json:"policies"`
@@ -321,22 +322,23 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 
 	// Create a map of data to be returned
 	d := map[string]interface{}{
-		"role_type":               role.RoleType,
-		"expiration_leeway":       int64(role.ExpirationLeeway.Seconds()),
-		"not_before_leeway":       int64(role.NotBeforeLeeway.Seconds()),
-		"clock_skew_leeway":       int64(role.ClockSkewLeeway.Seconds()),
-		"bound_audiences":         role.BoundAudiences,
-		"bound_subject":           role.BoundSubject,
-		"bound_claims_type":       role.BoundClaimsType,
-		"bound_claims":            role.BoundClaims,
-		"claim_mappings":          role.ClaimMappings,
-		"user_claim":              role.UserClaim,
-		"user_claim_json_pointer": role.UserClaimJSONPointer,
-		"groups_claim":            role.GroupsClaim,
-		"allowed_redirect_uris":   role.AllowedRedirectURIs,
-		"oidc_scopes":             role.OIDCScopes,
-		"verbose_oidc_logging":    role.VerboseOIDCLogging,
-		"max_age":                 int64(role.MaxAge.Seconds()),
+		"role_type":                 role.RoleType,
+		"expiration_leeway":         int64(role.ExpirationLeeway.Seconds()),
+		"not_before_leeway":         int64(role.NotBeforeLeeway.Seconds()),
+		"clock_skew_leeway":         int64(role.ClockSkewLeeway.Seconds()),
+		"bound_audiences":           role.BoundAudiences,
+		"normalize_bound_audiences": role.NormalizeBoundAudiences,
+		"bound_subject":             role.BoundSubject,
+		"bound_claims_type":         role.BoundClaimsType,
+		"bound_claims":              role.BoundClaims,
+		"claim_mappings":            role.ClaimMappings,
+		"user_claim":                role.UserClaim,
+		"user_claim_json_pointer":   role.UserClaimJSONPointer,
+		"groups_claim":              role.GroupsClaim,
+		"allowed_redirect_uris":     role.AllowedRedirectURIs,
+		"oidc_scopes":               role.OIDCScopes,
+		"verbose_oidc_logging":      role.VerboseOIDCLogging,
+		"max_age":                   int64(role.MaxAge.Seconds()),
 	}
 
 	role.PopulateTokenData(d)
