@@ -51,7 +51,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
 	github.com/hashicorp/go-hmac-drbg v0.0.0-20210916214228-a6e5a68489f6 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
@@ -70,7 +70,6 @@ require (
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
 	github.com/hashicorp/yamux v0.1.1 // indirect
 	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531 // indirect
-	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
