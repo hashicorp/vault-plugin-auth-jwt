@@ -34,6 +34,10 @@ func pathLogin(b *jwtAuthBackend) *framework.Path {
 				Type:        framework.TypeString,
 				Description: "The signed JWT to validate.",
 			},
+			"distributed_claim_access_token": {
+				Type:        framework.TypeString,
+				Description: "An optional token used to fetch group memberships specified by the distributed claim source in the jwt. This is supported only on Azure/Entra ID",
+			},
 		},
 
 		Operations: map[logical.Operation]framework.OperationHandler{
@@ -112,6 +116,8 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		return logical.ErrorResponse("missing token"), nil
 	}
 
+	distClaimAccessToken := d.Get("distributed_claim_access_token").(string)
+
 	if len(role.TokenBoundCIDRs) > 0 {
 		if req.Connection == nil {
 			b.Logger().Warn("token bound CIDRs found but no connection information available for validation")
@@ -173,7 +179,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		}
 	}
 
-	alias, groupAliases, err := b.createIdentity(ctx, allClaims, roleName, role, nil)
+	alias, groupAliases, err := b.createIdentity(ctx, allClaims, roleName, role, &accessTokenSrc{accessToken: distClaimAccessToken})
 	if err != nil {
 		return logical.ErrorResponse(err.Error()), nil
 	}
@@ -350,3 +356,15 @@ const (
 Authenticates JWTs.
 `
 )
+
+type accessTokenSrc struct {
+	accessToken string
+}
+
+func (j *accessTokenSrc) Token() (*oauth2.Token, error) {
+	return &oauth2.Token{
+		AccessToken: j.accessToken,
+		TokenType:   "Bearer",
+	}, nil
+
+}
