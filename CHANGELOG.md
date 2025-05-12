@@ -1,10 +1,43 @@
 ## Unreleased
 
+IMPROVEMENTS:
+* auth/jwt: Support an optional access token for fetching additional Azure/Entra ID groups https://github.com/hashicorp/vault-plugin-auth-jwt/pull/329
+* Updated dependencies:
+  * Building with go 1.24.2
+  * github.com/go-jose/go-jose/v3 v3.0.3 -> v3.0.4
+  * github.com/hashicorp/cap v0.8.0 -> v0.9.0
+  * github.com/hashicorp/vault/api v1.15.0 -> v1.16.0
+  * github.com/hashicorp/vault/sdk v0.14.1 -> v0.15.2
+  * golang.org/x/oauth2 v0.25.0 -> v0.29.0
+  * golang.org/x/sync v0.10.0 -> v0.13.0
+  * google.golang.org/api v0.219.0 -> v0.230.0
+
+## v0.23.2
+
+IMPROVEMENTS:
+* auth/jwt: Support an optional access token for fetching additional Azure/Entra ID groups https://github.com/hashicorp/vault-plugin-auth-jwt/pull/341
+* Updated dependencies:
+  * Building with go 1.23.8
+  * github.com/go-jose/go-jose/v3 v3.0.3 -> v3.0.4
+  * golang.org/x/oauth2 v0.25.0 -> v0.29.0
+  * golang.org/x/sync v0.10.0 -> v0.13.0
+
 ## v0.23.0
 
 IMPROVEMENTS:
 
 * Updated dependencies (https://github.com/hashicorp/vault-plugin-auth-jwt/pull/317)
+
+## v0.22.1
+
+IMPROVEMENTS:
+* auth/jwt: Support an optional access token for fetching additional Azure/Entra ID groups https://github.com/hashicorp/vault-plugin-auth-jwt/pull/337
+* Updated dependencies:
+  * Building with go 1.23.8
+  * github.com/go-jose/go-jose/v3 v3.0.3 -> v3.0.4
+  * github.com/stretchr/testify v1.9.0 -> v1.10.0
+  * golang.org/x/oauth2 v0.23.0 -> v0.29.0
+  * golang.org/x/sync v0.8.0 -> v0.13.0
 
 ## v0.22.0
 
