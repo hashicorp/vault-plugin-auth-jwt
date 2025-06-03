@@ -1,9 +1,12 @@
 ## Unreleased
 
+## 0.24.0
+### Jun 03, 2025
+
 IMPROVEMENTS:
 * auth/jwt: Support an optional access token for fetching additional Azure/Entra ID groups https://github.com/hashicorp/vault-plugin-auth-jwt/pull/329
+* Building with go 1.24.3
 * Updated dependencies:
-  * Building with go 1.24.2
   * github.com/go-jose/go-jose/v3 v3.0.3 -> v3.0.4
   * github.com/hashicorp/cap v0.8.0 -> v0.9.0
   * github.com/hashicorp/vault/api v1.15.0 -> v1.16.0
