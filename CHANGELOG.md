@@ -1,5 +1,11 @@
 ## Unreleased
 
+## 0.24.1
+### Jun 05, 2025
+
+IMPROVEMENTS:
+* set go version in go.mod to same as [Vault](https://github.com/hashicorp/vault) 
+ 
 ## 0.24.0
 ### Jun 03, 2025
 
