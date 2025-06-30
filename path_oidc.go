@@ -278,7 +278,6 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	if err := rawToken.Claims(&allClaims); err != nil {
 		return nil, err
 	}
-	delete(allClaims, "nonce")
 
 	// Get the subject claim for bound subject and user info validation
 	var subject string
