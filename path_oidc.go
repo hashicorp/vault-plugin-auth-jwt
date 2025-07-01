@@ -279,14 +279,13 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		return nil, err
 	}
 
-	delete(allClaims, "nonce")
 	if nonce, ok := allClaims["nonce"].(string); ok {
-		fmt.Println("oidicNonce:", oidcReq.Nonce())
-		fmt.Println("nonce: ", nonce)
 		if nonce != oidcReq.Nonce() {
 			return nil, errors.New("nonce claim does not match nonce sent in auth request")
 		}
 	}
+
+	delete(allClaims, "nonce")
 
 	// Get the subject claim for bound subject and user info validation
 	var subject string
