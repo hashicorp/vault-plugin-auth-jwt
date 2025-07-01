@@ -267,6 +267,127 @@ func TestOIDC_AuthURL(t *testing.T) {
 	})
 }
 
+// TestOIDC_NonceValidation verifies that the OIDC nonce validation works correctly.
+// It tests three scenarios:
+// 1. Matching nonce - The nonce in the token claims matches the one in the OIDC request
+// 2. Mismatched nonce - The nonce in the token claims doesn't match the one in the OIDC request
+// 3. Empty nonce - The nonce in the token claims is empty
+func TestOIDC_NonceValidation(t *testing.T) {
+	testCases := []struct {
+		name      string
+		nonce     string
+		expectErr bool
+	}{
+		{
+			name:      "matching nonce",
+			nonce:     "", // Will be filled with the correct nonce
+			expectErr: false,
+		},
+		{
+			name:      "mismatched nonce",
+			nonce:     "incorrect-nonce",
+			expectErr: true,
+		},
+		{
+			name:      "empty nonce",
+			nonce:     "",
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			b, storage, s := getBackendAndServer(t, false)
+			defer s.server.Close()
+
+			// Get auth_url
+			data := map[string]interface{}{
+				"role":         "test",
+				"redirect_uri": "https://example.com",
+			}
+			req := &logical.Request{
+				Operation: logical.UpdateOperation,
+				Path:      "oidc/auth_url",
+				Storage:   storage,
+				Data:      data,
+			}
+
+			resp, err := b.HandleRequest(context.Background(), req)
+			if err != nil || (resp != nil && resp.IsError()) {
+				t.Fatalf("err:%v resp:%#v\n", err, resp)
+			}
+
+			authURL := resp.Data["auth_url"].(string)
+			state := getQueryParam(t, authURL, "state")
+			actualNonce := getQueryParam(t, authURL, "nonce")
+
+			// For the "matching nonce" test, use the actual nonce from the auth URL
+			// This ensures we're using the same nonce that was generated during the auth_url step
+			// For other tests, we'll use the specified test nonce to trigger validation failures
+			testNonce := tc.nonce
+			if tc.name == "matching nonce" {
+				testNonce = actualNonce
+			}
+
+			// Set code challenge from the auth URL for PKCE validation
+			s.codeChallenge = getQueryParam(t, authURL, "code_challenge")
+
+			// Set mock provider's expected code that will be returned during token exchange
+			s.code = "abc"
+
+			// Set the custom claims for the mock provider with our test nonce
+			// This is where we control whether the nonce matches or not
+			s.customClaims = sampleClaims(testNonce)
+
+			// Callback request
+			callbackData := map[string]interface{}{
+				"state": state,
+				"code":  s.code,
+			}
+
+			callbackReq := &logical.Request{
+				Operation: logical.ReadOperation,
+				Path:      "oidc/callback",
+				Storage:   storage,
+				Data:      callbackData,
+				Connection: &logical.Connection{
+					RemoteAddr: "127.0.0.1",
+				},
+			}
+
+			callbackResp, err := b.HandleRequest(context.Background(), callbackReq)
+
+			if tc.expectErr {
+				if err == nil && (callbackResp == nil || !callbackResp.IsError()) {
+					t.Fatalf("expected error but got success, resp: %#v", callbackResp)
+				}
+				if callbackResp != nil && callbackResp.IsError() {
+					// When using an incorrect nonce, we should see a nonce mismatch error
+					// The error could come from different layers of validation:
+					// 1. From our code directly: "nonce claim does not match nonce sent in auth request"
+					// 2. From the OIDC provider validation: "invalid id_token nonce" or "invalid nonce"
+					if tc.name == "mismatched nonce" {
+						errorMsg := callbackResp.Error().Error()
+						if !strings.Contains(errorMsg, "nonce claim does not match") &&
+							!strings.Contains(errorMsg, "invalid id_token nonce") &&
+							!strings.Contains(errorMsg, "invalid nonce") {
+							t.Fatalf("expected nonce mismatch error, got: %v", errorMsg)
+						}
+					}
+				}
+			} else {
+				if err != nil || (callbackResp != nil && callbackResp.IsError()) {
+					t.Fatalf("unexpected error: err:%v resp:%#v", err, callbackResp)
+				}
+				// Verify we have an auth in the successful case
+				if callbackResp.Auth == nil {
+					t.Fatal("expected Auth object in response for successful test case")
+				}
+			}
+		})
+	}
+}
+
 func TestOIDC_AuthURL_namespace(t *testing.T) {
 	type testCase struct {
 		namespaceInState    string

@@ -274,9 +274,18 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 	}
 
 	// Parse claims from the ID token payload.
-	var allClaims map[string]interface{}
+	var allClaims map[string]any
 	if err := rawToken.Claims(&allClaims); err != nil {
 		return nil, err
+	}
+
+	delete(allClaims, "nonce")
+	if nonce, ok := allClaims["nonce"].(string); ok {
+		fmt.Println("oidicNonce:", oidcReq.Nonce())
+		fmt.Println("nonce: ", nonce)
+		if nonce != oidcReq.Nonce() {
+			return nil, errors.New("nonce claim does not match nonce sent in auth request")
+		}
 	}
 
 	// Get the subject claim for bound subject and user info validation
