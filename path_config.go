@@ -43,41 +43,71 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 			"oidc_discovery_url": {
 				Type:        framework.TypeString,
 				Description: `OIDC Discovery URL, without any .well-known component (base path). Cannot be used with "jwks_url" or "jwt_validation_pubkeys".`,
+				DisplayAttrs: &framework.DisplayAttributes{
+					Name: "OIDC discovery URL",
+				},
 			},
 			"oidc_discovery_ca_pem": {
 				Type:        framework.TypeString,
 				Description: "The CA certificate or chain of certificates, in PEM format, to use to validate connections to the OIDC Discovery URL. If not set, system certificates are used.",
+				DisplayAttrs: &framework.DisplayAttributes{
+					Name:     "OIDC discovery CA PEM",
+					Group:    "OIDC/JWT Options",
+					EditType: "file",
+				},
 			},
 			"oidc_client_id": {
 				Type:        framework.TypeString,
 				Description: "The OAuth Client ID configured with your OIDC provider.",
+				DisplayAttrs: &framework.DisplayAttributes{
+					Name:  "OIDC client ID",
+					Group: "OIDC/JWT Options",
+				},
 			},
 			"oidc_client_secret": {
 				Type:        framework.TypeString,
 				Description: "The OAuth Client Secret configured with your OIDC provider.",
 				DisplayAttrs: &framework.DisplayAttributes{
+					Name:      "OIDC client secret",
+					Group:     "OIDC/JWT Options",
 					Sensitive: true,
 				},
 			},
 			"oidc_response_mode": {
 				Type:        framework.TypeString,
 				Description: "The response mode to be used in the OAuth2 request. Allowed values are 'query' and 'form_post'.",
+				DisplayAttrs: &framework.DisplayAttributes{
+					Name: "OIDC response mode",
+				},
 			},
 			"oidc_response_types": {
 				Type:        framework.TypeCommaStringSlice,
 				Description: "The response types to request. Allowed values are 'code' and 'id_token'. Defaults to 'code'.",
+				DisplayAttrs: &framework.DisplayAttributes{
+					Name: "OIDC response types",
+				},
 			},
 			"jwks_url": {
 				Type:        framework.TypeString,
 				Description: `JWKS URL to use to authenticate signatures. Cannot be used with "oidc_discovery_url" or "jwt_validation_pubkeys".`,
+				DisplayAttrs: &framework.DisplayAttributes{
+					Name: "JWT URL",
+				},
 			},
 			"jwks_ca_pem": {
 				Type:        framework.TypeString,
 				Description: "The CA certificate or chain of certificates, in PEM format, to use to validate connections to the JWKS URL. If not set, system certificates are used.",
+				DisplayAttrs: &framework.DisplayAttributes{
+					Name:     "JWKS CA PEM",
+					EditType: "file",
+				},
 			},
 			"jwks_pairs": {
 				Type:        framework.TypeSlice,
 				Description: `Set of JWKS Url and CA certificate (or chain of certificates) pairs. CA certificates must be in PEM format. Cannot be used with "jwks_url" or "jwks_ca_pem".`,
+				DisplayAttrs: &framework.DisplayAttributes{
+					Name: "JWKS pairs",
+				},
 			},
 			"default_role": {
 				Type:        framework.TypeLowerCaseString,
@@ -86,14 +116,25 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 			"jwt_validation_pubkeys": {
 				Type:        framework.TypeCommaStringSlice,
 				Description: `A list of PEM-encoded public keys to use to authenticate signatures locally. Cannot be used with "jwks_url" or "oidc_discovery_url".`,
+				DisplayAttrs: &framework.DisplayAttributes{
+					Name:  "JWT validation public keys",
+					Group: "OIDC/JWT Options",
+				},
 			},
 			"jwt_supported_algs": {
 				Type:        framework.TypeCommaStringSlice,
 				Description: `A list of supported signing algorithms. Defaults to RS256.`,
+				DisplayAttrs: &framework.DisplayAttributes{
+					Name:  "JWT supported algorithms",
+					Group: "OIDC/JWT Options",
+				},
 			},
 			"bound_issuer": {
 				Type:        framework.TypeString,
 				Description: "The value against which to match the 'iss' claim in a JWT. Optional.",
+				DisplayAttrs: &framework.DisplayAttributes{
+					Group: "OIDC/JWT Options",
+				},
 			},
 			"provider_config": {
 				Type:        framework.TypeMap,
