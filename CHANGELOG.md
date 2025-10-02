@@ -1,20 +1,5 @@
 ## Unreleased
 
-## 0.25.0
-### Oct 2, 2025
-
-IMPROVEMENTS:
-
-* Building with go 1.25.1
-* Updated dependencies:
-  * `github.com/hashicorp/cap` v0.9.0 -> v0.10.0
-  * `github.com/hashicorp/vault/api` v1.16.0 -> v1.21.0
-  * `github.com/hashicorp/vault/sdk` v0.15.2 -> v0.19.0
-  * `github.com/stretchr/testify` v1.10.0 -> v1.11.1
-  * `golang.org/x/oauth2` v0.29.0 -> v0.31.0
-  * `golang.org/x/sync` v0.13.0 -> v0.17.0
-  * `google.golang.org/api` v0.230.0 -> v0.251.0
-
 ## 0.24.1
 ### Jun 05, 2025
 
