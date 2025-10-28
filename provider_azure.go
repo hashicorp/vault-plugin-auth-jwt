@@ -8,13 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	log "github.com/hashicorp/go-hclog"
+	"golang.org/x/oauth2"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
-
-	log "github.com/hashicorp/go-hclog"
-	"golang.org/x/oauth2"
 )
 
 const (
@@ -49,29 +48,50 @@ func (a *AzureProvider) SensitiveKeys() []string {
 }
 
 // FetchGroups - custom groups fetching for azure - satisfying GroupsFetcher interface
-func (a *AzureProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, tokenSource oauth2.TokenSource) (interface{}, error) {
-	groupsClaimRaw := getClaim(b.Logger(), allClaims, role.GroupsClaim)
+func (a *AzureProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, tokenSource oauth2.TokenSource, forceFetchGroups bool) (interface{}, error) {
+	var groupsClaimRaw interface{}
+	if forceFetchGroups == true {
+		azureClaimSourcesURL := "https://graph.microsoft.com/v1.0/me/memberOf"
 
-	if groupsClaimRaw == nil {
-		// If the "groups" claim is missing, it might be because the user is a
-		// member of more than 200 groups, which means the token contains
-		// distributed claim information. Attempt to look that up here.
-		azureClaimSourcesURL, err := a.getClaimSource(b.Logger(), allClaims, role)
-		if err != nil {
-			return nil, fmt.Errorf("unable to get claim sources: %s", err)
-		}
-
+		var err error
 		a.ctx, err = b.createCAContext(b.providerCtx, b.cachedConfig.OIDCDiscoveryCAPEM)
 		if err != nil {
 			return nil, fmt.Errorf("unable to create CA Context: %s", err)
 		}
 
-		azureGroups, err := a.getAzureGroups(azureClaimSourcesURL, tokenSource)
+		azureGroups, err := a.getAzureGroupsFromMeCall(azureClaimSourcesURL, tokenSource)
+
 		if err != nil {
-			return nil, fmt.Errorf("%q claim not found in token: %v", role.GroupsClaim, err)
+			return nil, fmt.Errorf("Unable to fetch groups from graph API: %v", err)
 		}
 		groupsClaimRaw = azureGroups
+	} else {
+		groupsClaimRaw = getClaim(b.Logger(), allClaims, role.GroupsClaim)
+
+		if groupsClaimRaw == nil {
+			// If the "groups" claim is missing, it might be because the user is a
+			// member of more than 200 groups, which means the token contains
+			// distributed claim information. Attempt to look that up here.
+			azureClaimSourcesURL, err := a.getClaimSource(b.Logger(), allClaims, role)
+			if err != nil {
+				return nil, fmt.Errorf("unable to get claim sources: %s", err)
+			}
+			//TODO: check any version support or any other restrictions for API https://graph.microsoft.com/v1.0/me/memberOf"
+
+			a.ctx, err = b.createCAContext(b.providerCtx, b.cachedConfig.OIDCDiscoveryCAPEM)
+			if err != nil {
+				return nil, fmt.Errorf("unable to create CA Context: %s", err)
+			}
+
+			azureGroups, err := a.getAzureGroups(azureClaimSourcesURL, tokenSource)
+
+			if err != nil {
+				return nil, fmt.Errorf("%q claim not found in token: %v", role.GroupsClaim, err)
+			}
+			groupsClaimRaw = azureGroups
+		}
 	}
+
 	b.Logger().Debug(fmt.Sprintf("groups claim raw is %v", groupsClaimRaw))
 	return groupsClaimRaw, nil
 }
@@ -179,6 +199,61 @@ func (a *AzureProvider) getAzureGroups(groupsURL string, tokenSource oauth2.Toke
 	return target.Value, nil
 }
 
+// Fetch user groups from the Microsoft Graph API /me/memberOf
+func (a *AzureProvider) getAzureGroupsFromMeCall(groupsURL string, tokenSource oauth2.TokenSource) (interface{}, error) {
+	// Use the Access Token that was pre-negotiated between the Claims Provider and RP
+	// via https://openid.net/specs/openid-connect-core-1_0.html#AggregatedDistributedClaims.
+	if tokenSource == nil {
+		return nil, errors.New("token unavailable to call Microsoft Graph API")
+	}
+	token, err := tokenSource.Token()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get token: %s", err)
+	}
+	//payload := strings.NewReader("{\"securityEnabledOnly\": false}")
+	req, err := http.NewRequest("GET", groupsURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error constructing groups endpoint request: %s", err)
+	}
+	token.SetAuthHeader(req)
+
+	client := http.DefaultClient
+	if c, ok := a.ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
+		client = c
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("unable to call Microsoft Graph API: %s", err)
+	}
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Microsoft Graph API response: %s", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get groups: %s", string(body))
+	}
+
+	var resp response
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("unabled to decode response: %s", err)
+	}
+
+	var target azureGroups
+	for _, group := range resp.Value {
+		target.Value = append(target.Value, group.ID)
+	}
+
+	return target.Value, nil
+}
+
 type azureGroups struct {
 	Value []interface{} `json:"value"`
+}
+
+type groupObject struct {
+	ID string `json:"id"`
+}
+type response struct {
+	Value []groupObject `json:"value"`
 }

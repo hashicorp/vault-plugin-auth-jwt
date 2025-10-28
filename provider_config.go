@@ -65,5 +65,5 @@ type UserInfoFetcher interface {
 // GroupsFetcher - Optional support for custom groups handling
 type GroupsFetcher interface {
 	// FetchGroups queries for groups claims during login
-	FetchGroups(context.Context, *jwtAuthBackend, map[string]interface{}, *jwtRole, oauth2.TokenSource) (interface{}, error)
+	FetchGroups(context.Context, *jwtAuthBackend, map[string]interface{}, *jwtRole, oauth2.TokenSource, bool) (interface{}, error)
 }
