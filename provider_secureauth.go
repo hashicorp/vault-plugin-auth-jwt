@@ -27,7 +27,7 @@ func (a *SecureAuthProvider) SensitiveKeys() []string {
 // FetchGroups - custom groups fetching for secureauth - satisfying GroupsFetcher interface
 // SecureAuth by default will return groups not as a json list but as a list of comma seperated strings
 // We need to convert this to a json list
-func (a *SecureAuthProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, _ oauth2.TokenSource) (interface{}, error) {
+func (a *SecureAuthProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, _ oauth2.TokenSource, _ bool) (interface{}, error) {
 	groupsClaimRaw := getClaim(b.Logger(), allClaims, role.GroupsClaim)
 
 	if groupsClaimRaw != nil {

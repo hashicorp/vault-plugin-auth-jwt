@@ -151,7 +151,7 @@ func (g *GSuiteProvider) SensitiveKeys() []string {
 }
 
 // FetchGroups fetches and returns groups from G Suite.
-func (g *GSuiteProvider) FetchGroups(ctx context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, _ oauth2.TokenSource) (interface{}, error) {
+func (g *GSuiteProvider) FetchGroups(ctx context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, _ oauth2.TokenSource, _ bool) (interface{}, error) {
 	if !g.config.FetchGroups {
 		return nil, nil
 	}

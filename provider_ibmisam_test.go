@@ -138,7 +138,7 @@ func TestLogin_ibmisam_fetchGroups(t *testing.T) {
 
 	// Ensure groups are as expected
 	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test.access.token"})
-	groupsRaw, err := b.(*jwtAuthBackend).fetchGroups(ctx, provider, allClaims, role, tokenSource)
+	groupsRaw, err := b.(*jwtAuthBackend).fetchGroups(ctx, provider, allClaims, role, tokenSource, false)
 	assert.NoError(t, err)
 
 	groupsResp, ok := normalizeList(groupsRaw)

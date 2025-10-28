@@ -153,7 +153,7 @@ func TestLogin_fetchGroups(t *testing.T) {
 
 	// Ensure groups are as expected
 	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test.access.token"})
-	groupsResp, err := b.(*jwtAuthBackend).fetchGroups(ctx, provider, allClaims, role, tokenSource)
+	groupsResp, err := b.(*jwtAuthBackend).fetchGroups(ctx, provider, allClaims, role, tokenSource, false)
 	assert.NoError(t, err)
 	assert.Equal(t, []interface{}{"group1", "group2"}, groupsResp)
 }
