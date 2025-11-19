@@ -273,11 +273,20 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	if len(config.JWKSPairs) > 0 {
 		methodCount++
 	}
+	if config.hasCustomProviderDiscovery() {
+		methodCount++
+	}
+
+	// Validate provider_config
+	pConfig, err := NewProviderConfig(ctx, config, ProviderMap())
+	if err != nil {
+		return logical.ErrorResponse("invalid provider_config: %s", err), nil
+	}
 
 	var jwksPairs []*JWKSPair
 	switch {
 	case methodCount != 1:
-		return logical.ErrorResponse("exactly one of 'jwt_validation_pubkeys', 'jwks_url', 'jwks_pairs' or 'oidc_discovery_url' must be set"), nil
+		return logical.ErrorResponse("exactly one of 'jwt_validation_pubkeys', 'jwks_url', 'jwks_pairs', 'oidc_discovery_url', or 'provider_config' must be set"), nil
 
 	case config.OIDCClientID != "" && config.OIDCClientSecret == "",
 		config.OIDCClientID == "" && config.OIDCClientSecret != "":
@@ -325,6 +334,13 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 				return logical.ErrorResponse(fmt.Errorf("error parsing public key: %w", err).Error()), nil
 			}
 		}
+
+	case config.hasCustomProviderDiscovery():
+		_, err = pConfig.(KeySetDiscovery).NewKeySet(ctx)
+		if err != nil {
+			return nil, err
+		}
+
 	case len(config.UnsupportedCriticalCertExtensions) > 0:
 		for _, v := range config.UnsupportedCriticalCertExtensions {
 			if _, err := certutil.StringToOid(v); err != nil {
@@ -357,11 +373,6 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	case responseModeFormPost:
 	default:
 		return logical.ErrorResponse("invalid response_mode: %q", config.OIDCResponseMode), nil
-	}
-
-	// Validate provider_config
-	if _, err := NewProviderConfig(ctx, config, ProviderMap()); err != nil {
-		return logical.ErrorResponse("invalid provider_config: %s", err), nil
 	}
 
 	entry, err := logical.StorageEntryJSON(configPath, config)
@@ -510,6 +521,7 @@ const (
 	MultiJWKS
 	OIDCDiscovery
 	OIDCFlow
+	CustomProviderDiscovery
 	unconfigured
 )
 
@@ -527,6 +539,8 @@ func (c jwtConfig) authType() int {
 			return OIDCFlow
 		}
 		return OIDCDiscovery
+	case c.hasCustomProviderDiscovery():
+		return CustomProviderDiscovery
 	}
 
 	return unconfigured
@@ -540,6 +554,28 @@ func (c jwtConfig) hasType(t string) bool {
 	}
 
 	return strutil.StrListContains(c.OIDCResponseTypes, t)
+}
+
+// hasCustomProviderDiscovery returns true if the configuration refers to a custom provider
+// that implements KeySetDiscovery interface.
+func (c jwtConfig) hasCustomProviderDiscovery() bool {
+	if len(c.ProviderConfig) == 0 {
+		return false
+	}
+
+	provider, ok := c.ProviderConfig["provider"].(string)
+	if !ok {
+		return false
+	}
+
+	providerMap := ProviderMap()
+	newCustomProvider, ok := providerMap[provider]
+	if !ok {
+		return false
+	}
+
+	_, ok = newCustomProvider.(KeySetDiscovery)
+	return ok
 }
 
 const (
