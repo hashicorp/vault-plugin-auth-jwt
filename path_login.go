@@ -59,6 +59,13 @@ func pathLogin(b *jwtAuthBackend) *framework.Path {
 }
 
 func (b *jwtAuthBackend) pathResolveRole(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	// Quota role rule creates send a probe to test if the backend returns
+	// ErrUnsupportedOperation for ResolveRole, and there's no req.Storage populated
+	// for these.  So just return a non-ErrUnsupportedOperation error.
+	if req.Storage == nil {
+		return logical.ErrorResponse("no storage"), logical.ErrMissingRequiredState
+	}
+
 	config, err := b.config(ctx, req.Storage)
 	if err != nil {
 		return nil, err
@@ -366,5 +373,4 @@ func (j *accessTokenSrc) Token() (*oauth2.Token, error) {
 		AccessToken: j.accessToken,
 		TokenType:   "Bearer",
 	}, nil
-
 }

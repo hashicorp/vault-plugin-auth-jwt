@@ -1762,6 +1762,47 @@ func TestResolveRole_RoleDoesNotExist(t *testing.T) {
 	}
 }
 
+func TestResolveRole_NilStorage(t *testing.T) {
+	cfg := testConfig{
+		audience: true,
+		jwks:     true,
+	}
+	b, _ := setupBackend(t, cfg)
+	loginData := map[string]interface{}{
+		"role": "testrole",
+	}
+
+	// Create a request with nil Storage to test the nil storage check
+	loginReq := &logical.Request{
+		Operation: logical.ResolveRoleOperation,
+		Path:      "login",
+		Storage:   nil, // This is the key part - nil storage
+		Data:      loginData,
+		Connection: &logical.Connection{
+			RemoteAddr: "127.0.0.1",
+		},
+	}
+
+	resp, err := b.HandleRequest(context.Background(), loginReq)
+	if resp == nil && !resp.IsError() {
+		t.Fatalf("Response was not an error: err:%v resp:%#v", err, resp)
+	}
+
+	errString, ok := resp.Data["error"].(string)
+	if !ok {
+		t.Fatal("Error not part of response.")
+	}
+
+	if !strings.Contains(errString, "no storage") {
+		t.Fatalf("Expected 'no storage' error, got: %s", errString)
+	}
+
+	// Should return ErrMissingRequiredState
+	if err != logical.ErrMissingRequiredState {
+		t.Fatalf("Expected ErrMissingRequiredState, got: %v", err)
+	}
+}
+
 const (
 	ecdsaPrivKey string = `-----BEGIN EC PRIVATE KEY-----
 MHcCAQEEIKfldwWLPYsHjRL9EVTsjSbzTtcGRu6icohNfIqcb6A+oAoGCCqGSM49
