@@ -36,6 +36,13 @@ const (
 type AzureProvider struct {
 	// Context for azure calls
 	ctx context.Context
+	// Configuration for the provider
+	config AzureProviderConfig
+}
+
+type AzureProviderConfig struct {
+	// If set to true, groups will be fetched from the Azure Graph API.  This is supported only on Azure/Entra ID",
+	FetchGroups bool `mapstructure:"fetch_groups"`
 }
 
 // Initialize anything in the AzureProvider struct - satisfying the CustomProvider interface
@@ -50,6 +57,20 @@ func (a *AzureProvider) SensitiveKeys() []string {
 
 // FetchGroups - custom groups fetching for azure - satisfying GroupsFetcher interface
 func (a *AzureProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, tokenSource oauth2.TokenSource) (interface{}, error) {
+
+	if a.config.FetchGroups {
+		b.Logger().Info("FetchGroups is enabled; fetching groups from Azure Graph API")
+		accessToken, err := tokenSource.Token()
+		if err != nil {
+			return nil, fmt.Errorf("unable to get access token: %s", err)
+		}
+		groups, err := a.getAzureGroups(fmt.Sprintf("https://graph.microsoft.com/v1.0/me/getMemberObjects", accessToken.AccessToken), tokenSource)
+		if err != nil {
+			return nil, fmt.Errorf("unable to fetch groups from Microsoft Graph API: %s", err)
+		}
+		return groups, nil
+	}
+
 	groupsClaimRaw := getClaim(b.Logger(), allClaims, role.GroupsClaim)
 
 	if groupsClaimRaw == nil {
