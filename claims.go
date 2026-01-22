@@ -24,16 +24,29 @@ func setClaim(logger log.Logger, allClaims map[string]interface{}, claim string,
 
 	if !strings.HasPrefix(claim, "/") {
 		allClaims[claim] = val
-	} else {
-		val, err = pointerstructure.Set(allClaims, claim, val)
-		if err != nil {
-			logger.Warn(fmt.Sprintf("unable to set %s in claims: %s", claim, err.Error()))
-			return nil
+		return val
+	}
+
+	updated, err := pointerstructure.Set(allClaims, claim, val)
+	if err != nil {
+		logger.Warn(fmt.Sprintf("unable to set %s in claims: %s", claim, err.Error()))
+		return nil
+	}
+
+	// If Set returns an updated root object, sync it back into allClaims.
+	// This preserves the original map reference held by callers.
+	if m, ok := updated.(map[string]interface{}); ok {
+		for k := range allClaims {
+			delete(allClaims, k)
+		}
+		for k, v := range m {
+			allClaims[k] = v
 		}
 	}
 
-	return val
+	return updated
 }
+
 
 // getClaim returns a claim value from allClaims given a provided claim string.
 // If this string is a valid JSONPointer, it will be interpreted as such to locate
