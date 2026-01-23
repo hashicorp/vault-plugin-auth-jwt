@@ -54,7 +54,7 @@ func pathConfig(b *jwtAuthBackend) *framework.Path {
 			},
 			"oidc_client_secret": {
 				Type:        framework.TypeString,
-				Description: "The OAuth Client Secret configured with your OIDC provider.",
+				Description: "The OAuth Client Secret configured with your OIDC provider. Optional for public clients.",
 				DisplayAttrs: &framework.DisplayAttributes{
 					Sensitive: true,
 				},
@@ -279,13 +279,12 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	case methodCount != 1:
 		return logical.ErrorResponse("exactly one of 'jwt_validation_pubkeys', 'jwks_url', 'jwks_pairs' or 'oidc_discovery_url' must be set"), nil
 
-	case config.OIDCClientID != "" && config.OIDCClientSecret == "",
-		config.OIDCClientID == "" && config.OIDCClientSecret != "":
-		return logical.ErrorResponse("both 'oidc_client_id' and 'oidc_client_secret' must be set for OIDC"), nil
+	case config.OIDCClientID == "" && config.OIDCClientSecret != "":
+		return logical.ErrorResponse("'oidc_client_id' must be set when 'oidc_client_secret' is provided"), nil
 
 	case config.OIDCDiscoveryURL != "":
 		var err error
-		if config.OIDCClientID != "" && config.OIDCClientSecret != "" {
+		if config.OIDCClientID != "" {
 			_, err = b.createProvider(config)
 		} else {
 			_, err = jwt.NewOIDCDiscoveryKeySet(ctx, config.OIDCDiscoveryURL, config.OIDCDiscoveryCAPEM)
@@ -523,7 +522,7 @@ func (c jwtConfig) authType() int {
 	case len(c.JWKSPairs) > 0:
 		return MultiJWKS
 	case c.OIDCDiscoveryURL != "":
-		if c.OIDCClientID != "" && c.OIDCClientSecret != "" {
+		if c.OIDCClientID != "" {
 			return OIDCFlow
 		}
 		return OIDCDiscovery
