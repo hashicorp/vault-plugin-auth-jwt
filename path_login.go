@@ -38,6 +38,10 @@ func pathLogin(b *jwtAuthBackend) *framework.Path {
 				Type:        framework.TypeString,
 				Description: "An optional token used to fetch group memberships specified by the distributed claim source in the jwt. This is supported only on Azure/Entra ID",
 			},
+			"force_fetch_groups": {
+				Type:        framework.TypeBool,
+				Description: "If true, groups are fetched from Microsoft Graph API.  This is supported only on Azure/Entra ID",
+			},
 		},
 
 		Operations: map[logical.Operation]framework.OperationHandler{
@@ -118,6 +122,8 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 
 	distClaimAccessToken := d.Get("distributed_claim_access_token").(string)
 
+	forceFetchGroups := d.Get("force_fetch_groups").(bool)
+
 	if len(role.TokenBoundCIDRs) > 0 {
 		if req.Connection == nil {
 			b.Logger().Warn("token bound CIDRs found but no connection information available for validation")
@@ -179,7 +185,7 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		}
 	}
 
-	alias, groupAliases, err := b.createIdentity(ctx, allClaims, roleName, role, &accessTokenSrc{accessToken: distClaimAccessToken})
+	alias, groupAliases, err := b.createIdentity(ctx, allClaims, roleName, role, &accessTokenSrc{accessToken: distClaimAccessToken}, forceFetchGroups)
 	if err != nil {
 		return logical.ErrorResponse(err.Error()), nil
 	}
@@ -234,7 +240,7 @@ func (b *jwtAuthBackend) pathLoginRenew(ctx context.Context, req *logical.Reques
 
 // createIdentity creates an alias and set of groups aliases based on the role
 // definition and received claims.
-func (b *jwtAuthBackend) createIdentity(ctx context.Context, allClaims map[string]interface{}, roleName string, role *jwtRole, tokenSource oauth2.TokenSource) (*logical.Alias, []*logical.Alias, error) {
+func (b *jwtAuthBackend) createIdentity(ctx context.Context, allClaims map[string]interface{}, roleName string, role *jwtRole, tokenSource oauth2.TokenSource, forceFetchGroups bool) (*logical.Alias, []*logical.Alias, error) {
 	var userClaimRaw interface{}
 	if role.UserClaimJSONPointer {
 		userClaimRaw = getClaim(b.Logger(), allClaims, role.UserClaim)
@@ -277,7 +283,7 @@ func (b *jwtAuthBackend) createIdentity(ctx context.Context, allClaims map[strin
 		return alias, groupAliases, nil
 	}
 
-	groupsClaimRaw, err := b.fetchGroups(ctx, pConfig, allClaims, role, tokenSource)
+	groupsClaimRaw, err := b.fetchGroups(ctx, pConfig, allClaims, role, tokenSource, forceFetchGroups)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch groups: %s", err)
 	}
@@ -316,12 +322,12 @@ func (b *jwtAuthBackend) fetchUserInfo(ctx context.Context, pConfig CustomProvid
 }
 
 // Checks if there's a custom provider_config and calls FetchGroups() if implemented
-func (b *jwtAuthBackend) fetchGroups(ctx context.Context, pConfig CustomProvider, allClaims map[string]interface{}, role *jwtRole, tokenSource oauth2.TokenSource) (interface{}, error) {
+func (b *jwtAuthBackend) fetchGroups(ctx context.Context, pConfig CustomProvider, allClaims map[string]interface{}, role *jwtRole, tokenSource oauth2.TokenSource, forceFetchGroups bool) (interface{}, error) {
 	// If the custom provider implements interface GroupsFetcher, call it,
 	// otherwise fall through to the default method
 	if pConfig != nil {
 		if gf, ok := pConfig.(GroupsFetcher); ok {
-			groupsRaw, err := gf.FetchGroups(ctx, b, allClaims, role, tokenSource)
+			groupsRaw, err := gf.FetchGroups(ctx, b, allClaims, role, tokenSource, forceFetchGroups)
 			if err != nil {
 				return nil, err
 			}
