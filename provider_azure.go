@@ -63,20 +63,17 @@ func (a *AzureProvider) SensitiveKeys() []string {
 
 // FetchGroups - custom groups fetching for azure - satisfying GroupsFetcher interface
 func (a *AzureProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, tokenSource oauth2.TokenSource) (interface{}, error) {
-	b.Logger().Info("FetchGroups value is ", a.config.FetchGroups)
-
+	// if FetchGroups is enabled, then force fetch the groups from getMemberObjects graph API
 	if a.config.FetchGroups {
-		b.Logger().Info("FetchGroups is enabled; fetching groups from Azure Graph API")
 		var err error
 		a.ctx, err = b.createCAContext(b.providerCtx, b.cachedConfig.OIDCDiscoveryCAPEM)
 		if err != nil {
 			return nil, fmt.Errorf("unable to create CA Context: %s", err)
 		}
-		groups, err := a.getAzureGroups("https://graph.microsoft.com/v1.0/me/getMemberObjects", tokenSource)
+		groups, err := a.getAzureGroups(a.buildGraphEndpoint("me/getMemberObjects"), tokenSource)
 		if err != nil {
 			return nil, fmt.Errorf("unable to fetch groups from Microsoft Graph API: %s", err)
 		}
-		b.Logger().Info("FetchGroups result; groups:", groups)
 		return groups, nil
 	}
 
@@ -159,6 +156,11 @@ func (a *AzureProvider) getClaimSource(logger log.Logger, allClaims map[string]i
 
 	logger.Debug(fmt.Sprintf("found Azure Graph API endpoint for group membership: %v", urlParsed.String()))
 	return urlParsed.String(), nil
+}
+
+// buildGraphEndpoint constructs a Microsoft Graph API endpoint URL
+func (a *AzureProvider) buildGraphEndpoint(path string) string {
+	return fmt.Sprintf("https://%s%s/%s", microsoftGraphHost, microsoftGraphAPIVersion, path)
 }
 
 // Fetch user groups from the Microsoft Graph API
