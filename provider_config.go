@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/cap/jwt"
 	"golang.org/x/oauth2"
 )
 
@@ -21,6 +22,7 @@ func ProviderMap() map[string]CustomProvider {
 		"gsuite":     &GSuiteProvider{},
 		"secureauth": &SecureAuthProvider{},
 		"ibmisam":    &IBMISAMProvider{},
+		"kubernetes": &KubernetesProvider{},
 	}
 }
 
@@ -66,4 +68,10 @@ type UserInfoFetcher interface {
 type GroupsFetcher interface {
 	// FetchGroups queries for groups claims during login
 	FetchGroups(context.Context, *jwtAuthBackend, map[string]interface{}, *jwtRole, oauth2.TokenSource) (interface{}, error)
+}
+
+// KeySetDiscovery - Optional support for custom provider-specific discovery mechanism
+type KeySetDiscovery interface {
+	// NewKeySet returns a new KeySet that will be used to verify JWTs
+	NewKeySet(context.Context) (jwt.KeySet, error)
 }
