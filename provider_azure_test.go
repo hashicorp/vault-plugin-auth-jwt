@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,6 +30,39 @@ func newAzureServer(t *testing.T) *azureServer {
 	a := new(azureServer)
 	a.t = t
 	a.server = httptest.NewTLSServer(a)
+
+	return a
+}
+
+// newAzureServerWithGroups creates an Azure server that returns the specified groups
+func newAzureServerWithGroups(t *testing.T, groups []interface{}) *azureServer {
+	a := new(azureServer)
+	a.t = t
+	a.server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/.well-known/openid-configuration":
+			w.Write([]byte(strings.Replace(`
+				{
+					"issuer": "%s",
+					"authorization_endpoint": "%s/auth",
+					"token_endpoint": "%s/oauth2/v2.0/token",
+					"jwks_uri": "%s/certs",
+					"userinfo_endpoint": "%s/userinfo"
+				}`, "%s", a.server.URL, -1)))
+		case "/v1.0/me/getMemberObjects":
+			resp := azureGroups{Value: groups}
+			gBytes, _ := json.Marshal(resp)
+			w.Write(gBytes)
+		case "/getMemberObjects":
+			resp := azureGroups{Value: groups}
+			gBytes, _ := json.Marshal(resp)
+			w.Write(gBytes)
+		default:
+			t.Fatalf("unexpected path: %q", r.URL.Path)
+		}
+	}))
 
 	return a
 }
@@ -156,6 +190,288 @@ func TestLogin_fetchGroups(t *testing.T) {
 	groupsResp, err := b.(*jwtAuthBackend).fetchGroups(ctx, provider, allClaims, role, tokenSource)
 	assert.NoError(t, err)
 	assert.Equal(t, []interface{}{"group1", "group2"}, groupsResp)
+}
+
+func TestAzureProvider_FetchGroups_WithFetchGroupsEnabled(t *testing.T) {
+	// This test verifies that when fetch_groups is enabled, groups are fetched from the API
+	// We test getAzureGroups directly since it's the function that makes the API call
+
+	expectedGroups := []interface{}{
+		"00a29def-1ebf-47a3-9021-df0ff7620a2a",
+		"22355562-74a8-4b3b-aa9e-b8904148ab81",
+		"group-id-3",
+		"group-id-4",
+		"group-id-5",
+	}
+
+	// Create a test server that returns groups
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		resp := azureGroups{Value: expectedGroups}
+		gBytes, _ := json.Marshal(resp)
+		w.Write(gBytes)
+	}))
+	defer server.Close()
+
+	// Create provider with fetch_groups enabled
+	a := &AzureProvider{
+		ctx: context.WithValue(context.Background(), oauth2.HTTPClient, server.Client()),
+		config: AzureProviderConfig{
+			FetchGroups: true,
+		},
+	}
+
+	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test.access.token"})
+	groups, err := a.getAzureGroups(server.URL, tokenSource)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedGroups, groups)
+}
+
+func TestAzureProvider_FetchGroups_ManyGroups(t *testing.T) {
+	// Simulate a user with 450+ groups
+	expectedGroups := make([]interface{}, 450)
+	for i := 0; i < 450; i++ {
+		expectedGroups[i] = fmt.Sprintf("group-id-%d", i)
+	}
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		resp := azureGroups{Value: expectedGroups}
+		gBytes, _ := json.Marshal(resp)
+		w.Write(gBytes)
+	}))
+	defer server.Close()
+
+	a := &AzureProvider{
+		ctx: context.WithValue(context.Background(), oauth2.HTTPClient, server.Client()),
+		config: AzureProviderConfig{
+			FetchGroups: true,
+		},
+	}
+
+	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test.access.token"})
+	groups, err := a.getAzureGroups(server.URL, tokenSource)
+
+	assert.NoError(t, err)
+	groupsList, ok := groups.([]interface{})
+	require.True(t, ok)
+	assert.Len(t, groupsList, 450)
+	assert.Equal(t, expectedGroups, groups)
+}
+
+func TestAzureProvider_FetchGroups_Disabled(t *testing.T) {
+	aServer := newAzureServer(t)
+	aCert, err := aServer.getTLSCert()
+	require.NoError(t, err)
+
+	b, storage := getBackend(t)
+	ctx := context.Background()
+
+	// Configure WITHOUT fetch_groups (default behavior)
+	data := map[string]interface{}{
+		"oidc_discovery_url":    aServer.server.URL,
+		"oidc_discovery_ca_pem": aCert,
+		"oidc_client_id":        "abc",
+		"oidc_client_secret":    "def",
+		"default_role":          "test",
+		"bound_issuer":          "http://vault.example.com/",
+		"provider_config": map[string]interface{}{
+			"provider": "azure",
+			// fetch_groups not set, defaults to false
+		},
+	}
+
+	req := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      configPath,
+		Storage:   storage,
+		Data:      data,
+	}
+
+	resp, err := b.HandleRequest(ctx, req)
+	require.NoError(t, err)
+	require.Nil(t, resp)
+
+	// Set up test role
+	data = map[string]interface{}{
+		"user_claim":            "email",
+		"groups_claim":          "groups",
+		"allowed_redirect_uris": []string{"https://example.com"},
+	}
+
+	req = &logical.Request{
+		Operation: logical.CreateOperation,
+		Path:      "role/test",
+		Storage:   storage,
+		Data:      data,
+	}
+
+	resp, err = b.HandleRequest(ctx, req)
+	require.NoError(t, err)
+	require.Nil(t, resp)
+
+	role := &jwtRole{
+		GroupsClaim: "groups",
+	}
+
+	// Claims WITH groups in token (normal case < 200 groups)
+	allClaims := map[string]interface{}{
+		"email":  "test@example.com",
+		"groups": []interface{}{"inline-group-1", "inline-group-2"},
+	}
+
+	config, err := b.(*jwtAuthBackend).config(ctx, storage)
+	require.NoError(t, err)
+
+	provider, err := NewProviderConfig(ctx, config, ProviderMap())
+	require.NoError(t, err)
+
+	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test.access.token"})
+	groupsResp, err := b.(*jwtAuthBackend).fetchGroups(ctx, provider, allClaims, role, tokenSource)
+
+	assert.NoError(t, err)
+	// Should return groups from claims, not from API
+	assert.Equal(t, []interface{}{"inline-group-1", "inline-group-2"}, groupsResp)
+}
+
+func TestAzureProvider_FetchGroups_NoTokenSource(t *testing.T) {
+	a := &AzureProvider{
+		ctx: context.Background(),
+		config: AzureProviderConfig{
+			FetchGroups: true,
+		},
+	}
+
+	// Test with nil tokenSource - should fail
+	groups, err := a.getAzureGroups("https://graph.microsoft.com/v1.0/me/getMemberObjects", nil)
+
+	assert.Error(t, err)
+	assert.Nil(t, groups)
+	assert.Contains(t, err.Error(), "token")
+}
+
+func TestAzureProvider_GetAzureGroups_ErrorCases(t *testing.T) {
+	t.Run("invalid URL", func(t *testing.T) {
+		a := &AzureProvider{ctx: context.Background()}
+		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test"})
+
+		groups, err := a.getAzureGroups("://invalid-url", tokenSource)
+
+		assert.Error(t, err)
+		assert.Nil(t, groups)
+	})
+
+	t.Run("server returns error status", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"error": "unauthorized"}`))
+		}))
+		defer server.Close()
+
+		a := &AzureProvider{
+			ctx: context.WithValue(context.Background(), oauth2.HTTPClient, server.Client()),
+		}
+		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test"})
+
+		groups, err := a.getAzureGroups(server.URL, tokenSource)
+
+		assert.Error(t, err)
+		assert.Nil(t, groups)
+		assert.Contains(t, err.Error(), "unauthorized")
+	})
+
+	t.Run("server returns invalid JSON", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`not valid json`))
+		}))
+		defer server.Close()
+
+		a := &AzureProvider{
+			ctx: context.WithValue(context.Background(), oauth2.HTTPClient, server.Client()),
+		}
+		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test"})
+
+		groups, err := a.getAzureGroups(server.URL, tokenSource)
+
+		assert.Error(t, err)
+		assert.Nil(t, groups)
+		assert.Contains(t, err.Error(), "decode")
+	})
+}
+
+func TestAzureProvider_Initialize(t *testing.T) {
+	t.Run("fetch_groups enabled", func(t *testing.T) {
+		a := &AzureProvider{}
+		jc := &jwtConfig{
+			ProviderConfig: map[string]interface{}{
+				"provider":     "azure",
+				"fetch_groups": true,
+			},
+		}
+		err := a.Initialize(context.Background(), jc)
+		assert.NoError(t, err)
+		assert.True(t, a.config.FetchGroups)
+	})
+
+	t.Run("fetch_groups disabled", func(t *testing.T) {
+		a := &AzureProvider{}
+		jc := &jwtConfig{
+			ProviderConfig: map[string]interface{}{
+				"provider":     "azure",
+				"fetch_groups": false,
+			},
+		}
+		err := a.Initialize(context.Background(), jc)
+		assert.NoError(t, err)
+		assert.False(t, a.config.FetchGroups)
+	})
+
+	t.Run("fetch_groups not set", func(t *testing.T) {
+		a := &AzureProvider{}
+		jc := &jwtConfig{
+			ProviderConfig: map[string]interface{}{
+				"provider": "azure",
+			},
+		}
+		err := a.Initialize(context.Background(), jc)
+		assert.NoError(t, err)
+		assert.False(t, a.config.FetchGroups) // defaults to false
+	})
+}
+
+func TestAzureProvider_BuildGraphEndpoint(t *testing.T) {
+	a := &AzureProvider{}
+
+	tests := []struct {
+		name     string
+		path     string
+		expected string
+	}{
+		{
+			name:     "getMemberObjects endpoint",
+			path:     "me/getMemberObjects",
+			expected: "https://graph.microsoft.com/v1.0/me/getMemberObjects",
+		},
+		{
+			name:     "memberOf endpoint",
+			path:     "me/memberOf",
+			expected: "https://graph.microsoft.com/v1.0/me/memberOf",
+		},
+		{
+			name:     "transitiveMemberOf endpoint",
+			path:     "me/transitiveMemberOf",
+			expected: "https://graph.microsoft.com/v1.0/me/transitiveMemberOf",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := a.buildGraphEndpoint(tt.path)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
 
 func Test_getClaimSources(t *testing.T) {
