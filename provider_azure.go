@@ -28,6 +28,9 @@ const (
 	microsoftGraphUSHost     = "graph.microsoft.us"
 	microsoftGraphAPIVersion = "/v1.0"
 
+	// Microsoft Graph API paths for group membership information
+	getMemberObjectsPath = "/me/getMemberObjects"
+
 	// Distributed claim fields
 	claimNamesField   = "_claim_names"
 	claimSourcesField = "_claim_sources"
@@ -70,10 +73,11 @@ func (a *AzureProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allCla
 		if err != nil {
 			return nil, fmt.Errorf("unable to create CA Context: %s", err)
 		}
-		groups, err := a.getAzureGroups(a.buildGraphEndpoint("me/getMemberObjects"), tokenSource)
+		groups, err := a.getAzureGroups(fmt.Sprintf("https://%s%s%s", microsoftGraphHost, microsoftGraphAPIVersion, getMemberObjectsPath), tokenSource)
 		if err != nil {
 			return nil, fmt.Errorf("unable to fetch groups from Microsoft Graph API: %s", err)
 		}
+		b.Logger().Debug(fmt.Sprintf("groups from Microsoft Graph API: %v", groups))
 		return groups, nil
 	}
 
@@ -156,11 +160,6 @@ func (a *AzureProvider) getClaimSource(logger log.Logger, allClaims map[string]i
 
 	logger.Debug(fmt.Sprintf("found Azure Graph API endpoint for group membership: %v", urlParsed.String()))
 	return urlParsed.String(), nil
-}
-
-// buildGraphEndpoint constructs a Microsoft Graph API endpoint URL
-func (a *AzureProvider) buildGraphEndpoint(path string) string {
-	return fmt.Sprintf("https://%s%s/%s", microsoftGraphHost, microsoftGraphAPIVersion, path)
 }
 
 // Fetch user groups from the Microsoft Graph API

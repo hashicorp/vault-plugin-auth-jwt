@@ -441,39 +441,6 @@ func TestAzureProvider_Initialize(t *testing.T) {
 	})
 }
 
-func TestAzureProvider_BuildGraphEndpoint(t *testing.T) {
-	a := &AzureProvider{}
-
-	tests := []struct {
-		name     string
-		path     string
-		expected string
-	}{
-		{
-			name:     "getMemberObjects endpoint",
-			path:     "me/getMemberObjects",
-			expected: "https://graph.microsoft.com/v1.0/me/getMemberObjects",
-		},
-		{
-			name:     "memberOf endpoint",
-			path:     "me/memberOf",
-			expected: "https://graph.microsoft.com/v1.0/me/memberOf",
-		},
-		{
-			name:     "transitiveMemberOf endpoint",
-			path:     "me/transitiveMemberOf",
-			expected: "https://graph.microsoft.com/v1.0/me/transitiveMemberOf",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := a.buildGraphEndpoint(tt.path)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func Test_getClaimSources(t *testing.T) {
 	t.Run("normal case", func(t *testing.T) {
 		a := &AzureProvider{}
