@@ -346,9 +346,8 @@ func TestAzureProvider_FetchGroups_NoTokenSource(t *testing.T) {
 	// Test with nil tokenSource - should fail
 	groups, err := a.getAzureGroups("https://graph.microsoft.com/v1.0/me/getMemberObjects", nil)
 
-	assert.Error(t, err)
+	assert.EqualError(t, err, "token unavailable to call Microsoft Graph API")
 	assert.Nil(t, groups)
-	assert.Contains(t, err.Error(), "token")
 }
 
 func TestAzureProvider_GetAzureGroups_ErrorCases(t *testing.T) {
