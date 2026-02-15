@@ -66,7 +66,7 @@ func (a *AzureProvider) SensitiveKeys() []string {
 
 // FetchGroups - custom groups fetching for azure - satisfying GroupsFetcher interface
 func (a *AzureProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, tokenSource oauth2.TokenSource) (interface{}, error) {
-	// if FetchGroups is enabled, then force fetch the groups from getMemberObjects graph API
+	// If FetchGroups is enabled, then force fetch the groups from getMemberObjects graph API
 	if a.config.FetchGroups {
 		var err error
 		a.ctx, err = b.createCAContext(b.providerCtx, b.cachedConfig.OIDCDiscoveryCAPEM)
