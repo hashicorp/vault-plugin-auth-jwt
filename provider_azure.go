@@ -45,7 +45,7 @@ type AzureProvider struct {
 }
 
 type AzureProviderConfig struct {
-	// If set to true, groups will be fetched from the Azure Graph API.  This is supported only on Azure/Entra ID",
+	// If set to true, groups will be fetched from the Microsoft Graph API. This is supported only on Azure/Entra ID.
 	FetchGroups bool `mapstructure:"fetch_groups"`
 }
 
