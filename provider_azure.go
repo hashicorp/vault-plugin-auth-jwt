@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	log "github.com/hashicorp/go-hclog"
+	"github.com/mitchellh/mapstructure"
 	"golang.org/x/oauth2"
 )
 
@@ -27,6 +28,9 @@ const (
 	microsoftGraphUSHost     = "graph.microsoft.us"
 	microsoftGraphAPIVersion = "/v1.0"
 
+	// Microsoft Graph API paths for group membership information
+	getMemberObjectsPath = "/me/getMemberObjects"
+
 	// Distributed claim fields
 	claimNamesField   = "_claim_names"
 	claimSourcesField = "_claim_sources"
@@ -36,10 +40,22 @@ const (
 type AzureProvider struct {
 	// Context for azure calls
 	ctx context.Context
+	// Configuration for the provider
+	config AzureProviderConfig
+}
+
+type AzureProviderConfig struct {
+	// If set to true, groups will be fetched from the Microsoft Graph API. This is supported only on Azure/Entra ID.
+	FetchGroups bool `mapstructure:"fetch_groups"`
 }
 
 // Initialize anything in the AzureProvider struct - satisfying the CustomProvider interface
-func (a *AzureProvider) Initialize(_ context.Context, _ *jwtConfig) error {
+func (a *AzureProvider) Initialize(_ context.Context, jc *jwtConfig) error {
+	var config AzureProviderConfig
+	if err := mapstructure.Decode(jc.ProviderConfig, &config); err != nil {
+		return err
+	}
+	a.config = config
 	return nil
 }
 
@@ -50,6 +66,21 @@ func (a *AzureProvider) SensitiveKeys() []string {
 
 // FetchGroups - custom groups fetching for azure - satisfying GroupsFetcher interface
 func (a *AzureProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, tokenSource oauth2.TokenSource) (interface{}, error) {
+	// If FetchGroups is enabled, then force fetch the groups from getMemberObjects graph API
+	if a.config.FetchGroups {
+		var err error
+		a.ctx, err = b.createCAContext(b.providerCtx, b.cachedConfig.OIDCDiscoveryCAPEM)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create CA Context: %s", err)
+		}
+		groups, err := a.getAzureGroups(fmt.Sprintf("https://%s%s%s", microsoftGraphHost, microsoftGraphAPIVersion, getMemberObjectsPath), tokenSource)
+		if err != nil {
+			return nil, fmt.Errorf("unable to fetch groups from Microsoft Graph API: %s", err)
+		}
+		b.Logger().Debug(fmt.Sprintf("groups from Microsoft Graph API: %v", groups))
+		return groups, nil
+	}
+
 	groupsClaimRaw := getClaim(b.Logger(), allClaims, role.GroupsClaim)
 
 	if groupsClaimRaw == nil {
