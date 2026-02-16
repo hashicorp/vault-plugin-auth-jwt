@@ -284,7 +284,8 @@ func TestAzureProvider_FetchGroups_WithFetchGroupsEnabled(t *testing.T) {
 	backend := b.(*jwtAuthBackend)
 	backend.cachedConfig.OIDCDiscoveryCAPEM = ""
 	serverTransport := aServer.server.Client().Transport
-	targetURL, _ := url.Parse(aServer.server.URL)
+	targetURL, err := url.Parse(aServer.server.URL)
+	require.NoError(t, err)
 	client := &http.Client{
 		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			req.URL.Scheme = targetURL.Scheme
@@ -412,7 +413,8 @@ func TestAzureProvider_FetchGroups_ManyGroups(t *testing.T) {
 	backend := b.(*jwtAuthBackend)
 	backend.cachedConfig.OIDCDiscoveryCAPEM = ""
 	serverTransport := aServer.server.Client().Transport
-	targetURL, _ := url.Parse(aServer.server.URL)
+	targetURL, err := url.Parse(aServer.server.URL)
+	require.NoError(t, err)
 	client := &http.Client{
 		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			req.URL.Scheme = targetURL.Scheme
