@@ -178,6 +178,9 @@ func (a *AzureProvider) getAzureGroups(groupsURL string, tokenSource oauth2.Toke
 	if err != nil {
 		return nil, fmt.Errorf("unable to get token: %s", err)
 	}
+	if token.AccessToken == "" {
+		return nil, errors.New("access token is empty. Cannot call Microsoft Graph API")
+	}
 	payload := strings.NewReader("{\"securityEnabledOnly\": false}")
 	req, err := http.NewRequest("POST", urlParsed.String(), payload)
 	if err != nil {
