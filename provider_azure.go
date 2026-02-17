@@ -75,9 +75,9 @@ func (a *AzureProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allCla
 		}
 		groups, err := a.getAzureGroups(fmt.Sprintf("https://%s%s%s", microsoftGraphHost, microsoftGraphAPIVersion, getMemberObjectsPath), tokenSource)
 		if err != nil {
-			return nil, fmt.Errorf("unable to fetch groups from Microsoft Graph API: %s", err)
+			return nil, fmt.Errorf("unable to fetch groups from Microsoft Graph API: %w", err)
 		}
-		b.Logger().Debug(fmt.Sprintf("groups from Microsoft Graph API: %v", groups))
+		b.Logger().Debug("groups fetched from Microsoft Graph API", "groups", groups)
 		return groups, nil
 	}
 
