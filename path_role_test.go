@@ -516,6 +516,36 @@ func TestPath_Create(t *testing.T) {
 			t.Fatalf("unexpected err: %v", resp)
 		}
 	})
+	// invalid JSON in oidc_claims should be rejected
+	t.Run("invalid oidc_claims json", func(t *testing.T) {
+		b, storage := getBackend(t)
+		data := map[string]interface{}{
+			"role_type":             "oidc",
+			"user_claim":            "user",
+			"policies":              "test",
+			"bound_audiences":       "vault",
+			"allowed_redirect_uris": []string{"https://example.com"},
+			"oidc_claims":           "{not json", // malformed
+		}
+
+		req := &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "role/invalid-claims",
+			Storage:   storage,
+			Data:      data,
+		}
+
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if resp == nil || !resp.IsError() {
+			t.Fatalf("expected error response, got %#v", resp)
+		}
+		if resp.Error().Error() != "'oidc_claims' must be a valid JSON string" {
+			t.Fatalf("unexpected error message: %s", resp.Error().Error())
+		}
+	})
 }
 
 func TestPath_OIDCCreate(t *testing.T) {
@@ -529,6 +559,7 @@ func TestPath_OIDCCreate(t *testing.T) {
 				"bar": "baz",
 			},
 			"oidc_scopes":           []string{"email", "profile"},
+			"oidc_claims":           `{"foo":"bar"}`,
 			"allowed_redirect_uris": []string{"https://example.com", "http://localhost:8250"},
 			"claim_mappings": map[string]string{
 				"foo": "a",
@@ -569,6 +600,7 @@ func TestPath_OIDCCreate(t *testing.T) {
 				"bar": "b",
 			},
 			OIDCScopes:       []string{"email", "profile"},
+			OIDCClaims:       `{"foo":"bar"}`,
 			UserClaim:        "user",
 			GroupsClaim:      "groups",
 			TTL:              1 * time.Second,
@@ -613,6 +645,7 @@ func TestPath_OIDCCreate(t *testing.T) {
 				"bar": "baz",
 			},
 			"oidc_scopes":           []string{"email", "profile"},
+			"oidc_claims":           `{"foo":"bar"}`,
 			"allowed_redirect_uris": []string{"https://example.com", "http://localhost:8250"},
 			"claim_mappings": map[string]string{
 				"foo":        "a",
@@ -659,6 +692,7 @@ func TestPath_OIDCCreate(t *testing.T) {
 				"bar": "baz",
 			},
 			"oidc_scopes":           []string{"email", "profile"},
+			"oidc_claims":           `{"foo":"bar"}`,
 			"allowed_redirect_uris": []string{"https://example.com", "http://localhost:8250"},
 			"claim_mappings": map[string]string{
 				"foo": "a",
@@ -749,6 +783,7 @@ func TestPath_Read(t *testing.T) {
 		"bound_audiences":       "vault",
 		"allowed_redirect_uris": []string{"http://127.0.0.1"},
 		"oidc_scopes":           []string{"email", "profile"},
+		"oidc_claims":           `{"foo":"bar"}`,
 		"user_claim":            "user",
 		"groups_claim":          "groups",
 		"bound_cidrs":           "127.0.0.1/8",
@@ -771,6 +806,7 @@ func TestPath_Read(t *testing.T) {
 		"bound_audiences":         []string{"vault"},
 		"allowed_redirect_uris":   []string{"http://127.0.0.1"},
 		"oidc_scopes":             []string{"email", "profile"},
+		"oidc_claims":             `{"foo":"bar"}`,
 		"user_claim":              "user",
 		"user_claim_json_pointer": false,
 		"groups_claim":            "groups",
