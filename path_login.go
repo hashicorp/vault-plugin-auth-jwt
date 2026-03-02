@@ -249,6 +249,9 @@ func (b *jwtAuthBackend) createIdentity(ctx context.Context, allClaims map[strin
 	if !ok {
 		return nil, nil, fmt.Errorf("claim %q could not be converted to string", role.UserClaim)
 	}
+	if userName == "" {
+		return nil, nil, fmt.Errorf("claim %q must not be empty", role.UserClaim)
+	}
 
 	pConfig, err := NewProviderConfig(ctx, b.cachedConfig, ProviderMap())
 	if err != nil {
