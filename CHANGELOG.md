@@ -1,3 +1,26 @@
+## Unreleased
+## v0.26.0
+### March 17, 2026
+
+IMPROVEMENTS:
+* Updated dependencies (#372):
+   * go 1.25.1 => 1.26.1
+   * github.com/hashicorp/cap v0.10.0 => v0.11.0
+   * golang.org/x/time v0.13.0 => v0.14.0
+   * golang.org/x/sync v0.17.0 => v0.19.0
+   * github.com/hashicorp/vault/sdk v0.19.0 => v0.23.0
+   * golang.org/x/text v0.29.0 => v0.33.0
+   * golang.org/x/sys v0.36.0 => v0.40.0
+   * golang.org/x/crypto v0.42.0 => v0.47.0
+   * golang.org/x/net v0.44.0 => v0.49.0
+   * go.opentelemetry.io/auto/sdk v1.1.0 => v1.2.1
+   * github.com/hashicorp/vault/api v1.21.0 => v1.22.0
+   * google.golang.org/protobuf v1.36.9 => v1.36.11
+   * go.opentelemetry.io/otel v1.37.0 => v1.39.0
+   * go.opentelemetry.io/otel/metric v1.37.0 => v1.39.0
+   * go.opentelemetry.io/otel/trace v1.37.0 => v1.39.0
+   * github.com/go-jose/go-jose/v4 v4.1.1 => v4.1.3
+
 ## v0.25.0
 ### October 3, 2025
 
