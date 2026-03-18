@@ -73,6 +73,7 @@ func TestPath_Create(t *testing.T) {
 				TokenMaxTTL:     5 * time.Second,
 				TokenNumUses:    12,
 				TokenBoundCIDRs: []*sockaddr.SockAddrMarshaler{{SockAddr: expectedSockAddr}},
+				AliasMetadata:   map[string]string{},
 			},
 			RoleType:             "jwt",
 			Policies:             []string{"test"},
@@ -553,6 +554,7 @@ func TestPath_OIDCCreate(t *testing.T) {
 				TokenTTL:      1 * time.Second,
 				TokenMaxTTL:   5 * time.Second,
 				TokenNumUses:  12,
+				AliasMetadata: map[string]string{},
 			},
 			RoleType:        "oidc",
 			Policies:        []string{"test"},
@@ -792,6 +794,7 @@ func TestPath_Read(t *testing.T) {
 		"token_no_default_policy": false,
 		"token_explicit_max_ttl":  int64(0),
 		"max_age":                 int64(0),
+		"alias_metadata":          map[string]string{},
 	}
 
 	req := &logical.Request{
