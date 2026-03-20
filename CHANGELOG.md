@@ -1,3 +1,12 @@
+## v0.26.0
+### March 18, 2026
+
+* Prepare v0.26.0 release (#372)
+* Add support for forcefetching groups directly through Graph API (#365)
+* [COMPLIANCE] Update Copyright and License Headers (#363)
+* chore: remove changie (#360)
+* Update changelog for v0.25.0 release (#359)
+
 ## Unreleased
 ## v0.26.0
 ### March 17, 2026
