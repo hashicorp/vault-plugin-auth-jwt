@@ -1,3 +1,9 @@
+## v0.26.1
+### March 20, 2026
+
+* Automated dependency upgrades (#374)
+* Update changelog for v0.26.0 release (#373)
+
 ## v0.26.0
 ### March 18, 2026
 
