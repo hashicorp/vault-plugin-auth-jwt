@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/vault/sdk/helper/cidrutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"golang.org/x/oauth2"
+	"golang.org/x/text/unicode/norm"
 )
 
 func pathLogin(b *jwtAuthBackend) *framework.Path {
@@ -249,6 +250,7 @@ func (b *jwtAuthBackend) createIdentity(ctx context.Context, allClaims map[strin
 	if !ok {
 		return nil, nil, fmt.Errorf("claim %q could not be converted to string", role.UserClaim)
 	}
+	userName = norm.NFC.String(userName)
 
 	pConfig, err := NewProviderConfig(ctx, b.cachedConfig, ProviderMap())
 	if err != nil {

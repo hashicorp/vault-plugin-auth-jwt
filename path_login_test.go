@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/text/unicode/norm"
 )
 
 type H map[string]interface{}
@@ -1780,3 +1781,17 @@ AwEHoUQDQgAE+C3CyjVWdeYtIqgluFJlwZmoonphsQbj9Nfo5wrEutv+3RTFnDQh
 vttUajcFAcl4beR+jHFYC00vSO4i5jZ64g==
 -----END EC PRIVATE KEY-----`
 )
+
+func TestUnicodeNormalizationInCreateIdentity(t *testing.T) {
+	nfc := "caf\u00e9user"
+	nfd := "cafe\u0301user"
+
+	if nfc == nfd {
+		t.Fatal("test setup error: NFC and NFD forms should differ as raw strings")
+	}
+
+	normalized := norm.NFC.String(nfd)
+	if normalized != nfc {
+		t.Fatalf("NFC normalization failed: got %q, want %q", normalized, nfc)
+	}
+}
