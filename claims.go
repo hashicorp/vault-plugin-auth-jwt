@@ -16,23 +16,50 @@ import (
 	"github.com/ryanuber/go-glob"
 )
 
+// Package-level vars to allow stubbing in tests.
+// (Default to pointerstructure implementations.)
+var (
+	pointerSet = pointerstructure.Set
+	pointerGet = pointerstructure.Get
+)
+
 // setClaim sets a claim value from allClaims given a provided claim string.
 // If this string is a valid JSONPointer, it will be interpreted as such to locate
 // the claim. Otherwise, the claim string will be used directly.
 func setClaim(logger log.Logger, allClaims map[string]interface{}, claim string, val interface{}) interface{} {
-	var err error
-
+	// Non-JSON pointer path: simple map write.
 	if !strings.HasPrefix(claim, "/") {
 		allClaims[claim] = val
-	} else {
-		val, err = pointerstructure.Set(allClaims, claim, val)
-		if err != nil {
-			logger.Warn(fmt.Sprintf("unable to set %s in claims: %s", claim, err.Error()))
-			return nil
+		return val
+	}
+
+	updated, err := pointerSet(allClaims, claim, val)
+	if err != nil {
+		logger.Warn(fmt.Sprintf("unable to set %s in claims: %s", claim, err.Error()))
+		return nil
+	}
+
+	// If Set returns an updated root object, sync it back into allClaims.
+	// This preserves the original map reference held by callers.
+	if m, ok := updated.(map[string]interface{}); ok {
+		// Defensive copy to avoid aliasing if updated happens to share memory.
+		tmpCopy := make(map[string]interface{}, len(m))
+		for k, v := range m {
+			tmpCopy[k] = v
+		}
+
+		// Clear original map contents.
+		for k := range allClaims {
+			delete(allClaims, k)
+		}
+
+		// Repopulate original map with updated root contents.
+		for k, v := range tmpCopy {
+			allClaims[k] = v
 		}
 	}
 
-	return val
+	return updated
 }
 
 // getClaim returns a claim value from allClaims given a provided claim string.
@@ -45,7 +72,7 @@ func getClaim(logger log.Logger, allClaims map[string]interface{}, claim string)
 	if !strings.HasPrefix(claim, "/") {
 		val = allClaims[claim]
 	} else {
-		val, err = pointerstructure.Get(allClaims, claim)
+		val, err = pointerGet(allClaims, claim)
 		if err != nil {
 			logger.Warn(fmt.Sprintf("unable to locate %s in claims: %s", claim, err.Error()))
 			return nil
