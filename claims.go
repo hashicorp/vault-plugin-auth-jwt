@@ -5,13 +5,11 @@ package jwtauth
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-secure-stdlib/strutil"
 	"github.com/mitchellh/pointerstructure"
 	"github.com/ryanuber/go-glob"
 )
@@ -87,26 +85,6 @@ func extractMetadata(logger log.Logger, allClaims map[string]interface{}, claimM
 		}
 	}
 	return metadata, nil
-}
-
-// validateAudience checks whether any of the audiences in audClaim match those
-// in boundAudiences. If strict is true and there are no bound audiences, then the
-// presence of any audience in the received claim is considered an error.
-func validateAudience(boundAudiences, audClaim []string, strict bool) error {
-	if strict && len(boundAudiences) == 0 && len(audClaim) > 0 {
-		return errors.New("audience claim found in JWT but no audiences bound to the role")
-	}
-
-	if len(boundAudiences) > 0 {
-		for _, v := range boundAudiences {
-			if strutil.StrListContains(audClaim, v) {
-				return nil
-			}
-		}
-		return errors.New("aud claim does not match any bound audience")
-	}
-
-	return nil
 }
 
 // validateBoundClaims checks that all of the claim:value requirements in boundClaims are
