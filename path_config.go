@@ -374,6 +374,12 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 
 	b.reset()
 
+	// Asynchronously pre-warm caches for MultiJWKS configuration
+	// This ensures caches are ready by the time users authenticate
+	if len(jwksPairs) > 0 {
+		go b.prewarmMultiJWKSCaches(jwksPairs)
+	}
+
 	return nil, nil
 }
 
