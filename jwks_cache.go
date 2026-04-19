@@ -10,10 +10,10 @@ import (
 	"io"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/hashicorp/cap/jwt"
+	"golang.org/x/oauth2"
 )
 
 // inflight represents an in-progress JWKS fetch to deduplicate concurrent requests.
@@ -24,33 +24,36 @@ type inflight struct {
 	err    error
 }
 
-// KidKeySetCache maintains a lightweight kid→KeySet index for efficient lookup.
+// JWKSCache maintains a lightweight kid→KeySet index for efficient lookup.
 // The actual JWKS fetching, caching, and verification is handled by CAP's KeySet.
 //
 // This cache only stores which key IDs (kids) are in which KeySet, avoiding
 // the need to iterate through all 50 KeySets for every JWT validation.
-type KidKeySetCache struct {
+type JWKSCache struct {
 	jwksURL string
-	keySet  jwt.KeySet // The CAP KeySet (e.g., RemoteKeySet) for this JWKS URL
+	keySet  jwt.KeySet      // The CAP KeySet (e.g., RemoteKeySet) for this JWKS URL
+	ctx     context.Context // Context with HTTP client configured with CA certs
 
 	mu            sync.RWMutex
 	cachedKids    []string  // Lightweight list of key IDs only
 	inflightFetch *inflight // Deduplicates concurrent fetch requests for this JWKS URL
 }
 
-// NewKidKeySetCache creates a new JWKS cache for the given URL.
+// NewJWKSCache creates a new JWKS cache for the given URL.
 // The keySet parameter is the CAP KeySet that handles fetching and verification.
-func NewKidKeySetCache(jwksURL string, keySet jwt.KeySet) *KidKeySetCache {
-	return &KidKeySetCache{
+// The ctx parameter should contain an HTTP client configured with CA certs (from createCAContext).
+func NewJWKSCache(jwksURL string, keySet jwt.KeySet, ctx context.Context) *JWKSCache {
+	return &JWKSCache{
 		jwksURL:    jwksURL,
 		keySet:     keySet,
+		ctx:        ctx,
 		cachedKids: []string{},
 	}
 }
 
 // GetCachedKids returns the currently cached key IDs without making an HTTP request.
 // This is a lightweight metadata lookup for the KeySetSearcher.
-func (ksc *KidKeySetCache) GetCachedKids() []string {
+func (ksc *JWKSCache) GetCachedKids() []string {
 	ksc.mu.RLock()
 	defer ksc.mu.RUnlock()
 
@@ -62,14 +65,14 @@ func (ksc *KidKeySetCache) GetCachedKids() []string {
 
 // GetKeySet returns the CAP KeySet for signature verification.
 // This is the actual go-oidc RemoteKeySet that handles all JWKS fetching and verification.
-func (ksc *KidKeySetCache) GetKeySet() jwt.KeySet {
+func (ksc *JWKSCache) GetKeySet() jwt.KeySet {
 	return ksc.keySet
 }
 
 // RefreshKeys fetches key IDs from the remote JWKS endpoint and updates the kid cache.
 // This is a lightweight operation that only stores key IDs, not full keys.
 // Uses an inflight mechanism to deduplicate concurrent requests (prevents thundering herd).
-func (ksc *KidKeySetCache) RefreshKeys(ctx context.Context) error {
+func (ksc *JWKSCache) RefreshKeys(ctx context.Context) error {
 	// Lock to check if there's already an inflight fetch for this JWKS URL
 	ksc.mu.Lock()
 
@@ -80,8 +83,8 @@ func (ksc *KidKeySetCache) RefreshKeys(ctx context.Context) error {
 		// This goroutine has exclusive ownership over the current inflight request.
 		// It releases the resource by nil'ing the field when done.
 		go func() {
-			// Fetch kids with retry logic and production-grade error handling
-			kids, err := ksc.fetchKids(context.Background())
+			// Fetch kids from JWKS endpoint
+			kids, err := ksc.fetchKids()
 
 			// Store result for all waiting goroutines
 			ksc.inflightFetch.kids = kids
@@ -116,12 +119,14 @@ func (ksc *KidKeySetCache) RefreshKeys(ctx context.Context) error {
 // fetchKids performs a lightweight HTTP fetch to get only the key IDs from the JWKS endpoint.
 // Follows go-oidc's pattern: single attempt, relies on application-level retries.
 // The inflight mechanism prevents thundering herd on concurrent requests.
-func (ksc *KidKeySetCache) fetchKids(ctx context.Context) ([]string, error) {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
+func (ksc *JWKSCache) fetchKids() ([]string, error) {
+	// Extract HTTP client from context (configured with CA certs via createCAContext)
+	client := http.DefaultClient
+	if c, ok := ksc.ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
+		client = c
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ksc.jwksURL, nil)
+	req, err := http.NewRequestWithContext(ksc.ctx, http.MethodGet, ksc.jwksURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWKS request: %w", err)
 	}
@@ -158,7 +163,7 @@ func (ksc *KidKeySetCache) fetchKids(ctx context.Context) ([]string, error) {
 }
 
 // GetJWKSURL returns the JWKS URL associated with this cache.
-func (ksc *KidKeySetCache) GetJWKSURL() string {
+func (ksc *JWKSCache) GetJWKSURL() string {
 	return ksc.jwksURL
 }
 
@@ -173,9 +178,9 @@ func (b *jwtAuthBackend) findKeySetByKid(ctx context.Context, keyID string) (jwt
 		return nil, fmt.Errorf("keyID must not be empty")
 	}
 
-	// Safely snapshot the keySetCaches slice to prevent race with reset()
+	// Safely snapshot the jwksCaches slice to prevent race with reset()
 	b.l.RLock()
-	caches := b.keySetCaches
+	caches := b.jwksCaches
 	b.l.RUnlock()
 
 	if len(caches) == 0 {
@@ -203,7 +208,7 @@ func (b *jwtAuthBackend) findKeySetByKid(ctx context.Context, keyID string) (jwt
 
 // findKeySetWithKid performs a lightweight kid lookup across all caches.
 // Returns the CAP KeySet that contains the kid, or nil if not found.
-func findKeySetWithKid(caches []*KidKeySetCache, keyID string) jwt.KeySet {
+func findKeySetWithKid(caches []*JWKSCache, keyID string) jwt.KeySet {
 	for _, cache := range caches {
 		kids := cache.GetCachedKids()
 
@@ -219,14 +224,14 @@ func findKeySetWithKid(caches []*KidKeySetCache, keyID string) jwt.KeySet {
 
 // refreshAllKeySetCaches refreshes kid metadata for all JWKS URLs in parallel.
 // Logs errors but doesn't fail - partial success is acceptable for cache refresh.
-func (b *jwtAuthBackend) refreshAllKeySetCaches(ctx context.Context, caches []*KidKeySetCache) error {
+func (b *jwtAuthBackend) refreshAllKeySetCaches(ctx context.Context, caches []*JWKSCache) error {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var errs []error
 
 	for _, cache := range caches {
 		wg.Add(1)
-		go func(ksc *KidKeySetCache) {
+		go func(ksc *JWKSCache) {
 			defer wg.Done()
 
 			if err := ksc.RefreshKeys(ctx); err != nil {
@@ -248,11 +253,11 @@ func (b *jwtAuthBackend) refreshAllKeySetCaches(ctx context.Context, caches []*K
 	return nil
 }
 
-// initializeKeySetCaches creates KidKeySetCache instances for all JWKS URLs.
+// initializeKeySetCaches creates JWKSCache instances for all JWKS URLs.
 // This is used both for pre-warming caches during config write and as a
 // fallback during validator initialization (e.g., after Vault restart).
 func (b *jwtAuthBackend) initializeKeySetCaches(pairs []*JWKSPair) error {
-	b.keySetCaches = make([]*KidKeySetCache, 0, len(pairs))
+	b.jwksCaches = make([]*JWKSCache, 0, len(pairs))
 	for _, p := range pairs {
 		// Create a CAP KeySet (RemoteKeySet) for this JWKS URL
 		// This handles all the actual fetching, caching, and verification
@@ -261,9 +266,15 @@ func (b *jwtAuthBackend) initializeKeySetCaches(pairs []*JWKSPair) error {
 			return fmt.Errorf("failed to create KeySet for %s: %w", p.JWKSUrl, err)
 		}
 
+		// Create context with CA-configured HTTP client for kid fetching
+		caCtx, err := b.createCAContext(b.providerCtx, p.JWKSCAPEM)
+		if err != nil {
+			return fmt.Errorf("failed to create CA context for %s: %w", p.JWKSUrl, err)
+		}
+
 		// Our cache is just a lightweight kid→KeySet index
-		ksc := NewKidKeySetCache(p.JWKSUrl, keySet)
-		b.keySetCaches = append(b.keySetCaches, ksc)
+		ksc := NewJWKSCache(p.JWKSUrl, keySet, caCtx)
+		b.jwksCaches = append(b.jwksCaches, ksc)
 	}
 	return nil
 }
@@ -294,12 +305,12 @@ func (b *jwtAuthBackend) prewarmMultiJWKSCaches(pairs []*JWKSPair) {
 func (b *jwtAuthBackend) warmMultiJWKSCaches() {
 	// Snapshot caches without holding lock
 	b.l.RLock()
-	caches := b.keySetCaches
+	caches := b.jwksCaches
 	b.l.RUnlock()
 
 	// Warm caches in parallel
 	for _, ksc := range caches {
-		go func(cache *KidKeySetCache, url string) {
+		go func(cache *JWKSCache, url string) {
 			// Use background context for pre-warming since we don't want to cancel it
 			ctx := context.Background()
 			if err := cache.RefreshKeys(ctx); err != nil {
@@ -318,7 +329,7 @@ func (b *jwtAuthBackend) warmMultiJWKSCaches() {
 // Must be called with b.l lock held.
 func (b *jwtAuthBackend) jwtValidatorForMultiJWKS(config *jwtConfig) (*jwt.Validator, error) {
 	// Initialize caches if needed (already holding b.l lock)
-	if len(b.keySetCaches) == 0 {
+	if len(b.jwksCaches) == 0 {
 		pairs, err := NewJWKSPairsConfig(config)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing JWKS pairs: %w", err)
