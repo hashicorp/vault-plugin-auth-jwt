@@ -482,8 +482,7 @@ func TestConfig_JWKS_Pairs_Update_Invalid(t *testing.T) {
 	if !strings.Contains(resp.Error().Error(), "error checking jwks URL") {
 		t.Fatalf("got unexpected error: %v", resp.Error())
 	}
-	// Wait for any background prewarm attempts to complete
-	time.Sleep(100 * time.Millisecond)
+
 	// remove the /certs_missing url from the config
 	newPairs := []interface{}{
 		map[string]interface{}{"jwks_url": s.server.URL + "/certs_invalid", "jwks_ca_pem": cert},
@@ -509,9 +508,6 @@ func TestConfig_JWKS_Pairs_Update_Invalid(t *testing.T) {
 	if !strings.Contains(resp.Error().Error(), "error checking jwks URL") {
 		t.Fatalf("got unexpected error: %v", resp.Error())
 	}
-
-	// Wait for any background prewarm attempts to complete before servers close
-	time.Sleep(100 * time.Millisecond)
 }
 
 func TestConfig_ResponseMode(t *testing.T) {
