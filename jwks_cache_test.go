@@ -341,11 +341,6 @@ func TestMultiJWKS_EndToEnd_Authentication(t *testing.T) {
 	assert.Equal(t, "jeff", resp.Auth.Alias.Name)
 	assert.Contains(t, resp.Auth.Policies, "test")
 
-	// KEY TEST: With warm cache, should NOT query all servers
-	// Only server2 should be accessed (where the kid exists)
-	// CAP may verify one key from each server during validator creation,
-	// but the kid cache should minimize requests during authentication
-
 	srv1Count := srv1.getRequestCount()
 	srv2Count := srv2.getRequestCount()
 	srv3Count := srv3.getRequestCount()
