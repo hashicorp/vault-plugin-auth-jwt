@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-test/deep"
 	"github.com/hashicorp/vault/sdk/helper/certutil"
@@ -410,9 +409,6 @@ func TestConfig_JWKS_Pairs_Update(t *testing.T) {
 		t.Fatalf("err:%s resp:%#v\n", err, resp)
 	}
 
-	// Wait for prewarm goroutines to complete
-	time.Sleep(100 * time.Millisecond)
-
 	req = &logical.Request{
 		Operation: logical.ReadOperation,
 		Path:      configPath,
@@ -437,7 +433,7 @@ func TestConfig_JWKS_Pairs_Update_Invalid(t *testing.T) {
 	defer s.server.Close()
 
 	s2 := newOIDCProvider(t)
-	defer s2.server.Close()
+	defer s.server.Close()
 
 	cert, err := s.getTLSCert()
 	if err != nil {
