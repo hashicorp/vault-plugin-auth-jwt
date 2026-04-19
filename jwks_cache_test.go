@@ -391,12 +391,28 @@ func TestMultiJWKS_TwoPhase_ColdCache(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, resp != nil && resp.IsError())
 
-	// Get backend - wait briefly for prewarm goroutines to be spawned
+	// Get backend and wait for prewarm to complete
 	jwtBackend := b.(*jwtAuthBackend)
-	time.Sleep(50 * time.Millisecond)
 
-	// Clear caches and reset counters to ensure truly cold cache scenario
-	// This prevents race with background prewarm completing
+	// Wait for prewarm to complete before clearing caches
+	// This ensures we're not racing with the prewarm goroutines
+	require.Eventually(t, func() bool {
+		jwtBackend.l.RLock()
+		defer jwtBackend.l.RUnlock()
+
+		// Check if all caches are warmed (have kids)
+		if len(jwtBackend.jwksCaches) == 0 {
+			return false
+		}
+		for _, cache := range jwtBackend.jwksCaches {
+			if len(cache.GetCachedKids()) == 0 {
+				return false
+			}
+		}
+		return true
+	}, 5*time.Second, 50*time.Millisecond, "caches should be pre-warmed")
+
+	// NOW safe to clear caches - prewarm is complete
 	jwtBackend.l.Lock()
 	for _, cache := range jwtBackend.jwksCaches {
 		if cache != nil {
@@ -407,7 +423,7 @@ func TestMultiJWKS_TwoPhase_ColdCache(t *testing.T) {
 	}
 	jwtBackend.l.Unlock()
 
-	// Reset counters after clearing to get clean measurements
+	// Reset counters AFTER clearing to get clean measurements
 	srv1.resetRequestCount()
 	srv2.resetRequestCount()
 
