@@ -157,8 +157,13 @@ func (b *jwtAuthBackend) jwtValidator(config *jwtConfig) (*jwt.Validator, error)
 		keySet, err = jwt.NewJSONWebKeySet(b.providerCtx, config.JWKSURL, config.JWKSCAPEM)
 		keySets = []jwt.KeySet{keySet}
 	case MultiJWKS:
-		// MultiJWKS uses KeySetSearcher callback and is never cached
-		return b.jwtValidatorForMultiJWKS(config)
+		// MultiJWKS uses KeySetSearcher callback with kid cache
+		validator, err := b.jwtValidatorForMultiJWKS(config)
+		if err != nil {
+			return nil, err
+		}
+		b.validator = validator
+		return b.validator, nil
 	case StaticKeys:
 		keySet, err = jwt.NewStaticKeySet(config.ParsedJWTPubKeys)
 		keySets = []jwt.KeySet{keySet}

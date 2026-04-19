@@ -6,6 +6,7 @@ package jwtauth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -83,24 +84,23 @@ func (ksc *JWKSCache) RefreshKeys(ctx context.Context) error {
 		// This goroutine has exclusive ownership over the current inflight request.
 		// It releases the resource by nil'ing the field when done.
 		go func() {
-			// Fetch kids from JWKS endpoint
-			kids, err := ksc.fetchKids()
+			// Fetch kids from JWKS endpoint using caller's context
+			kids, err := ksc.fetchKids(ctx)
 
-			// Store result for all waiting goroutines
+			// Lock to update cache and store results BEFORE closing doneCh
+			// This ensures waiters see updated cache state immediately
+			ksc.mu.Lock()
 			ksc.inflightFetch.kids = kids
 			ksc.inflightFetch.err = err
-			close(ksc.inflightFetch.doneCh)
-
-			// Lock to update the cached keys and free the inflight slot
-			ksc.mu.Lock()
-			defer ksc.mu.Unlock()
-
 			if err == nil {
 				ksc.cachedKids = kids
 			}
-
-			// Free inflight so a different request can run
+			doneCh := ksc.inflightFetch.doneCh
 			ksc.inflightFetch = nil
+			ksc.mu.Unlock()
+
+			// Close channel AFTER updating cache to prevent race conditions
+			close(doneCh)
 		}()
 	}
 
@@ -119,14 +119,14 @@ func (ksc *JWKSCache) RefreshKeys(ctx context.Context) error {
 // fetchKids performs a lightweight HTTP fetch to get only the key IDs from the JWKS endpoint.
 // Follows go-oidc's pattern: single attempt, relies on application-level retries.
 // The inflight mechanism prevents thundering herd on concurrent requests.
-func (ksc *JWKSCache) fetchKids() ([]string, error) {
+func (ksc *JWKSCache) fetchKids(ctx context.Context) ([]string, error) {
 	// Extract HTTP client from context (configured with CA certs via createCAContext)
 	client := http.DefaultClient
 	if c, ok := ksc.ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
 		client = c
 	}
 
-	req, err := http.NewRequestWithContext(ksc.ctx, http.MethodGet, ksc.jwksURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ksc.jwksURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWKS request: %w", err)
 	}
@@ -248,6 +248,7 @@ func (b *jwtAuthBackend) refreshAllKeySetCaches(ctx context.Context, caches []*J
 
 	if len(errs) > 0 {
 		b.Logger().Debug("completed JWKS refresh with errors", "total_caches", len(caches), "failed", len(errs))
+		return errors.Join(errs...)
 	}
 
 	return nil

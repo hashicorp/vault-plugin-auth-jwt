@@ -6,6 +6,7 @@ package jwtauth
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -16,8 +17,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"crypto/tls"
 
 	"github.com/go-jose/go-jose/v3"
 	sqjwt "github.com/go-jose/go-jose/v3/jwt"
@@ -263,8 +262,14 @@ func TestMultiJWKS_EndToEnd_Authentication(t *testing.T) {
 		t.Fatalf("config write failed: %v", resp.Error())
 	}
 
-	// Give prewarm a moment to complete
-	time.Sleep(100 * time.Millisecond)
+	// Wait for prewarm to complete deterministically
+	jwtBackend := b.(*jwtAuthBackend)
+	require.Eventually(t, func() bool {
+		return len(jwtBackend.jwksCaches) == 3 &&
+			jwtBackend.jwksCaches[0] != nil &&
+			jwtBackend.jwksCaches[1] != nil &&
+			jwtBackend.jwksCaches[2] != nil
+	}, 2*time.Second, 50*time.Millisecond, "prewarm should initialize all caches")
 
 	// Create role
 	roleData := map[string]interface{}{
@@ -340,8 +345,14 @@ func TestMultiJWKS_EndToEnd_Authentication(t *testing.T) {
 	// Only server2 should be accessed (where the kid exists)
 	// Note: During validator creation, CAP may verify one key from each server
 	// But during actual authentication, only the correct server should be hit
-	t.Logf("Request counts - srv1: %d, srv2: %d, srv3: %d",
-		srv1.getRequestCount(), srv2.getRequestCount(), srv3.getRequestCount())
+
+	// Assert that we accessed the servers but with minimal overhead
+	srv2Count := srv2.getRequestCount()
+	assert.Greater(t, srv2Count, int32(0), "srv2 should be accessed (has the kid)")
+
+	// Log for debugging
+	t.Logf("Request counts after login - srv1: %d, srv2: %d, srv3: %d",
+		srv1.getRequestCount(), srv2Count, srv3.getRequestCount())
 }
 
 // TestMultiJWKS_TwoPhase_ColdCache tests behavior when kid not in cache
@@ -378,10 +389,22 @@ func TestMultiJWKS_TwoPhase_ColdCache(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, resp != nil && resp.IsError())
 
-	// Don't wait for prewarm - test cold cache scenario
-
-	// Get backend and test findKeySetByKid directly
+	// Get backend and clear caches to ensure cold cache scenario
+	// This prevents race with background prewarm
 	jwtBackend := b.(*jwtAuthBackend)
+	jwtBackend.l.Lock()
+	for _, cache := range jwtBackend.jwksCaches {
+		if cache != nil {
+			cache.mu.Lock()
+			cache.cachedKids = nil
+			cache.mu.Unlock()
+		}
+	}
+	jwtBackend.l.Unlock()
+
+	// Reset counters after prewarm may have run
+	srv1.resetRequestCount()
+	srv2.resetRequestCount()
 
 	// Cold cache - kid not cached yet
 	// This should trigger Phase 1 (cache miss) then Phase 2 (refresh all + retry)
