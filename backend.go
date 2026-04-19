@@ -46,8 +46,8 @@ type jwtAuthBackend struct {
 	providerCtx       context.Context
 	providerCtxCancel context.CancelFunc
 
-	// kidKeySetCaches stores our kid→KeySet index for two-phase MultiJWKS lookup
-	keySetCaches []*KidKeySetCache
+	// jwksCaches stores our kid→KeySet index for two-phase MultiJWKS lookup
+	jwksCaches []*JWKSCache
 }
 
 func backend() *jwtAuthBackend {
@@ -117,7 +117,7 @@ func (b *jwtAuthBackend) reset() {
 	b.provider = nil
 	b.cachedConfig = nil
 	b.validator = nil
-	b.keySetCaches = nil // Clear pre-warmed caches on config change
+	b.jwksCaches = nil // Clear pre-warmed caches on config change
 	b.l.Unlock()
 }
 
