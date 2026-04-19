@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-test/deep"
 	"github.com/hashicorp/vault/sdk/helper/certutil"
@@ -409,6 +410,9 @@ func TestConfig_JWKS_Pairs_Update(t *testing.T) {
 		t.Fatalf("err:%s resp:%#v\n", err, resp)
 	}
 
+	// Wait for prewarm goroutines to complete
+	time.Sleep(100 * time.Millisecond)
+
 	req = &logical.Request{
 		Operation: logical.ReadOperation,
 		Path:      configPath,
@@ -433,7 +437,7 @@ func TestConfig_JWKS_Pairs_Update_Invalid(t *testing.T) {
 	defer s.server.Close()
 
 	s2 := newOIDCProvider(t)
-	defer s.server.Close()
+	defer s2.server.Close()
 
 	cert, err := s.getTLSCert()
 	if err != nil {
@@ -478,7 +482,8 @@ func TestConfig_JWKS_Pairs_Update_Invalid(t *testing.T) {
 	if !strings.Contains(resp.Error().Error(), "error checking jwks URL") {
 		t.Fatalf("got unexpected error: %v", resp.Error())
 	}
-
+	// Wait for any background prewarm attempts to complete
+	time.Sleep(100 * time.Millisecond)
 	// remove the /certs_missing url from the config
 	newPairs := []interface{}{
 		map[string]interface{}{"jwks_url": s.server.URL + "/certs_invalid", "jwks_ca_pem": cert},
@@ -504,6 +509,9 @@ func TestConfig_JWKS_Pairs_Update_Invalid(t *testing.T) {
 	if !strings.Contains(resp.Error().Error(), "error checking jwks URL") {
 		t.Fatalf("got unexpected error: %v", resp.Error())
 	}
+
+	// Wait for any background prewarm attempts to complete before servers close
+	time.Sleep(100 * time.Millisecond)
 }
 
 func TestConfig_ResponseMode(t *testing.T) {
