@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/hashicorp/cap/jwt"
@@ -84,8 +85,12 @@ func (ksc *JWKSCache) RefreshKeys(ctx context.Context) error {
 		// This goroutine has exclusive ownership over the current inflight request.
 		// It releases the resource by nil'ing the field when done.
 		go func() {
-			// Fetch kids from JWKS endpoint using caller's context
-			kids, err := ksc.fetchKids(ctx)
+			// Use detached context to prevent one caller's cancellation from affecting others
+			// Add 60s timeout to prevent hanging if JWKS endpoint is unresponsive
+			fetchCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			kids, err := ksc.fetchKids(fetchCtx)
 
 			// Lock to update cache and store results BEFORE closing doneCh
 			// This ensures waiters see updated cache state immediately
@@ -194,15 +199,18 @@ func (b *jwtAuthBackend) findKeySetByKid(ctx context.Context, keyID string) (jwt
 	}
 
 	// Cache miss - refresh all caches and retry
-	if err := b.refreshAllKeySetCaches(ctx, caches); err != nil {
-		return nil, fmt.Errorf("failed to refresh JWKS caches: %w", err)
-	}
+	// Even if refresh has partial failures, we still check if the kid was found
+	refreshErr := b.refreshAllKeySetCaches(ctx, caches)
 
 	keySet = findKeySetWithKid(caches, keyID)
 	if keySet != nil {
 		return keySet, nil
 	}
 
+	// Kid still not found after refresh - return error with context
+	if refreshErr != nil {
+		return nil, fmt.Errorf("no key found with kid %s (refresh had errors: %w)", keyID, refreshErr)
+	}
 	return nil, fmt.Errorf("no key found with kid %s in any JWKS endpoint", keyID)
 }
 
@@ -310,9 +318,10 @@ func (b *jwtAuthBackend) warmMultiJWKSCaches() {
 	b.l.RUnlock()
 
 	// Warm caches in parallel
+	// RefreshKeys has built-in timeout protection via detached context
 	for _, ksc := range caches {
 		go func(cache *JWKSCache, url string) {
-			// Use background context for pre-warming since we don't want to cancel it
+			// Use background context - RefreshKeys handles timeout internally
 			ctx := context.Background()
 			if err := cache.RefreshKeys(ctx); err != nil {
 				b.Logger().Warn("failed to pre-warm JWKS cache", "url", url, "error", err)

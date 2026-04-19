@@ -343,16 +343,23 @@ func TestMultiJWKS_EndToEnd_Authentication(t *testing.T) {
 
 	// KEY TEST: With warm cache, should NOT query all servers
 	// Only server2 should be accessed (where the kid exists)
-	// Note: During validator creation, CAP may verify one key from each server
-	// But during actual authentication, only the correct server should be hit
+	// CAP may verify one key from each server during validator creation,
+	// but the kid cache should minimize requests during authentication
 
-	// Assert that we accessed the servers but with minimal overhead
+	srv1Count := srv1.getRequestCount()
 	srv2Count := srv2.getRequestCount()
+	srv3Count := srv3.getRequestCount()
+
+	// Srv2 must be accessed (has the kid)
 	assert.Greater(t, srv2Count, int32(0), "srv2 should be accessed (has the kid)")
 
+	// Srv1 and srv3 should have minimal or no access if kid cache is working
+	// Allow some initial requests from prewarm, but not excessive repeated fetches
+	assert.LessOrEqual(t, srv1Count, int32(2), "srv1 should have minimal requests (kid not present)")
+	assert.LessOrEqual(t, srv3Count, int32(2), "srv3 should have minimal requests (kid not present)")
+
 	// Log for debugging
-	t.Logf("Request counts after login - srv1: %d, srv2: %d, srv3: %d",
-		srv1.getRequestCount(), srv2Count, srv3.getRequestCount())
+	t.Logf("Request counts after login - srv1: %d, srv2: %d, srv3: %d", srv1Count, srv2Count, srv3Count)
 }
 
 // TestMultiJWKS_TwoPhase_ColdCache tests behavior when kid not in cache
@@ -389,9 +396,12 @@ func TestMultiJWKS_TwoPhase_ColdCache(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, resp != nil && resp.IsError())
 
-	// Get backend and clear caches to ensure cold cache scenario
-	// This prevents race with background prewarm
+	// Get backend - wait briefly for prewarm goroutines to be spawned
 	jwtBackend := b.(*jwtAuthBackend)
+	time.Sleep(50 * time.Millisecond)
+
+	// Clear caches and reset counters to ensure truly cold cache scenario
+	// This prevents race with background prewarm completing
 	jwtBackend.l.Lock()
 	for _, cache := range jwtBackend.jwksCaches {
 		if cache != nil {
@@ -402,7 +412,7 @@ func TestMultiJWKS_TwoPhase_ColdCache(t *testing.T) {
 	}
 	jwtBackend.l.Unlock()
 
-	// Reset counters after prewarm may have run
+	// Reset counters after clearing to get clean measurements
 	srv1.resetRequestCount()
 	srv2.resetRequestCount()
 
@@ -446,10 +456,23 @@ func TestMultiJWKS_TwoPhase_WarmCache(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, resp != nil && resp.IsError())
 
-	// Wait for prewarm
-	time.Sleep(200 * time.Millisecond)
-
 	jwtBackend := b.(*jwtAuthBackend)
+
+	// Wait for prewarm to complete deterministically
+	require.Eventually(t, func() bool {
+		if len(jwtBackend.jwksCaches) == 0 {
+			return false
+		}
+		cache := jwtBackend.jwksCaches[0]
+		cache.mu.Lock()
+		defer cache.mu.Unlock()
+		for _, kid := range cache.cachedKids {
+			if kid == "cached-key" {
+				return true
+			}
+		}
+		return false
+	}, 2*time.Second, 50*time.Millisecond, "prewarm should cache the kid")
 
 	// Reset counter after prewarm
 	srv.resetRequestCount()
@@ -513,8 +536,23 @@ func TestMultiJWKS_ConcurrentLogins(t *testing.T) {
 	resp, err = b.HandleRequest(context.Background(), req)
 	require.NoError(t, err)
 
-	// Wait for prewarm
-	time.Sleep(200 * time.Millisecond)
+	jwtBackend := b.(*jwtAuthBackend)
+
+	// Wait for prewarm to complete deterministically
+	require.Eventually(t, func() bool {
+		if len(jwtBackend.jwksCaches) == 0 {
+			return false
+		}
+		cache := jwtBackend.jwksCaches[0]
+		cache.mu.Lock()
+		defer cache.mu.Unlock()
+		for _, kid := range cache.cachedKids {
+			if kid == "concurrent-key" {
+				return true
+			}
+		}
+		return false
+	}, 2*time.Second, 50*time.Millisecond, "prewarm should cache the kid")
 
 	// Create JWT
 	cl := sqjwt.Claims{
