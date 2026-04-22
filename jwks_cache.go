@@ -6,7 +6,6 @@ package jwtauth
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -191,17 +190,15 @@ func (b *jwtAuthBackend) findKeySetByKid(ctx context.Context, keyID string) (jwt
 
 	// Cache miss - refresh all caches and retry
 	// Even if refresh has partial failures, we still check if the kid was found
-	refreshErr := b.refreshAllKeySetCaches(ctx, caches)
+	// (Errors are logged in refreshAllKeySetCaches)
+	b.refreshAllKeySetCaches(ctx, caches)
 
 	keySet = findKeySetWithKid(caches, keyID)
 	if keySet != nil {
 		return keySet, nil
 	}
 
-	// Kid still not found after refresh - return error with context
-	if refreshErr != nil {
-		return nil, fmt.Errorf("no key found with kid %s (refresh had errors: %w)", keyID, refreshErr)
-	}
+	// Kid still not found after refresh
 	return nil, fmt.Errorf("no key found with kid %s in any JWKS endpoint", keyID)
 }
 
@@ -223,10 +220,8 @@ func findKeySetWithKid(caches []*JWKSCache, keyID string) jwt.KeySet {
 
 // refreshAllKeySetCaches refreshes kid metadata for all JWKS URLs in parallel.
 // Logs errors but doesn't fail - partial success is acceptable for cache refresh.
-func (b *jwtAuthBackend) refreshAllKeySetCaches(ctx context.Context, caches []*JWKSCache) error {
+func (b *jwtAuthBackend) refreshAllKeySetCaches(ctx context.Context, caches []*JWKSCache) {
 	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var errs []error
 
 	for _, cache := range caches {
 		wg.Add(1)
@@ -234,23 +229,14 @@ func (b *jwtAuthBackend) refreshAllKeySetCaches(ctx context.Context, caches []*J
 			defer wg.Done()
 
 			if err := ksc.RefreshKeys(ctx); err != nil {
-				refreshErr := fmt.Errorf("failed to refresh %s: %w", ksc.GetJWKSURL(), err)
-				mu.Lock()
-				errs = append(errs, refreshErr)
-				mu.Unlock()
-				b.Logger().Warn("error refreshing JWKS kid cache", "error", refreshErr)
+				b.Logger().Warn("error refreshing JWKS kid cache",
+					"jwks_url", ksc.GetJWKSURL(),
+					"error", err)
 			}
 		}(cache)
 	}
 
 	wg.Wait()
-
-	if len(errs) > 0 {
-		b.Logger().Debug("completed JWKS refresh with errors", "total_caches", len(caches), "failed", len(errs))
-		return errors.Join(errs...)
-	}
-
-	return nil
 }
 
 // initializeKeySetCaches creates JWKSCache instances for all JWKS URLs.
