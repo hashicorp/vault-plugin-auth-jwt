@@ -264,10 +264,10 @@ func (b *jwtAuthBackend) initializeKeySetCaches(pairs []*JWKSPair) error {
 	return nil
 }
 
-// prewarmMultiJWKSCaches asynchronously fetches and caches keys from all JWKS URLs.
-// This is called in a goroutine during config write to ensure caches are warm
-// by the time users authenticate, avoiding cold-start latency.
-// The pre-warming happens in parallel for all JWKS URLs to minimize total time.
+// prewarmMultiJWKSCaches initializes caches and triggers background warming for all JWKS URLs.
+// Called synchronously during config write. The function returns quickly after launching
+// background goroutines to fetch keys, ensuring the config API remains responsive.
+// The background fetching happens in parallel for all JWKS URLs to minimize total time.
 func (b *jwtAuthBackend) prewarmMultiJWKSCaches(pairs []*JWKSPair) {
 	b.l.Lock()
 
@@ -283,9 +283,9 @@ func (b *jwtAuthBackend) prewarmMultiJWKSCaches(pairs []*JWKSPair) {
 	b.warmMultiJWKSCaches()
 }
 
-// warmMultiJWKSCaches fetches kids from all JWKS URLs in parallel.
-// Called both during config write (prewarm) and first auth request.
-// Must be called in a goroutine.
+// warmMultiJWKSCaches launches background goroutines to fetch kids from all JWKS URLs.
+// This is a fire-and-forget operation that returns immediately without waiting.
+// Called during config write (via prewarm) and on first auth request after restart.
 func (b *jwtAuthBackend) warmMultiJWKSCaches() {
 	// Snapshot caches without holding lock
 	b.l.RLock()
