@@ -46,7 +46,7 @@ type jwtAuthBackend struct {
 	providerCtx       context.Context
 	providerCtxCancel context.CancelFunc
 
-	// jwksCaches stores our kid→KeySet index for two-phase MultiJWKS lookup
+	// jwksCaches stores kid→KeySet cache for two-phase MultiJWKS lookup
 	jwksCaches []*JWKSCache
 }
 

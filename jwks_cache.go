@@ -285,7 +285,7 @@ func (b *jwtAuthBackend) prewarmMultiJWKSCaches(pairs []*JWKSPair) {
 }
 
 // warmMultiJWKSCaches launches background goroutines to fetch kids from all JWKS URLs.
-// This is a fire-and-forget operation that returns immediately without waiting.
+// This is a parallel operation that returns immediately without waiting.
 // Called during config write (via prewarm) and on first auth request after restart.
 func (b *jwtAuthBackend) warmMultiJWKSCaches() {
 	// Snapshot caches without holding lock
