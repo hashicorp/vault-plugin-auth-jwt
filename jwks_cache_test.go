@@ -265,6 +265,8 @@ func TestMultiJWKS_EndToEnd_Authentication(t *testing.T) {
 	// Wait for prewarm to complete deterministically
 	jwtBackend := b.(*jwtAuthBackend)
 	require.Eventually(t, func() bool {
+		jwtBackend.l.RLock()
+		defer jwtBackend.l.RUnlock()
 		return len(jwtBackend.jwksCaches) == 3 &&
 			jwtBackend.jwksCaches[0] != nil &&
 			jwtBackend.jwksCaches[1] != nil &&
@@ -471,6 +473,8 @@ func TestMultiJWKS_TwoPhase_WarmCache(t *testing.T) {
 
 	// Wait for prewarm to complete deterministically
 	require.Eventually(t, func() bool {
+		jwtBackend.l.RLock()
+		defer jwtBackend.l.RUnlock()
 		if len(jwtBackend.jwksCaches) == 0 {
 			return false
 		}
@@ -551,6 +555,8 @@ func TestMultiJWKS_ConcurrentLogins(t *testing.T) {
 
 	// Wait for prewarm to complete deterministically
 	require.Eventually(t, func() bool {
+		jwtBackend.l.RLock()
+		defer jwtBackend.l.RUnlock()
 		if len(jwtBackend.jwksCaches) == 0 {
 			return false
 		}
@@ -700,10 +706,15 @@ func TestMultiJWKS_ConfigReset(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, resp != nil && resp.IsError())
 
-	time.Sleep(100 * time.Millisecond)
+	// Wait deterministically for prewarm to complete
+	jwtBackend := b.(*jwtAuthBackend)
+	require.Eventually(t, func() bool {
+		jwtBackend.l.RLock()
+		defer jwtBackend.l.RUnlock()
+		return len(jwtBackend.jwksCaches) == 1
+	}, 2*time.Second, 50*time.Millisecond, "prewarm should initialize cache")
 
 	// Verify caches exist
-	jwtBackend := b.(*jwtAuthBackend)
 	jwtBackend.l.RLock()
 	cacheCount := len(jwtBackend.jwksCaches)
 	jwtBackend.l.RUnlock()

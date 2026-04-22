@@ -78,9 +78,10 @@ func (ksc *JWKSCache) RefreshKeys(ctx context.Context) error {
 		// This goroutine has exclusive ownership over the current inflight request.
 		// It releases the resource by nil'ing the field when done.
 		go func() {
-			// Use detached context to prevent one caller's cancellation from affecting others
-			// Add 60s timeout to prevent hanging if JWKS endpoint is unresponsive
-			fetchCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			// Use backend context (ksc.ctx) as base so shutdown cancels inflight requests
+			// Apply 60s timeout to prevent hanging if JWKS endpoint is unresponsive
+			// This detaches from individual caller contexts while respecting backend lifecycle
+			fetchCtx, cancel := context.WithTimeout(ksc.ctx, 60*time.Second)
 			defer cancel()
 
 			kids, err := ksc.fetchKids(fetchCtx)
