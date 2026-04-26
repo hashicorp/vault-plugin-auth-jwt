@@ -141,7 +141,7 @@ func (ksc *JWKSCache) fetchKids(ctx context.Context) ([]string, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("JWKS endpoint returned status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("JWKS endpoint returned status %d", resp.StatusCode)
 	}
 
 	var keySet jose.JSONWebKeySet
@@ -190,9 +190,11 @@ func (b *jwtAuthBackend) findKeySetByKid(ctx context.Context, keyID string) (jwt
 	}
 
 	// Cache miss - refresh all caches and retry
-	// Even if refresh has partial failures, we still check if the kid was found
-	// (Errors are logged in refreshAllKeySetCaches)
-	b.refreshAllKeySetCaches(ctx, caches)
+	// Return error if ALL caches fail (network issues)
+	// Partial failures are acceptable - we still check if the kid was found
+	if err := b.refreshAllKeySetCaches(ctx, caches); err != nil {
+		return nil, err
+	}
 
 	keySet = findKeySetWithKid(caches, keyID)
 	if keySet != nil {
@@ -220,8 +222,8 @@ func findKeySetWithKid(caches []*JWKSCache, keyID string) jwt.KeySet {
 }
 
 // refreshAllKeySetCaches refreshes kid metadata for all JWKS URLs in parallel.
-// Logs errors but doesn't fail - partial success is acceptable for cache refresh.
-func (b *jwtAuthBackend) refreshAllKeySetCaches(ctx context.Context, caches []*JWKSCache) {
+// Returns error only if ALL caches fail to refresh - partial success is acceptable.
+func (b *jwtAuthBackend) refreshAllKeySetCaches(ctx context.Context, caches []*JWKSCache) error {
 	var wg sync.WaitGroup
 
 	for _, cache := range caches {
@@ -238,6 +240,16 @@ func (b *jwtAuthBackend) refreshAllKeySetCaches(ctx context.Context, caches []*J
 	}
 
 	wg.Wait()
+
+	// Check if at least one cache has keys (succeeded)
+	for _, cache := range caches {
+		if len(cache.GetCachedKids()) > 0 {
+			return nil
+		}
+	}
+
+	// All caches are empty - all failed
+	return fmt.Errorf("failed to refresh all %d JWKS caches - check network connectivity and JWKS endpoints", len(caches))
 }
 
 // initializeKeySetCaches creates JWKSCache instances for all JWKS URLs.
@@ -297,8 +309,8 @@ func (b *jwtAuthBackend) warmMultiJWKSCaches() {
 	// RefreshKeys has built-in timeout protection via detached context
 	for _, ksc := range caches {
 		go func(cache *JWKSCache, url string) {
-			// Use background context - RefreshKeys handles timeout internally
-			ctx := context.Background()
+			// Use provider context so warmup respects backend lifecycle
+			ctx := b.providerCtx
 			if err := cache.RefreshKeys(ctx); err != nil {
 				b.Logger().Warn("failed to pre-warm JWKS cache", "url", url, "error", err)
 			} else {
