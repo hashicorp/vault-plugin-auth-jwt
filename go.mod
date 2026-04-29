@@ -5,7 +5,7 @@ go 1.26.1
 require (
 	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/go-test/deep v1.1.1
-	github.com/hashicorp/cap v0.12.1-0.20260415172657-9d4dd6dc28b4
+	github.com/hashicorp/cap v0.13.0
 	github.com/hashicorp/errwrap v1.1.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-hclog v1.6.3

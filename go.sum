@@ -160,8 +160,8 @@ github.com/googleapis/gax-go/v2 v2.18.0/go.mod h1:uSzZN4a356eRG985CzJ3WfbFSpqkLT
 github.com/grpc-ecosystem/grpc-gateway v1.16.0 h1:gmcG1KaJ57LophUzW0Hy8NmPhnMZb4M0+kPpLofRdBo=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0 h1:bkypFPDjIYGfCYD5mRBvpqxfYX1YCS1PXdKYWi8FsN0=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0/go.mod h1:P+Lt/0by1T8bfcF3z737NnSbmxQAppXMRziHUxPOC8k=
-github.com/hashicorp/cap v0.12.1-0.20260415172657-9d4dd6dc28b4 h1:wqcwdOXJIrjtkuQRWhCMd+isvAalxsrNoSpQOynen2k=
-github.com/hashicorp/cap v0.12.1-0.20260415172657-9d4dd6dc28b4/go.mod h1:Kbu5owAOJzQ/HH4Ba/76wsIXN2tRiJgToJKBO2MAEFE=
+github.com/hashicorp/cap v0.13.0 h1:bzLS1er9am6hOiw//TEjmwZ3t975iFfRfvXY6VRLKEw=
+github.com/hashicorp/cap v0.13.0/go.mod h1:Kbu5owAOJzQ/HH4Ba/76wsIXN2tRiJgToJKBO2MAEFE=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/errwrap v1.1.0 h1:OxrOeh75EUXMY8TBjag2fzXGZ40LB6IKw45YeGUDY2I=
 github.com/hashicorp/errwrap v1.1.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
