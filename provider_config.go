@@ -21,6 +21,7 @@ func ProviderMap() map[string]CustomProvider {
 		"gsuite":     &GSuiteProvider{},
 		"secureauth": &SecureAuthProvider{},
 		"ibmisam":    &IBMISAMProvider{},
+		"okta":       &OktaProvider{},
 	}
 }
 
