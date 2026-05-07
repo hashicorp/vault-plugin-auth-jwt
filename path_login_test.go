@@ -155,7 +155,7 @@ func setupBackend(t *testing.T, cfg testConfig) (closeableBackend, logical.Stora
 	return cb, storage
 }
 
-func getTestJWT(t *testing.T, privKey string, cl interface{}, privateCl interface{}) (string, *ecdsa.PrivateKey) {
+func getTestJWT(t *testing.T, privKey string, cl interface{}, privateCl interface{}, kid ...string) (string, *ecdsa.PrivateKey) {
 	t.Helper()
 	var key *ecdsa.PrivateKey
 	block, _ := pem.Decode([]byte(privKey))
@@ -167,7 +167,12 @@ func getTestJWT(t *testing.T, privKey string, cl interface{}, privateCl interfac
 		}
 	}
 
-	sig, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.ES256, Key: key}, (&jose.SignerOptions{}).WithType("JWT"))
+	opts := (&jose.SignerOptions{}).WithType("JWT")
+	if len(kid) > 0 && kid[0] != "" {
+		opts = opts.WithHeader("kid", kid[0])
+	}
+
+	sig, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.ES256, Key: key}, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
