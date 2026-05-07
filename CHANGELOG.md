@@ -1,6 +1,13 @@
 ## v0.26.2
 ### May 7, 2026
 
+* prepare v0.26.2 release (#390)
+* Add kid-based cache for multi-JWKS authentication (#381)
+* Update changelog for v0.26.1 release (#375)
+
+## v0.26.2
+### May 7, 2026
+
 IMPROVEMENTS:
 * Updated dependencies (#390):
    * google.golang.org/genproto/googleapis/rpc v0.0.0-20260311181403-84a4fc48630c => v0.0.0-20260427160629-7cedc36a6bc4
