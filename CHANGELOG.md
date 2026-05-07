@@ -1,3 +1,33 @@
+## v0.26.2
+### May 7, 2026
+
+IMPROVEMENTS:
+* Updated dependencies (#390):
+   * google.golang.org/genproto/googleapis/rpc v0.0.0-20260311181403-84a4fc48630c => v0.0.0-20260427160629-7cedc36a6bc4
+   * cloud.google.com/go/auth v0.18.2 => v0.20.0
+   * github.com/hashicorp/vault/sdk v0.24.0 => v0.25.1
+   * google.golang.org/api v0.272.0 => v0.275.0
+   * golang.org/x/text v0.35.0 => v0.36.0
+   * github.com/hashicorp/go-secure-stdlib/plugincontainer v0.4.2 => v0.5.0
+   * golang.org/x/sys v0.42.0 => v0.43.0
+   * golang.org/x/crypto v0.49.0 => v0.50.0
+   * github.com/docker/go-connections v0.5.0 => v0.6.0
+   * golang.org/x/net v0.52.0 => v0.53.0
+   * go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 => v0.67.0
+   * github.com/opencontainers/image-spec v1.1.0 => v1.1.1
+   * github.com/oklog/run v1.1.0 => v1.2.0
+   * github.com/fatih/color v1.18.0 => v1.19.0
+   * github.com/hashicorp/vault/api v1.22.0 => v1.23.0
+   * cloud.google.com/go/cloudsqlconn v1.4.3 => v1.20.2
+   * go.opentelemetry.io/otel v1.40.0 => v1.43.0
+   * go.opentelemetry.io/otel/metric v1.40.0 => v1.43.0
+   * go.opentelemetry.io/otel/trace v1.40.0 => v1.43.0
+   * github.com/hashicorp/go-plugin v1.6.1 => v1.7.0
+   * google.golang.org/grpc v1.79.3 => v1.80.0
+   * github.com/googleapis/gax-go/v2 v2.18.0 => v2.21.0
+   * github.com/go-jose/go-jose/v4 v4.1.3 => v4.1.4
+
+
 ## v0.26.1
 ### March 20, 2026
 
