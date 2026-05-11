@@ -1,6 +1,6 @@
 module github.com/hashicorp/vault-plugin-auth-jwt
 
-go 1.26.2
+go 1.26.3
 
 require (
 	github.com/go-jose/go-jose/v3 v3.0.5
