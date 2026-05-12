@@ -11,7 +11,6 @@ import (
 
 	"github.com/hashicorp/cap/jwt"
 	"github.com/hashicorp/cap/oidc"
-	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/patrickmn/go-cache"
@@ -46,6 +45,9 @@ type jwtAuthBackend struct {
 
 	providerCtx       context.Context
 	providerCtxCancel context.CancelFunc
+
+	// jwksCaches stores kid→KeySet cache for two-phase MultiJWKS lookup
+	jwksCaches []*JWKSCache
 }
 
 func backend() *jwtAuthBackend {
@@ -115,6 +117,7 @@ func (b *jwtAuthBackend) reset() {
 	b.provider = nil
 	b.cachedConfig = nil
 	b.validator = nil
+	b.jwksCaches = nil // Clear pre-warmed caches on config change
 	b.l.Unlock()
 }
 
@@ -154,19 +157,13 @@ func (b *jwtAuthBackend) jwtValidator(config *jwtConfig) (*jwt.Validator, error)
 		keySet, err = jwt.NewJSONWebKeySet(b.providerCtx, config.JWKSURL, config.JWKSCAPEM)
 		keySets = []jwt.KeySet{keySet}
 	case MultiJWKS:
-		pairs, pairsErr := NewJWKSPairsConfig(config)
-		if pairsErr != nil {
-			return nil, pairsErr
+		// MultiJWKS uses KeySetSearcher callback with kid cache
+		validator, err := b.jwtValidatorForMultiJWKS(config)
+		if err != nil {
+			return nil, err
 		}
-
-		for _, p := range pairs {
-			keySet, keySetErr := jwt.NewJSONWebKeySet(b.providerCtx, p.JWKSUrl, p.JWKSCAPEM)
-			if keySetErr != nil {
-				err = multierror.Append(err, keySetErr)
-				continue
-			}
-			keySets = append(keySets, keySet)
-		}
+		b.validator = validator
+		return b.validator, nil
 	case StaticKeys:
 		keySet, err = jwt.NewStaticKeySet(config.ParsedJWTPubKeys)
 		keySets = []jwt.KeySet{keySet}
