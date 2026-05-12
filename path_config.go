@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/cap/jwt"
 	"github.com/hashicorp/cap/oidc"
@@ -313,10 +314,26 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 			return logical.ErrorResponse("invalid jwks_pairs: %s", err), nil
 		}
 
+		// Validate all JWKS URLs in parallel to avoid blocking config write
+		var wg sync.WaitGroup
+		errChan := make(chan *logical.Response, len(jwksPairs))
+
 		for _, p := range jwksPairs {
-			if r := b.validateJWKSURL(ctx, p.JWKSUrl, p.JWKSCAPEM); r != nil {
-				return r, nil
-			}
+			wg.Add(1)
+			go func(pair *JWKSPair) {
+				defer wg.Done()
+				if r := b.validateJWKSURL(ctx, pair.JWKSUrl, pair.JWKSCAPEM); r != nil {
+					errChan <- r
+				}
+			}(p)
+		}
+
+		wg.Wait()
+		close(errChan)
+
+		// Return first error if any validation failed
+		if r := <-errChan; r != nil {
+			return r, nil
 		}
 
 	case len(config.JWTValidationPubKeys) != 0:
@@ -373,6 +390,12 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	}
 
 	b.reset()
+
+	// Pre-warm caches for MultiJWKS configuration
+	// This ensures caches are ready by the time users authenticate
+	if len(jwksPairs) > 0 {
+		b.prewarmMultiJWKSCaches(jwksPairs)
+	}
 
 	return nil, nil
 }
