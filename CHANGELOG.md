@@ -1,3 +1,9 @@
+## v0.25.1
+### May 13, 2026
+
+* updated dependencies (#396)
+* Backport #381 to 1.21.x : Add kid-based cache for multi-JWKS authentication (#389)
+
 ## v0.26.2
 ### May 7, 2026
 
