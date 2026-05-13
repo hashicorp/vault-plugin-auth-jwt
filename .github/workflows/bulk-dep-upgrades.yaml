@@ -4,6 +4,11 @@ on:
   schedule:
     # Runs 12:00AM on the first of every month
     - cron: '0 0 1 * *'
+# Reusable bulk-dep workflow uses secrets.VAULT_ECO_GITHUB_TOKEN to open the
+# dependency PR; default GITHUB_TOKEN only needs read.
+permissions:
+  contents: read
+
 jobs:
   upgrade:
     # using `main` as the ref will keep your workflow up-to-date

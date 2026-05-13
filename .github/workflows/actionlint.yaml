@@ -3,6 +3,9 @@ on:
   push:
     paths:
     - '.github/workflows/**'
+permissions:
+  contents: read
+
 jobs:
   actionlint:
     # using `main` as the ref will keep your workflow up-to-date
