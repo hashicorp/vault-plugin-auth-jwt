@@ -1,3 +1,11 @@
+## v0.23.3
+### May 13, 2026
+
+* updated dependencies (#399)
+* Backport #381 to 1.19.x : Add kid-based cache for multi-JWKS authentication (#387)
+* allow optional access token to be used to fetch additional groups (#329) (#341)
+* [Vault 1.19] update to go 1.23.8 and deps (#333)
+
 ## v0.26.2
 ### May 7, 2026
 
