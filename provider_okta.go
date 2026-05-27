@@ -94,19 +94,17 @@ func (o *OktaProvider) Initialize(_ context.Context, jc *jwtConfig) error {
 	if err := mapstructure.Decode(jc.ProviderConfig, &cfg); err != nil {
 		return err
 	}
-	if cfg.OrgURL == "" {
-		return errors.New("'org_url' must be set in provider_config for the okta provider")
+	// Validate org_url if provided
+	if cfg.OrgURL != "" {
+		u, err := url.Parse(cfg.OrgURL)
+		if err != nil {
+			return fmt.Errorf("invalid org_url: %w", err)
+		}
+		if u.Scheme != "https" {
+			return errors.New("org_url must use https")
+		}
 	}
-	u, err := url.Parse(cfg.OrgURL)
-	if err != nil {
-		return fmt.Errorf("invalid org_url: %w", err)
-	}
-	if u.Scheme != "https" {
-		return errors.New("org_url must use https")
-	}
-	if cfg.APIToken == "" {
-		return errors.New("'api_token' must be set in provider_config for the okta provider")
-	}
+	// api_token validation is deferred to FetchGroups when actually needed
 	if cfg.GroupsCap < 0 {
 		return errors.New("groups_cap must be >= 0")
 	}
@@ -145,6 +143,14 @@ func (o *OktaProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allClai
 			}
 			return o.applyGroupsFilter(b, list), nil
 		}
+	}
+
+	// Validate required config before making API call
+	if o.config.OrgURL == "" {
+		return nil, errors.New("'org_url' must be set in provider_config to fetch groups from Okta API")
+	}
+	if o.config.APIToken == "" {
+		return nil, errors.New("'api_token' must be set in provider_config to fetch groups from Okta API")
 	}
 
 	userID, err := o.resolveUserID(b, allClaims, role)
