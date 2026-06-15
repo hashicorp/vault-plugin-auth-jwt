@@ -30,8 +30,8 @@ const (
 )
 
 // OktaProvider returns the full set of Okta groups a user belongs to
-// when Okta has truncated the id-token's groups claim. It calls Okta's
-// admin endpoint
+// when Okta has truncated the id-token's groups claim. When fetch_groups
+// is enabled (default), it calls Okta's admin endpoint
 //
 //	GET /api/v1/users/{user}/groups
 //
@@ -39,12 +39,16 @@ const (
 // RFC 5988 Link-header pagination.
 //
 // This endpoint is admin-only and cannot be reached with an end-user
-// OAuth token regardless of okta.* scopes. The provider therefore
-// requires an Okta API token bound to a user with permission to read
-// users and read groups (a least-privilege custom admin role granting
-// "View users and their details" and "View groups and their details"
-// is sufficient). The token is supplied via provider_config.api_token
+// OAuth token regardless of okta.* scopes. When fetch_groups is enabled,
+// the provider requires an Okta API token bound to a user with permission
+// to read users and read groups (a least-privilege custom admin role
+// granting "View users and their details" and "View groups and their
+// details" is sufficient). The token is supplied via provider_config.api_token
 // and is masked from config reads.
+//
+// When fetch_groups is disabled, the provider uses only the groups from
+// the ID token, which may be incomplete if the user belongs to more groups
+// than the configured groups_cap threshold.
 type OktaProvider struct {
 	ctx    context.Context
 	config OktaProviderConfig
@@ -58,11 +62,12 @@ type OktaProvider struct {
 // Initialize.
 type OktaProviderConfig struct {
 	// OrgURL is the Okta org base URL, e.g. https://example.okta.com.
-	// Must use https.
+	// Must use https. Optional; if not provided, will be derived from
+	// oidc_discovery_url.
 	OrgURL string `mapstructure:"org_url"`
 
 	// APIToken is an Okta API token (SSWS) used to authenticate the
-	// server-side groups lookup. Required.
+	// server-side groups lookup. Required when FetchGroups is true.
 	APIToken string `mapstructure:"api_token"`
 
 	// UserIDClaim names the claim in the OIDC token whose value
@@ -85,6 +90,12 @@ type OktaProviderConfig struct {
 	// default) disables filtering; every group Okta returns passes
 	// through.
 	GroupsFilter string `mapstructure:"groups_filter"`
+
+	// FetchGroups controls whether to fetch groups from Okta Admin API.
+	// When true, groups at or above GroupsCap will trigger an API call.
+	// When false (the default when the key is absent), always uses groups
+	// from the ID token. Must be explicitly set to true to enable API fetching.
+	FetchGroups bool `mapstructure:"fetch_groups"`
 }
 
 // Initialize validates and stores provider configuration. Satisfies
@@ -94,7 +105,15 @@ func (o *OktaProvider) Initialize(_ context.Context, jc *jwtConfig) error {
 	if err := mapstructure.Decode(jc.ProviderConfig, &cfg); err != nil {
 		return err
 	}
-	// Validate org_url if provided
+
+	// Auto-derive org_url from oidc_discovery_url if not provided
+	if cfg.OrgURL == "" && jc.OIDCDiscoveryURL != "" {
+		if u, err := url.Parse(jc.OIDCDiscoveryURL); err == nil {
+			cfg.OrgURL = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
+		}
+	}
+
+	// Validate org_url if provided or derived
 	if cfg.OrgURL != "" {
 		u, err := url.Parse(cfg.OrgURL)
 		if err != nil {
@@ -104,7 +123,19 @@ func (o *OktaProvider) Initialize(_ context.Context, jc *jwtConfig) error {
 			return errors.New("org_url must use https")
 		}
 	}
-	// api_token validation is deferred to FetchGroups when actually needed
+
+	// Validate credentials if fetch_groups is enabled
+	if cfg.FetchGroups {
+		// org_url should be available either explicitly or auto-derived
+		// Only fail if it's still empty after auto-derivation attempt
+		if cfg.OrgURL == "" {
+			return errors.New("'org_url' must be set in provider_config or oidc_discovery_url must be configured when fetch_groups=true")
+		}
+		if cfg.APIToken == "" {
+			return errors.New("'api_token' is required in provider_config when fetch_groups=true")
+		}
+	}
+
 	if cfg.GroupsCap < 0 {
 		return errors.New("groups_cap must be >= 0")
 	}
@@ -136,8 +167,26 @@ func (o *OktaProvider) SensitiveKeys() []string {
 func (o *OktaProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, _ oauth2.TokenSource) (interface{}, error) {
 	groupsClaimRaw := getClaim(b.Logger(), allClaims, role.GroupsClaim)
 
+	// If fetch_groups is disabled, always use groups from token
+	if !o.config.FetchGroups {
+		if groupsClaimRaw == nil {
+			return nil, fmt.Errorf("%q claim not found in token", role.GroupsClaim)
+		}
+
+		// Apply filter if configured
+		if o.groupsFilter != nil {
+			if list, ok := normalizeList(groupsClaimRaw); ok {
+				return o.applyGroupsFilter(b, list), nil
+			}
+		}
+
+		return groupsClaimRaw, nil
+	}
+
+	// fetch_groups is enabled - check for truncation
 	if groupsClaimRaw != nil {
 		if list, ok := normalizeList(groupsClaimRaw); ok && len(list) < o.config.GroupsCap {
+			// Definitely NOT truncated - use token groups
 			if o.groupsFilter == nil {
 				return groupsClaimRaw, nil
 			}
@@ -145,13 +194,8 @@ func (o *OktaProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allClai
 		}
 	}
 
-	// Validate required config before making API call
-	if o.config.OrgURL == "" {
-		return nil, errors.New("'org_url' must be set in provider_config to fetch groups from Okta API")
-	}
-	if o.config.APIToken == "" {
-		return nil, errors.New("'api_token' must be set in provider_config to fetch groups from Okta API")
-	}
+	// Groups might be truncated (len >= groups_cap) or missing
+	// Fetch from API (credentials already validated in Initialize)
 
 	userID, err := o.resolveUserID(b, allClaims, role)
 	if err != nil {
