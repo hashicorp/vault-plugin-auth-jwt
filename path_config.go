@@ -275,18 +275,31 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 		methodCount++
 	}
 
+	// Azure Workload Identity authenticates the OIDC client to Microsoft Entra
+	// ID with a federated token (client_assertion) rather than a client secret.
+	// In that mode oidc_client_id is required and oidc_client_secret must be empty.
+	azureWorkloadIdentity := config.azureWorkloadIdentityEnabled()
+	if azureWorkloadIdentity {
+		if config.OIDCClientID == "" {
+			return logical.ErrorResponse("'oidc_client_id' must be set when Azure workload identity is enabled"), nil
+		}
+		if config.OIDCClientSecret != "" {
+			return logical.ErrorResponse("'oidc_client_secret' must not be set when Azure workload identity is enabled"), nil
+		}
+	}
+
 	var jwksPairs []*JWKSPair
 	switch {
 	case methodCount != 1:
 		return logical.ErrorResponse("exactly one of 'jwt_validation_pubkeys', 'jwks_url', 'jwks_pairs' or 'oidc_discovery_url' must be set"), nil
 
-	case config.OIDCClientID != "" && config.OIDCClientSecret == "",
+	case config.OIDCClientID != "" && config.OIDCClientSecret == "" && !azureWorkloadIdentity,
 		config.OIDCClientID == "" && config.OIDCClientSecret != "":
 		return logical.ErrorResponse("both 'oidc_client_id' and 'oidc_client_secret' must be set for OIDC"), nil
 
 	case config.OIDCDiscoveryURL != "":
 		var err error
-		if config.OIDCClientID != "" && config.OIDCClientSecret != "" {
+		if config.OIDCClientID != "" && (config.OIDCClientSecret != "" || azureWorkloadIdentity) {
 			_, err = b.createProvider(config)
 		} else {
 			_, err = jwt.NewOIDCDiscoveryKeySet(ctx, config.OIDCDiscoveryURL, config.OIDCDiscoveryCAPEM)
@@ -546,7 +559,7 @@ func (c jwtConfig) authType() int {
 	case len(c.JWKSPairs) > 0:
 		return MultiJWKS
 	case c.OIDCDiscoveryURL != "":
-		if c.OIDCClientID != "" && c.OIDCClientSecret != "" {
+		if c.OIDCClientID != "" && (c.OIDCClientSecret != "" || c.azureWorkloadIdentityEnabled()) {
 			return OIDCFlow
 		}
 		return OIDCDiscovery

@@ -479,6 +479,14 @@ func (b *jwtAuthBackend) createOIDCRequest(config *jwtConfig, role *jwtRole, rol
 		oidc.WithScopes(role.OIDCScopes...),
 	}
 
+	// When Azure Workload Identity is enabled, authenticate the OIDC client to
+	// Microsoft Entra ID using a federated token (client_assertion) read from
+	// AZURE_FEDERATED_TOKEN_FILE instead of a static client secret. cap sends
+	// the assertion during the authorization code exchange (see Provider.Exchange).
+	if config.azureWorkloadIdentityEnabled() {
+		options = append(options, oidc.WithClientAssertionJWT(azureWorkloadIdentityAssertion{}))
+	}
+
 	if config.hasType(responseTypeIDToken) {
 		options = append(options, oidc.WithImplicitFlow())
 	} else if config.hasType(responseTypeCode) {
