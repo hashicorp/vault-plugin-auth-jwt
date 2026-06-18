@@ -1,3 +1,12 @@
+## Unreleased
+
+IMPROVEMENTS:
+* auth/oidc: Support authenticating the OIDC client to Microsoft Entra ID with an
+  Azure Workload Identity federated token (`client_assertion`) instead of a static
+  `oidc_client_secret`. Enable by setting `use_workload_identity=true` in the Azure
+  `provider_config`; the pod must be configured for Azure Workload Identity so that
+  the `AZURE_FEDERATED_TOKEN_FILE` environment variable is set.
+
 ## v0.26.2
 ### May 7, 2026
 

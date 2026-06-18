@@ -126,6 +126,28 @@ The custom handlers will be standalone objects defined in their own file (one
 per provider). They'll be part of the main jwtauth package to avoid potential
 circular import issues.
 
+#### Azure provider_config options
+
+The `azure` provider supports the following `provider_config` keys:
+
+* `fetch_groups` (bool) - fetch group membership from the Microsoft Graph API.
+* `use_workload_identity` (bool) - authenticate the OIDC client to Microsoft
+  Entra ID using an Azure Workload Identity federated token (`client_assertion`)
+  instead of a static `oidc_client_secret`. When enabled, `oidc_client_id` is
+  required and `oidc_client_secret` must be empty. The Vault pod must be
+  configured for Azure Workload Identity (the `azure.workload.identity/use` pod
+  label and the service account `azure.workload.identity/client-id` annotation)
+  so that the `AZURE_FEDERATED_TOKEN_FILE` environment variable is projected into
+  the container. A federated credential must be configured on the Entra app
+  registration trusting the cluster's OIDC issuer and the Vault service account.
+
+  ```
+  vault write auth/oidc/config \
+      oidc_discovery_url="https://login.microsoftonline.com/$TENANT_ID/v2.0" \
+      oidc_client_id="$CLIENT_ID" \
+      provider_config='{"provider":"azure","use_workload_identity":true}'
+  ```
+
 ### Tests
 
 If you are developing this plugin and want to verify it is still

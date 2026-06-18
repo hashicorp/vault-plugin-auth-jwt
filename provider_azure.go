@@ -11,12 +11,19 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	log "github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/oauth2"
 )
+
+// azureFederatedTokenFileEnv is the environment variable that the Azure
+// Workload Identity mutating webhook injects into a pod. It points to the file
+// containing the projected Kubernetes service account token, which is used as
+// the OIDC client_assertion when authenticating to Microsoft Entra ID.
+const azureFederatedTokenFileEnv = "AZURE_FEDERATED_TOKEN_FILE"
 
 const (
 	// Deprecated: The host of the Azure Active Directory (AAD) graph API
@@ -47,6 +54,56 @@ type AzureProvider struct {
 type AzureProviderConfig struct {
 	// If set to true, groups will be fetched from the Microsoft Graph API. This is supported only on Azure/Entra ID.
 	FetchGroups bool `mapstructure:"fetch_groups"`
+
+	// If set to true, the OIDC client authenticates to Microsoft Entra ID using
+	// an Azure Workload Identity federated token (client_assertion) instead of a
+	// static client secret. When enabled, oidc_client_secret must be empty and
+	// the pod must be configured for Azure Workload Identity so that the
+	// AZURE_FEDERATED_TOKEN_FILE environment variable is set.
+	UseWorkloadIdentity bool `mapstructure:"use_workload_identity"`
+}
+
+// azureWorkloadIdentityAssertion implements the oidc.JWTSerializer interface by
+// returning the Azure Workload Identity federated token. The Azure Workload
+// Identity mutating webhook projects a Kubernetes service account token into the
+// pod and sets AZURE_FEDERATED_TOKEN_FILE to its path. That token is presented
+// to Microsoft Entra ID as the client_assertion during the authorization code
+// exchange, replacing the client secret. The file is read on each call because
+// Kubernetes rotates the projected token over time.
+type azureWorkloadIdentityAssertion struct{}
+
+// Serialize returns the contents of the federated token file. It satisfies the
+// oidc.JWTSerializer interface used by oidc.WithClientAssertionJWT.
+func (azureWorkloadIdentityAssertion) Serialize() (string, error) {
+	file, ok := os.LookupEnv(azureFederatedTokenFileEnv)
+	if !ok || file == "" {
+		return "", fmt.Errorf("%s environment variable is not set; ensure the pod is configured for Azure Workload Identity (azure.workload.identity/use label and service account client-id annotation)", azureFederatedTokenFileEnv)
+	}
+
+	token, err := os.ReadFile(file)
+	if err != nil {
+		return "", fmt.Errorf("failed to read Azure federated token file %q: %w", file, err)
+	}
+
+	return strings.TrimSpace(string(token)), nil
+}
+
+// azureWorkloadIdentityEnabled reports whether the config selects the Azure
+// provider with use_workload_identity set to true.
+func (c jwtConfig) azureWorkloadIdentityEnabled() bool {
+	if len(c.ProviderConfig) == 0 {
+		return false
+	}
+	if provider, _ := c.ProviderConfig["provider"].(string); provider != "azure" {
+		return false
+	}
+
+	var config AzureProviderConfig
+	if err := mapstructure.Decode(c.ProviderConfig, &config); err != nil {
+		return false
+	}
+
+	return config.UseWorkloadIdentity
 }
 
 // Initialize anything in the AzureProvider struct - satisfying the CustomProvider interface
