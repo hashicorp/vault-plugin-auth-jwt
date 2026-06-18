@@ -34,7 +34,7 @@ const (
 
 // OktaProvider returns the full set of Okta groups a user belongs to
 // when Okta has truncated the id-token's groups claim. When fetch_groups
-// is enabled (default), it calls Okta's admin endpoint
+// is enabled, it calls Okta's admin endpoint
 //
 //	GET /api/v1/users/{user}/groups
 //
@@ -124,6 +124,9 @@ func (o *OktaProvider) Initialize(_ context.Context, jc *jwtConfig) error {
 		}
 		if u.Scheme != "https" {
 			return errors.New("org_url must use https")
+		}
+		if u.Host == "" {
+			return errors.New("org_url must include a host")
 		}
 	}
 
