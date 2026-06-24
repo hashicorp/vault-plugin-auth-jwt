@@ -34,7 +34,7 @@ const (
 	// maxOktaPages is the maximum number of paginated API responses
 	// getOktaGroups will follow before aborting. Guards against
 	// infinite loops caused by a circular or malformed Link header.
-	maxOktaPages = 100
+	maxOktaPages = 200
 )
 
 // OktaProvider returns the full set of Okta groups a user belongs to
