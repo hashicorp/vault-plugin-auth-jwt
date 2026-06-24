@@ -30,6 +30,11 @@ const (
 	// the groups a user belongs to. The {user} segment accepts an
 	// Okta user id, login (email/UPN), or unique login shortname.
 	oktaUserGroupsPathFmt = "/api/v1/users/%s/groups"
+
+	// maxOktaPages is the maximum number of paginated API responses
+	// getOktaGroups will follow before aborting. Guards against
+	// infinite loops caused by a circular or malformed Link header.
+	maxOktaPages = 100
 )
 
 // OktaProvider returns the full set of Okta groups a user belongs to
@@ -53,10 +58,11 @@ const (
 // the ID token, which may be incomplete if the user belongs to more groups
 // than the configured groups_cap threshold.
 type OktaProvider struct {
-	ctx    context.Context
 	config OktaProviderConfig
 
 	// groupsFilter is the compiled form of OktaProviderConfig.GroupsFilter.
+	// It is stored separately from OktaProviderConfig because *regexp.Regexp
+	// cannot be decoded by mapstructure and must be compiled after decoding.
 	// Nil when no filter is configured.
 	groupsFilter *regexp.Regexp
 }
@@ -148,14 +154,19 @@ func (o *OktaProvider) Initialize(_ context.Context, jc *jwtConfig) error {
 	if cfg.GroupsCap == 0 {
 		cfg.GroupsCap = defaultOktaGroupsCap
 	}
+
+	var groupsFilter *regexp.Regexp
 	if cfg.GroupsFilter != "" {
 		re, err := regexp.Compile(cfg.GroupsFilter)
 		if err != nil {
 			return fmt.Errorf("invalid groups_filter regex: %w", err)
 		}
-		o.groupsFilter = re
+		groupsFilter = re
 	}
+
+	// All validation passed — update provider state atomically.
 	o.config = cfg
+	o.groupsFilter = groupsFilter
 	return nil
 }
 
@@ -170,7 +181,7 @@ func (o *OktaProvider) SensitiveKeys() []string {
 // admin API using the configured SSWS token. When groups_filter is
 // set, both paths return only the subset of group names matching the
 // configured regex.
-func (o *OktaProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, _ oauth2.TokenSource) (interface{}, error) {
+func (o *OktaProvider) FetchGroups(ctx context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, _ oauth2.TokenSource) (interface{}, error) {
 	groupsClaimRaw := getClaim(b.Logger(), allClaims, role.GroupsClaim)
 
 	// If fetch_groups is disabled, always use groups from token
@@ -208,12 +219,16 @@ func (o *OktaProvider) FetchGroups(_ context.Context, b *jwtAuthBackend, allClai
 		return nil, err
 	}
 
-	o.ctx, err = b.createCAContext(b.providerCtx, b.cachedConfig.OIDCDiscoveryCAPEM)
+	apiCtx, err := b.createCAContext(b.providerCtx, b.cachedConfig.OIDCDiscoveryCAPEM)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create CA context: %w", err)
 	}
+	client := http.DefaultClient
+	if c, ok := apiCtx.Value(oauth2.HTTPClient).(*http.Client); ok {
+		client = c
+	}
 
-	groups, err := o.getOktaGroups(userID)
+	groups, err := o.getOktaGroups(ctx, client, userID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch groups from Okta API: %w", err)
 	}
@@ -270,17 +285,17 @@ func (o *OktaProvider) applyGroupsFilter(b *jwtAuthBackend, list []interface{}) 
 // getOktaGroups fetches every group the named user belongs to from
 // /api/v1/users/{userID}/groups, following RFC 5988 Link-header
 // pagination. Authenticated with the configured admin API token.
-func (o *OktaProvider) getOktaGroups(userID string) ([]interface{}, error) {
-	client := http.DefaultClient
-	if c, ok := o.ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
-		client = c
-	}
-
+// ctx is the login request context; cancellation and deadlines are propagated
+// to every HTTP request.
+func (o *OktaProvider) getOktaGroups(ctx context.Context, client *http.Client, userID string) ([]interface{}, error) {
 	next := strings.TrimRight(o.config.OrgURL, "/") + fmt.Sprintf(oktaUserGroupsPathFmt, url.PathEscape(userID))
 
 	var all []interface{}
-	for next != "" {
-		req, err := http.NewRequest("GET", next, nil)
+	for page := 0; next != ""; page++ {
+		if page >= maxOktaPages {
+			return nil, fmt.Errorf("okta API pagination exceeded %d pages; possible circular Link header", maxOktaPages)
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, next, nil)
 		if err != nil {
 			return nil, fmt.Errorf("error constructing groups request: %w", err)
 		}

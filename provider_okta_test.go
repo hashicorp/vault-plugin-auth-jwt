@@ -20,7 +20,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// ---- test server ------------------------------------------------------------
+// test server
 
 // oktaServer is a TLS test server that simultaneously serves OIDC discovery
 // (so Vault can write a valid config) and the Okta admin groups API
@@ -91,7 +91,7 @@ func oktaGroupJSON(names ...string) string {
 	return string(b)
 }
 
-// ---- backend helpers --------------------------------------------------------
+// backend helpers
 
 // newOktaBackend configures a full Vault jwtAuthBackend via HandleRequest,
 // pointing both OIDC discovery and the Okta admin API at ts.
@@ -151,10 +151,10 @@ func newOktaBackend(t *testing.T, ts *oktaServer, providerExtra map[string]inter
 
 // injectTLSClient replaces the backend's providerCtx with one that carries the
 // test server's HTTP client. In FetchGroups, b.providerCtx is passed to
-// b.createCAContext which returns it as-is when OIDCDiscoveryCAPEM is empty;
-// that context then becomes o.ctx used by getOktaGroups for HTTP calls.
-// cachedConfig.OIDCDiscoveryCAPEM is cleared to prevent createCAContext from
-// building a CA-pinned transport that would shadow the injected client.
+// b.createCAContext which extracts the HTTP client value; that client is then
+// passed directly into getOktaGroups. cachedConfig.OIDCDiscoveryCAPEM is
+// cleared to prevent createCAContext from building a conflicting CA-pinned
+// transport that would shadow the injected client.
 func injectTLSClient(b logical.Backend, ts *oktaServer) {
 	backend := b.(*jwtAuthBackend)
 	if backend.cachedConfig != nil {
@@ -320,14 +320,14 @@ func TestOktaProvider_Initialize(t *testing.T) {
 	}
 }
 
-// ---- SensitiveKeys ----------------------------------------------------------
+// SensitiveKeys
 
 func TestOktaProvider_SensitiveKeys(t *testing.T) {
 	p := &OktaProvider{}
 	assert.Equal(t, []string{"api_token"}, p.SensitiveKeys())
 }
 
-// ---- FetchGroups — fetch_groups=false (token-only path) --------------------
+// FetchGroups — fetch_groups=false (token-only path)
 
 func TestOktaProvider_FetchGroups_FetchGroupsDisabled(t *testing.T) {
 	ts := newOktaServer(t)
@@ -390,7 +390,7 @@ func TestOktaProvider_FetchGroups_FetchGroupsDisabled(t *testing.T) {
 	})
 }
 
-// ---- FetchGroups — fast path (below cap, no API call) -----------------------
+// FetchGroups — fast path (below cap, no API call)
 
 func TestOktaProvider_FetchGroups_FastPath(t *testing.T) {
 	ts := newOktaServer(t)
@@ -458,7 +458,7 @@ func TestOktaProvider_FetchGroups_FastPath(t *testing.T) {
 	})
 }
 
-// ---- FetchGroups — API fallback (at or above cap) ---------------------------
+// FetchGroups — API fallback (at or above cap)
 
 func TestOktaProvider_FetchGroups_APIFallback(t *testing.T) {
 	t.Run("groups equal to cap triggers API call", func(t *testing.T) {
@@ -582,7 +582,7 @@ func TestOktaProvider_FetchGroups_APIFallback(t *testing.T) {
 
 }
 
-// ---- resolveUserID unit tests -----------------------------------------------
+// resolveUserID unit tests
 
 func TestOktaProvider_ResolveUserID(t *testing.T) {
 	tests := []struct {
@@ -662,7 +662,7 @@ func TestOktaProvider_ResolveUserID(t *testing.T) {
 	}
 }
 
-// ---- getOktaGroups unit tests -----------------------------------------------
+// getOktaGroups unit tests
 
 func TestOktaProvider_GetOktaGroups(t *testing.T) {
 	t.Run("single page returns all groups", func(t *testing.T) {
@@ -673,10 +673,9 @@ func TestOktaProvider_GetOktaGroups(t *testing.T) {
 		defer ts.Close()
 
 		p := &OktaProvider{
-			ctx:    context.WithValue(context.Background(), oauth2.HTTPClient, ts.Client()),
 			config: OktaProviderConfig{OrgURL: ts.URL, APIToken: "tok", FetchGroups: true, GroupsCap: defaultOktaGroupsCap},
 		}
-		groups, err := p.getOktaGroups("user@example.com")
+		groups, err := p.getOktaGroups(context.Background(), ts.Client(), "user@example.com")
 
 		require.NoError(t, err)
 		assert.Len(t, groups, 3)
@@ -701,10 +700,9 @@ func TestOktaProvider_GetOktaGroups(t *testing.T) {
 		defer ts.Close()
 
 		p := &OktaProvider{
-			ctx:    context.WithValue(context.Background(), oauth2.HTTPClient, ts.Client()),
 			config: OktaProviderConfig{OrgURL: ts.URL, APIToken: "tok", FetchGroups: true, GroupsCap: defaultOktaGroupsCap},
 		}
-		groups, err := p.getOktaGroups("user@example.com")
+		groups, err := p.getOktaGroups(context.Background(), ts.Client(), "user@example.com")
 
 		require.NoError(t, err)
 		assert.Len(t, groups, 5)
@@ -723,10 +721,9 @@ func TestOktaProvider_GetOktaGroups(t *testing.T) {
 		defer ts.Close()
 
 		p := &OktaProvider{
-			ctx:    context.WithValue(context.Background(), oauth2.HTTPClient, ts.Client()),
 			config: OktaProviderConfig{OrgURL: ts.URL, APIToken: "tok", FetchGroups: true, GroupsCap: defaultOktaGroupsCap},
 		}
-		groups, err := p.getOktaGroups("user@example.com")
+		groups, err := p.getOktaGroups(context.Background(), ts.Client(), "user@example.com")
 
 		require.NoError(t, err)
 		assert.Len(t, groups, 2, "group with empty name must be dropped")
@@ -742,10 +739,9 @@ func TestOktaProvider_GetOktaGroups(t *testing.T) {
 		defer ts.Close()
 
 		p := &OktaProvider{
-			ctx:    context.WithValue(context.Background(), oauth2.HTTPClient, ts.Client()),
 			config: OktaProviderConfig{OrgURL: ts.URL, APIToken: "my-ssws-token", FetchGroups: true, GroupsCap: defaultOktaGroupsCap},
 		}
-		_, _ = p.getOktaGroups("user@example.com")
+		_, _ = p.getOktaGroups(context.Background(), ts.Client(), "user@example.com")
 
 		assert.Equal(t, "SSWS my-ssws-token", gotAuth)
 	})
@@ -769,10 +765,9 @@ func TestOktaProvider_GetOktaGroups(t *testing.T) {
 			defer ts.Close()
 
 			p := &OktaProvider{
-				ctx:    context.WithValue(context.Background(), oauth2.HTTPClient, ts.Client()),
 				config: OktaProviderConfig{OrgURL: ts.URL, APIToken: "tok", FetchGroups: true, GroupsCap: defaultOktaGroupsCap},
 			}
-			_, err := p.getOktaGroups("user@example.com")
+			_, err := p.getOktaGroups(context.Background(), ts.Client(), "user@example.com")
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.errMsg)
@@ -787,16 +782,15 @@ func TestOktaProvider_GetOktaGroups(t *testing.T) {
 		defer ts.Close()
 
 		p := &OktaProvider{
-			ctx:    context.WithValue(context.Background(), oauth2.HTTPClient, ts.Client()),
 			config: OktaProviderConfig{OrgURL: ts.URL, APIToken: "tok", FetchGroups: true, GroupsCap: defaultOktaGroupsCap},
 		}
-		_, err := p.getOktaGroups("user@example.com")
+		_, err := p.getOktaGroups(context.Background(), ts.Client(), "user@example.com")
 
 		require.Error(t, err)
 	})
 }
 
-// ---- nextLink helper tests --------------------------------------------------
+// nextLink helper tests
 
 func TestNextLink(t *testing.T) {
 	tests := []struct {
@@ -841,7 +835,7 @@ func TestNextLink(t *testing.T) {
 	}
 }
 
-// ---- applyGroupsFilter unit tests -------------------------------------------
+// applyGroupsFilter unit tests
 
 func TestOktaProvider_ApplyGroupsFilter(t *testing.T) {
 	tests := []struct {
@@ -897,7 +891,7 @@ func TestOktaProvider_ApplyGroupsFilter(t *testing.T) {
 	}
 }
 
-// ---- backward compatibility tests -------------------------------------------
+// backward compatibility tests
 
 func TestOktaProvider_BackwardCompat(t *testing.T) {
 	t.Run("okta is registered in ProviderMap", func(t *testing.T) {
