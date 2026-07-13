@@ -134,6 +134,9 @@ func (o *OktaProvider) Initialize(_ context.Context, jc *jwtConfig) error {
 		if u.Host == "" {
 			return errors.New("org_url must include a host")
 		}
+		// Strip any path/query/fragment — org_url must be scheme://host only.
+		// A path is often present when someone copies oidc_discovery_url
+		cfg.OrgURL = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
 	}
 
 	// Validate credentials if fetch_groups is enabled
