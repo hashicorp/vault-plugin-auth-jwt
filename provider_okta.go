@@ -1,0 +1,359 @@
+// Copyright IBM Corp. 2018, 2026
+// SPDX-License-Identifier: MPL-2.0
+
+package jwtauth
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"regexp"
+	"strings"
+
+	"github.com/mitchellh/mapstructure"
+	"golang.org/x/oauth2"
+)
+
+const (
+	// defaultOktaGroupsCap is Okta's default ID-token groups-claim
+	// truncation threshold. When a user belongs to more groups than
+	// this, Okta drops groups silently rather than aggregating
+	// distributed claims. Configurable per Okta authorization server;
+	// override via provider_config.groups_cap.
+	defaultOktaGroupsCap = 100
+
+	// oktaUserGroupsPathFmt is the Okta admin API path that returns
+	// the groups a user belongs to. The {user} segment accepts an
+	// Okta user id, login (email/UPN), or unique login shortname.
+	oktaUserGroupsPathFmt = "/api/v1/users/%s/groups"
+
+	// maxOktaPages is the maximum number of paginated API responses
+	// getOktaGroups will follow before aborting. Guards against
+	// infinite loops caused by a circular or malformed Link header.
+	maxOktaPages = 200
+)
+
+// OktaProvider returns the full set of Okta groups a user belongs to
+// when Okta has truncated the id-token's groups claim. When fetch_groups
+// is enabled, it calls Okta's admin endpoint
+//
+//	GET /api/v1/users/{user}/groups
+//
+// authenticated with a configured Okta API token (SSWS), following
+// RFC 5988 Link-header pagination.
+//
+// This endpoint is admin-only and cannot be reached with an end-user
+// OAuth token regardless of okta.* scopes. When fetch_groups is enabled,
+// the provider requires an Okta API token bound to a user with permission
+// to read users and read groups (a least-privilege custom admin role
+// granting "View users and their details" and "View groups and their
+// details" is sufficient). The token is supplied via provider_config.api_token
+// and is masked from config reads.
+//
+// When fetch_groups is disabled, the provider uses only the groups from
+// the ID token, which may be incomplete if the user belongs to more groups
+// than the configured groups_cap threshold.
+type OktaProvider struct {
+	config OktaProviderConfig
+
+	// groupsFilter is the compiled form of OktaProviderConfig.GroupsFilter.
+	// It is stored separately from OktaProviderConfig because *regexp.Regexp
+	// cannot be decoded by mapstructure and must be compiled after decoding.
+	// Nil when no filter is configured.
+	groupsFilter *regexp.Regexp
+}
+
+// OktaProviderConfig is decoded from jwtConfig.ProviderConfig during
+// Initialize.
+type OktaProviderConfig struct {
+	// OrgURL is the Okta org base URL, e.g. https://example.okta.com.
+	// Must use https. Optional; if not provided, will be derived from
+	// oidc_discovery_url.
+	OrgURL string `mapstructure:"org_url"`
+
+	// APIToken is an Okta API token (SSWS) used to authenticate the
+	// server-side groups lookup. Required when FetchGroups is true.
+	APIToken string `mapstructure:"api_token"`
+
+	// UserIDClaim names the claim in the OIDC token whose value
+	// identifies the user to Okta. The value must be one of: the
+	// user's Okta id, login (email/UPN), or unique login shortname.
+	// Optional; when empty, the role's user_claim is used.
+	UserIDClaim string `mapstructure:"user_id_claim"`
+
+	// GroupsCap is the Okta id-token groups truncation threshold. When
+	// the groups claim is present with length >= GroupsCap, the
+	// provider treats it as truncated and re-fetches the full list
+	// via the admin API. Defaults to 100.
+	GroupsCap int `mapstructure:"groups_cap"`
+
+	// GroupsFilter is an optional Go regular expression. When
+	// non-empty, only groups whose name matches the pattern are
+	// returned to Vault. Applied identically to both the id-token
+	// claim path and the API fallback path so behavior is consistent
+	// regardless of whether the user crossed GroupsCap. Empty (the
+	// default) disables filtering; every group Okta returns passes
+	// through.
+	GroupsFilter string `mapstructure:"groups_filter"`
+
+	// FetchGroups controls whether to fetch groups from Okta Admin API.
+	// When true, groups at or above GroupsCap will trigger an API call.
+	// When false (the default when the key is absent), always uses groups
+	// from the ID token. Must be explicitly set to true to enable API fetching.
+	FetchGroups bool `mapstructure:"fetch_groups"`
+}
+
+// Initialize validates and stores provider configuration. Satisfies
+// the CustomProvider interface.
+func (o *OktaProvider) Initialize(_ context.Context, jc *jwtConfig) error {
+	var cfg OktaProviderConfig
+	if err := mapstructure.Decode(jc.ProviderConfig, &cfg); err != nil {
+		return err
+	}
+
+	// Auto-derive org_url from oidc_discovery_url if not provided
+	if cfg.OrgURL == "" && jc.OIDCDiscoveryURL != "" {
+		if u, err := url.Parse(jc.OIDCDiscoveryURL); err == nil {
+			cfg.OrgURL = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
+		}
+	}
+
+	// Validate org_url if provided or derived
+	if cfg.OrgURL != "" {
+		u, err := url.Parse(cfg.OrgURL)
+		if err != nil {
+			return fmt.Errorf("invalid org_url: %w", err)
+		}
+		if u.Scheme != "https" {
+			return errors.New("org_url must use https")
+		}
+		if u.Host == "" {
+			return errors.New("org_url must include a host")
+		}
+		// Strip any path/query/fragment — org_url must be scheme://host only.
+		// A path is often present when someone copies oidc_discovery_url
+		cfg.OrgURL = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
+	}
+
+	// Validate credentials if fetch_groups is enabled
+	if cfg.FetchGroups {
+		// org_url should be available either explicitly or auto-derived
+		// Only fail if it's still empty after auto-derivation attempt
+		if cfg.OrgURL == "" {
+			return errors.New("'org_url' must be set in provider_config or oidc_discovery_url must be configured when fetch_groups=true")
+		}
+		if cfg.APIToken == "" {
+			return errors.New("'api_token' is required in provider_config when fetch_groups=true")
+		}
+	}
+
+	if cfg.GroupsCap < 0 {
+		return errors.New("groups_cap must be >= 0")
+	}
+	if cfg.GroupsCap == 0 {
+		cfg.GroupsCap = defaultOktaGroupsCap
+	}
+
+	var groupsFilter *regexp.Regexp
+	if cfg.GroupsFilter != "" {
+		re, err := regexp.Compile(cfg.GroupsFilter)
+		if err != nil {
+			return fmt.Errorf("invalid groups_filter regex: %w", err)
+		}
+		groupsFilter = re
+	}
+
+	// All validation passed — update provider state atomically.
+	o.config = cfg
+	o.groupsFilter = groupsFilter
+	return nil
+}
+
+// SensitiveKeys returns fields that must be masked when reading the
+// provider config back. Satisfies the CustomProvider interface.
+func (o *OktaProvider) SensitiveKeys() []string {
+	return []string{"api_token"}
+}
+
+// FetchGroups implements GroupsFetcher. Returns the id-token groups
+// claim when it's clearly untruncated; otherwise calls the Okta
+// admin API using the configured SSWS token. When groups_filter is
+// set, both paths return only the subset of group names matching the
+// configured regex.
+func (o *OktaProvider) FetchGroups(ctx context.Context, b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole, _ oauth2.TokenSource) (interface{}, error) {
+	groupsClaimRaw := getClaim(b.Logger(), allClaims, role.GroupsClaim)
+
+	// If fetch_groups is disabled, always use groups from token
+	if !o.config.FetchGroups {
+		if groupsClaimRaw == nil {
+			return nil, fmt.Errorf("%q claim not found in token", role.GroupsClaim)
+		}
+
+		// Apply filter if configured
+		if o.groupsFilter != nil {
+			if list, ok := normalizeList(groupsClaimRaw); ok {
+				return o.applyGroupsFilter(b, list), nil
+			}
+		}
+
+		return groupsClaimRaw, nil
+	}
+
+	// fetch_groups is enabled - check for truncation
+	if groupsClaimRaw != nil {
+		if list, ok := normalizeList(groupsClaimRaw); ok && len(list) < o.config.GroupsCap {
+			// Definitely NOT truncated - use token groups
+			if o.groupsFilter == nil {
+				return groupsClaimRaw, nil
+			}
+			return o.applyGroupsFilter(b, list), nil
+		}
+	}
+
+	// Groups might be truncated (len >= groups_cap) or missing
+	// Fetch from API (credentials already validated in Initialize)
+
+	userID, err := o.resolveUserID(b, allClaims, role)
+	if err != nil {
+		return nil, err
+	}
+
+	apiCtx, err := b.createCAContext(b.providerCtx, b.cachedConfig.OIDCDiscoveryCAPEM)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create CA context: %w", err)
+	}
+	client := http.DefaultClient
+	if c, ok := apiCtx.Value(oauth2.HTTPClient).(*http.Client); ok {
+		client = c
+	}
+
+	groups, err := o.getOktaGroups(ctx, client, userID)
+	if err != nil {
+		return nil, fmt.Errorf("unable to fetch groups from Okta API: %w", err)
+	}
+	b.Logger().Debug("groups fetched from Okta API", "count", len(groups))
+	if o.groupsFilter != nil {
+		groups = o.applyGroupsFilter(b, groups)
+	}
+	return groups, nil
+}
+
+// resolveUserID returns the value of the configured user_id_claim, or
+// the role's user_claim if user_id_claim is unset. Must be a string
+// that Okta accepts as a user identifier.
+func (o *OktaProvider) resolveUserID(b *jwtAuthBackend, allClaims map[string]interface{}, role *jwtRole) (string, error) {
+	claim := o.config.UserIDClaim
+	if claim == "" {
+		claim = role.UserClaim
+	}
+	if claim == "" {
+		return "", errors.New("user_id_claim is unset and role has no user_claim")
+	}
+	raw := getClaim(b.Logger(), allClaims, claim)
+	if raw == nil {
+		return "", fmt.Errorf("unable to locate %q in claims for Okta user lookup", claim)
+	}
+	s, ok := raw.(string)
+	if !ok {
+		return "", fmt.Errorf("claim %q is not a string; cannot use for Okta user lookup", claim)
+	}
+	if s == "" {
+		return "", fmt.Errorf("claim %q is empty; cannot use for Okta user lookup", claim)
+	}
+	return s, nil
+}
+
+// applyGroupsFilter returns the subset of list whose elements are
+// strings matching o.groupsFilter. Non-string entries are dropped.
+// Caller must only invoke this when groupsFilter is non-nil.
+func (o *OktaProvider) applyGroupsFilter(b *jwtAuthBackend, list []interface{}) []interface{} {
+	out := make([]interface{}, 0, len(list))
+	for _, item := range list {
+		s, ok := item.(string)
+		if !ok {
+			continue
+		}
+		if o.groupsFilter.MatchString(s) {
+			out = append(out, s)
+		}
+	}
+	b.Logger().Debug("groups filter applied", "before", len(list), "after", len(out))
+	return out
+}
+
+// getOktaGroups fetches every group the named user belongs to from
+// /api/v1/users/{userID}/groups, following RFC 5988 Link-header
+// pagination. Authenticated with the configured admin API token.
+// ctx is the login request context; cancellation and deadlines are propagated
+// to every HTTP request.
+func (o *OktaProvider) getOktaGroups(ctx context.Context, client *http.Client, userID string) ([]interface{}, error) {
+	next := strings.TrimRight(o.config.OrgURL, "/") + fmt.Sprintf(oktaUserGroupsPathFmt, url.PathEscape(userID))
+
+	var all []interface{}
+	for page := 0; next != ""; page++ {
+		if page >= maxOktaPages {
+			return nil, fmt.Errorf("okta API pagination exceeded %d pages; possible circular Link header", maxOktaPages)
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, next, nil)
+		if err != nil {
+			return nil, fmt.Errorf("error constructing groups request: %w", err)
+		}
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Authorization", "SSWS "+o.config.APIToken)
+
+		res, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("unable to call Okta API: %w", err)
+		}
+		body, readErr := io.ReadAll(res.Body)
+		res.Body.Close()
+		if readErr != nil {
+			return nil, fmt.Errorf("failed to read Okta API response: %w", readErr)
+		}
+		if res.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("okta api returned %d: %s", res.StatusCode, string(body))
+		}
+
+		var page []oktaGroup
+		if err := json.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("unable to decode Okta API response: %w", err)
+		}
+		for _, g := range page {
+			if g.Profile.Name != "" {
+				all = append(all, g.Profile.Name)
+			}
+		}
+		next = nextLink(res.Header.Values("Link"))
+	}
+
+	return all, nil
+}
+
+// oktaGroup is a partial shape of Okta's Group resource.
+type oktaGroup struct {
+	ID      string           `json:"id"`
+	Profile oktaGroupProfile `json:"profile"`
+}
+
+type oktaGroupProfile struct {
+	Name string `json:"name"`
+}
+
+// linkNextRE matches the URL in a Link header entry whose rel="next",
+// per RFC 5988, e.g. <https://example.okta.com/...>; rel="next".
+var linkNextRE = regexp.MustCompile(`<([^>]+)>\s*;\s*rel\s*=\s*"next"`)
+
+// nextLink returns the URL of the rel="next" link from a slice of
+// Link header values, or "" if none is present.
+func nextLink(headers []string) string {
+	for _, h := range headers {
+		if m := linkNextRE.FindStringSubmatch(h); m != nil {
+			return m[1]
+		}
+	}
+	return ""
+}
