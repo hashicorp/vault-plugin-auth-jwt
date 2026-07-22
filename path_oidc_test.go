@@ -65,6 +65,7 @@ func TestOIDC_AuthURL(t *testing.T) {
 		"user_claim":            "email",
 		"bound_audiences":       "vault",
 		"allowed_redirect_uris": []string{"https://example.com"},
+		"oidc_claims":           `{"id_token":{"email":{"essential":true}}}`,
 	}
 
 	req = &logical.Request{
