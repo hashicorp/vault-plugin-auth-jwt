@@ -176,15 +176,103 @@ func TestExtractMetadata(t *testing.T) {
 			false,
 		},
 		{
-			"error: non-string data",
+			"numeric claim (json.Number via getClaim)",
 			map[string]interface{}{
-				"data1": 42,
+				"data1": "foo",
+				"exp":   float64(1587564736),
 			},
 			map[string]string{
 				"data1": "val1",
+				"exp":   "expiry",
 			},
-			nil,
-			true,
+			map[string]string{
+				"val1":   "foo",
+				"expiry": "1587564736",
+			},
+			false,
+		},
+		{
+			"boolean claim",
+			map[string]interface{}{
+				"email_verified": true,
+				"is_admin":       false,
+			},
+			map[string]string{
+				"email_verified": "verified",
+				"is_admin":       "admin",
+			},
+			map[string]string{
+				"verified": "true",
+				"admin":    "false",
+			},
+			false,
+		},
+		{
+			"array claim (string list)",
+			map[string]interface{}{
+				"groups": []interface{}{"group1", "group2", "group3"},
+			},
+			map[string]string{
+				"groups": "user_groups",
+			},
+			map[string]string{
+				"user_groups": `["group1","group2","group3"]`,
+			},
+			false,
+		},
+		{
+			"nested object claim",
+			map[string]interface{}{
+				"address": map[string]interface{}{
+					"street": "123 Main St",
+					"city":   "Springfield",
+				},
+			},
+			map[string]string{
+				"address": "addr",
+			},
+			map[string]string{
+				"addr": `{"city":"Springfield","street":"123 Main St"}`,
+			},
+			false,
+		},
+		{
+			"mixed types",
+			map[string]interface{}{
+				"name":   "alice",
+				"age":    float64(30),
+				"active": true,
+				"roles":  []interface{}{"reader", "writer"},
+			},
+			map[string]string{
+				"name":   "meta_name",
+				"age":    "meta_age",
+				"active": "meta_active",
+				"roles":  "meta_roles",
+			},
+			map[string]string{
+				"meta_name":   "alice",
+				"meta_age":    "30",
+				"meta_active": "true",
+				"meta_roles":  `["reader","writer"]`,
+			},
+			false,
+		},
+		{
+			"json.Number claim",
+			map[string]interface{}{
+				"acct": json.Number("0"),
+				"nbf":  json.Number("1587560836"),
+			},
+			map[string]string{
+				"acct": "account",
+				"nbf":  "not_before",
+			},
+			map[string]string{
+				"account":    "0",
+				"not_before": "1587560836",
+			},
+			false,
 		},
 	}
 
@@ -195,6 +283,36 @@ func TestExtractMetadata(t *testing.T) {
 		}
 		if diff := deep.Equal(actual, test.expected); diff != nil {
 			t.Fatalf("case '%s': expected results: %v", test.testCase, diff)
+		}
+	}
+}
+
+func TestClaimToString(t *testing.T) {
+	tests := []struct {
+		testCase string
+		input    interface{}
+		expected string
+	}{
+		{"string", "hello", "hello"},
+		{"empty string", "", ""},
+		{"json.Number integer", json.Number("42"), "42"},
+		{"json.Number float", json.Number("3.14"), "3.14"},
+		{"bool true", true, "true"},
+		{"bool false", false, "false"},
+		{"string slice", []interface{}{"a", "b", "c"}, `["a","b","c"]`},
+		{"mixed slice", []interface{}{"a", json.Number("1"), true}, `["a",1,true]`},
+		{"map", map[string]interface{}{"k": "v"}, `{"k":"v"}`},
+		{"int (default branch)", 99, "99"},
+		{"float64 (default branch)", float64(2.5), "2.5"},
+	}
+
+	for _, test := range tests {
+		result, err := claimToString(test.input)
+		if err != nil {
+			t.Fatalf("case '%s': unexpected error: %v", test.testCase, err)
+		}
+		if result != test.expected {
+			t.Fatalf("case '%s': expected %q, got %q", test.testCase, test.expected, result)
 		}
 	}
 }
