@@ -250,6 +250,45 @@ func (b *jwtAuthBackend) pathConfigWrite(ctx context.Context, req *logical.Reque
 	if err != nil {
 		return nil, err
 	}
+
+	if existingConfig != nil {
+		// Callers cannot read sensitive write-only parameters like oidc_client_secret,
+		// so they cannot re-supply them during partial updates. To avoid silently
+		// wiping omitted fields, we selectively restore them from existingConfig.
+		restoreString := func(key string, target *string, existing string) {
+			if _, ok := d.Raw[key]; !ok {
+				*target = existing
+			}
+		}
+		restoreStringSlice := func(key string, target *[]string, existing []string) {
+			if _, ok := d.Raw[key]; !ok {
+				*target = existing
+			}
+		}
+
+		restoreString("oidc_discovery_url", &config.OIDCDiscoveryURL, existingConfig.OIDCDiscoveryURL)
+		restoreString("oidc_discovery_ca_pem", &config.OIDCDiscoveryCAPEM, existingConfig.OIDCDiscoveryCAPEM)
+		restoreString("oidc_client_id", &config.OIDCClientID, existingConfig.OIDCClientID)
+		restoreString("oidc_client_secret", &config.OIDCClientSecret, existingConfig.OIDCClientSecret)
+		restoreString("oidc_response_mode", &config.OIDCResponseMode, existingConfig.OIDCResponseMode)
+		restoreString("jwks_url", &config.JWKSURL, existingConfig.JWKSURL)
+		restoreString("jwks_ca_pem", &config.JWKSCAPEM, existingConfig.JWKSCAPEM)
+		restoreString("default_role", &config.DefaultRole, existingConfig.DefaultRole)
+		restoreString("bound_issuer", &config.BoundIssuer, existingConfig.BoundIssuer)
+
+		restoreStringSlice("oidc_response_types", &config.OIDCResponseTypes, existingConfig.OIDCResponseTypes)
+		restoreStringSlice("jwt_validation_pubkeys", &config.JWTValidationPubKeys, existingConfig.JWTValidationPubKeys)
+		restoreStringSlice("jwt_supported_algs", &config.JWTSupportedAlgs, existingConfig.JWTSupportedAlgs)
+		restoreStringSlice("unsupported_critical_cert_extensions", &config.UnsupportedCriticalCertExtensions, existingConfig.UnsupportedCriticalCertExtensions)
+
+		if _, ok := d.Raw["jwks_pairs"]; !ok {
+			config.JWKSPairs = existingConfig.JWKSPairs
+		}
+		if _, ok := d.Raw["provider_config"]; !ok {
+			config.ProviderConfig = existingConfig.ProviderConfig
+		}
+	}
+
 	if nsInState, ok := d.GetOk("namespace_in_state"); ok {
 		config.NamespaceInState = nsInState.(bool)
 	} else if existingConfig == nil {
