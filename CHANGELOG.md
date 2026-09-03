@@ -1,3 +1,8 @@
+## Unreleased
+
+FEATURES:
+* **Okta Provider**: Add Okta provider with group fetching from Admin API when `fetch_groups=true` and truncation is detected.
+
 ## v0.26.2
 ### May 7, 2026
 
