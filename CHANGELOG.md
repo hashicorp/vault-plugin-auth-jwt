@@ -3,7 +3,7 @@
 
 IMPROVEMENTS:
 * Updated dependencies (#408):
-   * go 1.26.3 => 1.26.4
+   * go 1.26.3 => 1.26.7
    * google.golang.org/genproto/googleapis/rpc v0.0.0-20260427160629-7cedc36a6bc4 => v0.0.0-20260819154853-08b0e4226688
    * golang.org/x/sync v0.20.0 => v0.22.0
    * google.golang.org/api v0.275.0 => v0.279.0
