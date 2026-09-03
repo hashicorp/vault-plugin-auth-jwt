@@ -1,4 +1,23 @@
-## Unreleased
+## v0.26.4
+### September 3, 2026
+
+IMPROVEMENTS:
+* Updated dependencies (#408):
+   * go 1.26.3 => 1.26.4
+   * google.golang.org/genproto/googleapis/rpc v0.0.0-20260427160629-7cedc36a6bc4 => v0.0.0-20260819154853-08b0e4226688
+   * golang.org/x/sync v0.20.0 => v0.22.0
+   * google.golang.org/api v0.275.0 => v0.279.0
+   * github.com/googleapis/enterprise-certificate-proxy v0.3.14 => v0.3.15
+   * golang.org/x/text v0.36.0 => v0.41.0
+   * golang.org/x/sys v0.43.0 => v0.47.0
+   * golang.org/x/crypto v0.50.0 => v0.56.0
+   * golang.org/x/net v0.53.0 => v0.58.0
+   * google.golang.org/protobuf v1.36.11 => v1.36.12
+   * go.opentelemetry.io/otel v1.43.0 => v1.44.0
+   * go.opentelemetry.io/otel/metric v1.43.0 => v1.44.0
+   * go.opentelemetry.io/otel/trace v1.43.0 => v1.44.0
+   * google.golang.org/grpc v1.80.0 => v1.83.1
+   * github.com/googleapis/gax-go/v2 v2.21.0 => v2.22.0
 
 FEATURES:
 * **Okta Provider**: Add Okta provider with group fetching from Admin API when `fetch_groups=true` and truncation is detected.
