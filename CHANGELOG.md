@@ -1,3 +1,10 @@
+## v0.26.4
+### September 3, 2026
+
+* updated go version (#409)
+* preapre v0.26.4 release (#408)
+* manual backport of okta groups fetching feature (#407)
+
 ## Unreleased
 
 FEATURES:
