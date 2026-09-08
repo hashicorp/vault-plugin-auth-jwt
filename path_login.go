@@ -5,10 +5,12 @@ package jwtauth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/hashicorp/cap/jwt"
+	"github.com/hashicorp/cap/oidc"
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/cidrutil"
@@ -223,6 +225,60 @@ func (b *jwtAuthBackend) pathLoginRenew(ctx context.Context, req *logical.Reques
 	}
 	if role == nil {
 		return nil, fmt.Errorf("role %s does not exist during renewal", roleName)
+	}
+
+	if tokenString, ok := req.Auth.InternalData["token"]; ok {
+		var token oauth2.Token
+		err = json.Unmarshal(([]byte)(tokenString.(string)), &token)
+		if err != nil {
+			return nil, err
+		}
+		config, err := b.config(ctx, req.Storage)
+		if err != nil {
+			return nil, err
+		}
+		if config == nil {
+			return logical.ErrorResponse("Could not load configuration"), nil
+		}
+		provider, err := b.getProvider(config)
+		if err != nil {
+			return nil, fmt.Errorf("error getting provider for login operation: %w", err)
+		}
+		discovery, err := provider.DiscoveryInfo(ctx)
+		if err != nil {
+			return nil, err
+		}
+		pctx, err := provider.HTTPClientContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+		oauth2Config := oauth2.Config{
+			ClientID:     config.OIDCClientID,
+			ClientSecret: config.OIDCClientSecret,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  discovery.AuthURL,
+				TokenURL: discovery.TokenURL,
+			},
+		}
+		ts := oauth2Config.TokenSource(pctx, &token)
+
+		// do a quick check to make sure we can get a fresh token
+		newToken, err := ts.Token()
+		if err != nil {
+			return nil, err
+		}
+		if newToken == nil {
+			return nil, errors.New("failed to retrieve new access token from refresh")
+		}
+
+		// if we have a fresh identity token then use it to get a fresh identity
+		if idToken, ok := newToken.Extra("id_token").(string); ok {
+			tk, err := oidc.NewToken(oidc.IDToken(idToken), newToken)
+			if err != nil {
+				return nil, err
+			}
+			return b.oidcEstablish(ctx, provider, roleName, role, tk, oidc.IDToken(idToken))
+		}
 	}
 
 	resp := &logical.Response{Auth: req.Auth}
