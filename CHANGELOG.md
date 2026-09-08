@@ -1,3 +1,9 @@
+## v0.27.0
+### September 8, 2026
+
+* VAULT-50052: chore: automated Go/dependency update via vault-plugin-release (#411)
+* Adding Okta Provider for fetching all the groups from admin okta API (#403)
+
 ## Unreleased
 
 FEATURES:
