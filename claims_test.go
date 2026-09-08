@@ -58,6 +58,32 @@ func TestGetClaim(t *testing.T) {
 	}
 }
 
+func TestGetClaim_FloatPreservation(t *testing.T) {
+	tests := []struct {
+		name  string
+		value interface{}
+		want  interface{}
+	}{
+		{"integer float64", float64(42), json.Number("42")},
+		{"fractional float64", float64(42.9), json.Number("42.9")},
+		{"negative float64", float64(-3.14), json.Number("-3.14")},
+		{"zero float64", float64(0), json.Number("0")},
+		{"large integer float64", float64(1234567890), json.Number("1234567890")},
+		{"integer float32", float32(42), json.Number("42")},
+		{"fractional float32", float32(42.5), json.Number("42.5")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			claims := map[string]interface{}{"v": tt.value}
+			got := getClaim(hclog.NewNullLogger(), claims, "v")
+			if diff := deep.Equal(got, tt.want); diff != nil {
+				t.Errorf("getClaim() = %v, want %v, diff: %v", got, tt.want, diff)
+			}
+		})
+	}
+}
+
 func TestSetClaim(t *testing.T) {
 	data := `{
 		"a": 42,
@@ -319,13 +345,34 @@ func TestValidateBoundClaims(t *testing.T) {
 			name:            "invalid match with numeric claim conversion from float64",
 			boundClaimsType: "string",
 			boundClaims: map[string]interface{}{
-				// Numeric bound claims from Vault API are json.Number type
 				"foo": json.Number("456"),
 			},
 			allClaims: map[string]interface{}{
 				"foo": float64(123),
 			},
 			errExpected: true,
+		},
+		{
+			name:            "fractional float64 should not match truncated integer",
+			boundClaimsType: "string",
+			boundClaims: map[string]interface{}{
+				"foo": json.Number("42"),
+			},
+			allClaims: map[string]interface{}{
+				"foo": float64(42.9),
+			},
+			errExpected: true,
+		},
+		{
+			name:            "fractional float64 exact match",
+			boundClaimsType: "string",
+			boundClaims: map[string]interface{}{
+				"foo": json.Number("42.9"),
+			},
+			allClaims: map[string]interface{}{
+				"foo": float64(42.9),
+			},
+			errExpected: false,
 		},
 		{
 			name:            "invalid match with numeric claim conversion from float32",
