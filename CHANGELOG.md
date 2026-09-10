@@ -1,13 +1,17 @@
+## Unreleased
+
 ## v0.27.0
 ### September 8, 2026
 
-* VAULT-50052: chore: automated Go/dependency update via vault-plugin-release (#411)
-* Adding Okta Provider for fetching all the groups from admin okta API (#403)
-
-## Unreleased
-
 FEATURES:
-* **Okta Provider**: Add Okta provider with group fetching from Admin API when `fetch_groups=true` and truncation is detected.
+* **Okta Provider**: Add Okta provider with group fetching from Admin API when `fetch_groups=true` and truncation is detected (#403)
+
+IMPROVEMENTS:
+* Building with go 1.27.1 (#411)
+* Updated dependencies (#411):
+   * golang.org/x/sync v0.20.0 => v0.22.0
+   * google.golang.org/api v0.275.0 => v0.279.0
+   * golang.org/x/crypto v0.50.0 => v0.56.0 (resolves GO-2026-6354, GO-2026-6355)
 
 ## v0.26.2
 ### May 7, 2026
