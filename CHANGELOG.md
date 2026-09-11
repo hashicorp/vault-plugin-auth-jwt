@@ -1,5 +1,12 @@
 ## Unreleased
 
+## v0.27.1
+### September 11, 2026
+
+IMPROVEMENTS:
+* Updated dependencies (#414):
+   * google.golang.org/grpc v1.83.1 => v1.83.2 (resolves GHSA-2v4p-qf9q-27wj)
+
 ## v0.27.0
 ### September 8, 2026
 
