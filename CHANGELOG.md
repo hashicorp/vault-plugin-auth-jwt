@@ -1,3 +1,9 @@
+## v0.27.1
+### September 11, 2026
+
+* Upgrade google.golang.org/grpc to v1.83.2 (#414)
+* [CHANGELOG] Prepare for v0.27.0 release (#412)
+
 ## Unreleased
 
 ## v0.27.0
