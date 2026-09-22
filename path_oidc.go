@@ -273,6 +273,10 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		b.Logger().Debug("OIDC provider response", "id_token", loggedToken)
 	}
 
+	return b.oidcEstablish(ctx, provider, roleName, role, token, rawToken)
+}
+
+func (b *jwtAuthBackend) oidcEstablish(ctx context.Context, provider *oidc.Provider, roleName string, role *jwtRole, token *oidc.Tk, rawToken oidc.IDToken) (*logical.Response, error) {
 	// Parse claims from the ID token payload.
 	var allClaims map[string]interface{}
 	if err := rawToken.Claims(&allClaims); err != nil {
@@ -333,6 +337,21 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		tokenMetadata[k] = v
 	}
 
+	internalData := map[string]interface{}{
+		"role": roleName,
+	}
+	if token != nil {
+		tokenData, err := json.Marshal(oauth2.Token{
+			AccessToken:  token.AccessToken().String(),
+			RefreshToken: token.RefreshToken().String(),
+			Expiry:       token.Expiry(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		internalData["token"] = string(tokenData)
+	}
+
 	auth := &logical.Auth{
 		Policies:     role.Policies,
 		DisplayName:  alias.Name,
@@ -340,10 +359,8 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		NumUses:      role.NumUses,
 		Alias:        alias,
 		GroupAliases: groupAliases,
-		InternalData: map[string]interface{}{
-			"role": roleName,
-		},
-		Metadata: tokenMetadata,
+		InternalData: internalData,
+		Metadata:     tokenMetadata,
 		LeaseOptions: logical.LeaseOptions{
 			Renewable: true,
 			TTL:       role.TTL,
