@@ -5,6 +5,7 @@ package jwtauth
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -662,5 +663,86 @@ func Test_normalizeList(t *testing.T) {
 		if ok != tt.ok {
 			t.Errorf("normalizeList() got ok = %v, want %v", ok, tt.ok)
 		}
+	}
+}
+
+// Test_setClaim_JSONPointerSyncReturnedRoot reproduces the regression fixed in PR #366:
+// pointerstructure.Set may return an updated root object rather than mutating in place.
+// If the returned root is not synchronized back into allClaims, subsequent getClaim calls
+// can read stale values (e.g., groups disappear), breaking policy mapping in Azure/Entra
+// "group overage" scenarios.
+func TestSetClaim_SyncsUpdatedRootIntoAllClaims_WhenPointerSetReturnsNewRoot(t *testing.T) {
+	logger := hclog.NewNullLogger()
+
+	// Save and restore the real function.
+	origPointerSet := pointerSet
+	defer func() { pointerSet = origPointerSet }()
+
+	origPointerGet := pointerGet
+	defer func() { pointerGet = origPointerGet }()
+
+	// Stub: do NOT mutate the passed-in allClaims.
+	// Instead, return a NEW root map that contains the expected structure.
+	pointerSet = func(curr interface{}, claim string, val interface{}) (interface{}, error) {
+		// Clone the current root into a new map (simulate "returned new root").
+		root := map[string]interface{}{}
+		if m, ok := curr.(map[string]interface{}); ok {
+			for k, v := range m {
+				root[k] = v
+			}
+		}
+
+		switch claim {
+		case "/a/b/c/d/groups":
+			root["a"] = map[string]interface{}{
+				"b": map[string]interface{}{
+					"c": map[string]interface{}{
+						"d": map[string]interface{}{
+							"groups": val,
+						},
+					},
+				},
+			}
+		case "/_claim_names/groups":
+			claimNames, _ := root["_claim_names"].(map[string]interface{})
+			if claimNames == nil {
+				claimNames = map[string]interface{}{}
+				root["_claim_names"] = claimNames
+			}
+			claimNames["groups"] = val
+		default:
+			return nil, fmt.Errorf("stub pointerSet received unexpected claim path: %s", claim)
+		}
+
+		return root, nil
+	}
+
+	allClaims := map[string]interface{}{}
+
+	groupsPath := "/a/b/c/d/groups"
+	groups := []interface{}{"g1", "g2", "g3"}
+
+	setClaim(logger, allClaims, groupsPath, groups)
+
+	// If setClaim does NOT sync the returned root into allClaims, this will be nil.
+	got := getClaim(logger, allClaims, groupsPath)
+	if got == nil {
+		t.Fatalf("expected %s to be readable; setClaim did not sync updated root into allClaims", groupsPath)
+	}
+
+	norm, ok := normalizeList(got)
+	if !ok || len(norm) != len(groups) {
+		t.Fatalf("expected normalizeList ok and %d groups, got ok=%v len=%d", len(groups), ok, len(norm))
+	}
+
+	// Additional pointer write to simulate distributed claim metadata.
+	setClaim(logger, allClaims, "/_claim_names/groups", "src1")
+	if v := getClaim(logger, allClaims, "/_claim_names/groups"); v != "src1" {
+		t.Fatalf("expected /_claim_names/groups==src1, got %#v", v)
+	}
+
+	got2 := getClaim(logger, allClaims, groupsPath)
+	if got2 == nil {
+		t.Fatalf("expected %s to remain readable after metadata write; got nil", groupsPath)
 	}
 }
