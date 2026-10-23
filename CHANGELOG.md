@@ -1,4 +1,8 @@
-## Unreleased
+## v0.27.2
+### October 23, 2026
+
+* upgrade dependencies (#417)
+* [CHANGELOG] Prepare for v0.27.1 release (#415)
 
 ## v0.27.1
 ### September 11, 2026
