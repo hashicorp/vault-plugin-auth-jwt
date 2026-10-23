@@ -4,8 +4,6 @@
 * upgrade dependencies (#417)
 * [CHANGELOG] Prepare for v0.27.1 release (#415)
 
-## Unreleased
-
 ## v0.27.1
 ### September 11, 2026
 
