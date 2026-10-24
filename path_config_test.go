@@ -633,13 +633,14 @@ func TestConfig_OIDC_Write(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		cleanB, cleanStorage := getBackend(t)
 		req := &logical.Request{
 			Operation: logical.UpdateOperation,
 			Path:      configPath,
-			Storage:   storage,
+			Storage:   cleanStorage,
 			Data:      test.data,
 		}
-		resp, err := b.HandleRequest(context.Background(), req)
+		resp, err := cleanB.HandleRequest(context.Background(), req)
 		if err != nil {
 			t.Fatalf("test '%s', %v", test.id, err)
 		}
@@ -650,24 +651,22 @@ func TestConfig_OIDC_Write(t *testing.T) {
 }
 
 func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
-	b, storage := getBackend(t)
-	req := &logical.Request{
-		Operation: logical.UpdateOperation,
-		Path:      configPath,
-		Storage:   storage,
-		Data:      nil,
-	}
-
 	t.Run("valid provider_config", func(t *testing.T) {
-		req.Data = map[string]interface{}{
-			"oidc_discovery_url": "https://team-vault.auth0.com/",
-			"provider_config": map[string]interface{}{
-				"provider":     "azure",
-				"extraOptions": "abound",
-			},
-			"unsupported_critical_cert_extensions": []string{
-				"2.5.29.54",
-				"2.5.29.36",
+		b, storage := getBackend(t)
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      configPath,
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"oidc_discovery_url": "https://team-vault.auth0.com/",
+				"provider_config": map[string]interface{}{
+					"provider":     "azure",
+					"extraOptions": "abound",
+				},
+				"unsupported_critical_cert_extensions": []string{
+					"2.5.29.54",
+					"2.5.29.36",
+				},
 			},
 		}
 
@@ -704,10 +703,16 @@ func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
 	})
 
 	t.Run("unknown provider in provider_config", func(t *testing.T) {
-		req.Data = map[string]interface{}{
-			"oidc_discovery_url": "https://team-vault.auth0.com/",
-			"provider_config": map[string]interface{}{
-				"provider": "unknown",
+		b, storage := getBackend(t)
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      configPath,
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"oidc_discovery_url": "https://team-vault.auth0.com/",
+				"provider_config": map[string]interface{}{
+					"provider": "unknown",
+				},
 			},
 		}
 
@@ -718,10 +723,16 @@ func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
 	})
 
 	t.Run("provider_config missing provider", func(t *testing.T) {
-		req.Data = map[string]interface{}{
-			"oidc_discovery_url": "https://team-vault.auth0.com/",
-			"provider_config": map[string]interface{}{
-				"not-provider": "oops",
+		b, storage := getBackend(t)
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      configPath,
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"oidc_discovery_url": "https://team-vault.auth0.com/",
+				"provider_config": map[string]interface{}{
+					"not-provider": "oops",
+				},
 			},
 		}
 
@@ -732,8 +743,14 @@ func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
 	})
 
 	t.Run("provider_config not set", func(t *testing.T) {
-		req.Data = map[string]interface{}{
-			"oidc_discovery_url": "https://team-vault.auth0.com/",
+		b, storage := getBackend(t)
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      configPath,
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"oidc_discovery_url": "https://team-vault.auth0.com/",
+			},
 		}
 
 		resp, err := b.HandleRequest(context.Background(), req)
@@ -761,6 +778,70 @@ func TestConfig_OIDC_Write_ProviderConfig(t *testing.T) {
 			t.Fatal(diff)
 		}
 	})
+}
+
+func TestConfig_PartialUpdate_PreservesFields(t *testing.T) {
+	b, storage := getBackend(t)
+
+	// 1. Initial write of a full configuration
+	initialData := map[string]interface{}{
+		"oidc_discovery_url": "https://team-vault.auth0.com/",
+		"oidc_client_id":     "client-123",
+		"oidc_client_secret": "secret-456",
+		"default_role":       "role-initial",
+		"provider_config": map[string]interface{}{
+			"provider":     "azure",
+			"extraOptions": "abound",
+		},
+	}
+
+	req := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      configPath,
+		Storage:   storage,
+		Data:      initialData,
+	}
+
+	resp, err := b.HandleRequest(context.Background(), req)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("failed to write initial config: err=%v, resp=%+v", err, resp)
+	}
+
+	// 2. Perform a partial update, modifying ONLY 'default_role'
+	partialData := map[string]interface{}{
+		"default_role": "role-updated",
+	}
+
+	req.Data = partialData
+	resp, err = b.HandleRequest(context.Background(), req)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("failed to perform partial update: err=%v, resp=%+v", err, resp)
+	}
+
+	// 3. Read back the config from storage and assert fields
+	conf, err := b.(*jwtAuthBackend).config(context.Background(), storage)
+	if err != nil {
+		t.Fatalf("failed to read back config: %v", err)
+	}
+
+	// Verify that the updated field was correctly changed
+	if conf.DefaultRole != "role-updated" {
+		t.Errorf("expected default_role to be 'role-updated', got '%s'", conf.DefaultRole)
+	}
+
+	// Verify that ALL other fields are perfectly preserved
+	if conf.OIDCDiscoveryURL != "https://team-vault.auth0.com/" {
+		t.Errorf("expected oidc_discovery_url to be preserved, got '%s'", conf.OIDCDiscoveryURL)
+	}
+	if conf.OIDCClientID != "client-123" {
+		t.Errorf("expected oidc_client_id to be preserved, got '%s'", conf.OIDCClientID)
+	}
+	if conf.OIDCClientSecret != "secret-456" {
+		t.Errorf("expected oidc_client_secret to be preserved, got '%s'", conf.OIDCClientSecret)
+	}
+	if conf.ProviderConfig["provider"] != "azure" || conf.ProviderConfig["extraOptions"] != "abound" {
+		t.Errorf("expected provider_config to be preserved, got %+v", conf.ProviderConfig)
+	}
 }
 
 func TestConfig_OIDC_Create_Namespace(t *testing.T) {
