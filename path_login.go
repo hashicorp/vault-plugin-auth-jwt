@@ -266,6 +266,15 @@ func (b *jwtAuthBackend) createIdentity(ctx context.Context, allClaims map[strin
 	// add role name to the Entity Alias metadata
 	metadata["role"] = roleName
 
+	// Add static metadata to the Entity Alias metadata
+	for metadataKey, metadataValue := range role.StaticMetadata {
+		if _, ok := metadata[metadataKey]; ok {
+			fmt.Errorf("metadata key already exists, can not copy key from role static_metadata:  %q ", metadataKey)
+		} else {
+			metadata[metadataKey] = metadataValue
+		}
+	}
+
 	alias := &logical.Alias{
 		Name:     userName,
 		Metadata: metadata,

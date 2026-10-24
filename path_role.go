@@ -133,6 +133,10 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 				Type:        framework.TypeKVPairs,
 				Description: `Mappings of claims (key) that will be copied to a metadata field (value)`,
 			},
+			"static_metadata": {
+				Type:        framework.TypeKVPairs,
+				Description: `Static mapping of values (value) be copied to a metadata field (key)`,
+			},
 			"user_claim": {
 				Type:        framework.TypeString,
 				Description: `The claim to use for the Identity entity alias name`,
@@ -218,6 +222,7 @@ type jwtRole struct {
 	BoundClaimsType      string                 `json:"bound_claims_type"`
 	BoundClaims          map[string]interface{} `json:"bound_claims"`
 	ClaimMappings        map[string]string      `json:"claim_mappings"`
+	StaticMetadata       map[string]string      `json:"static_metadata"`
 	UserClaim            string                 `json:"user_claim"`
 	GroupsClaim          string                 `json:"groups_claim"`
 	OIDCScopes           []string               `json:"oidc_scopes"`
@@ -326,6 +331,7 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 		"bound_claims_type":       role.BoundClaimsType,
 		"bound_claims":            role.BoundClaims,
 		"claim_mappings":          role.ClaimMappings,
+		"static_metadata":         role.StaticMetadata,
 		"user_claim":              role.UserClaim,
 		"user_claim_json_pointer": role.UserClaimJSONPointer,
 		"groups_claim":            role.GroupsClaim,
@@ -516,6 +522,25 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 		}
 
 		role.ClaimMappings = claimMappings
+	}
+
+	if staticMetadataMapRaw, ok := data.GetOk("static_metadata"); ok {
+		staticMetadataMap := staticMetadataMapRaw.(map[string]string)
+
+		// sanity check mappings for duplicates and collision with reserved names
+		targets := make(map[string]bool)
+		for _, metadataKey := range staticMetadataMap {
+			if strutil.StrListContains(reservedMetadata, metadataKey) {
+				return logical.ErrorResponse("metadata key %q is reserved and may not be set with static_metadata", metadataKey), nil
+			}
+
+			if targets[metadataKey] {
+				return logical.ErrorResponse("multiple static_metadata values are mapped to metadata key %q", metadataKey), nil
+			}
+			targets[metadataKey] = true
+		}
+
+		role.StaticMetadata = staticMetadataMap
 	}
 
 	if userClaim, ok := data.GetOk("user_claim"); ok {
