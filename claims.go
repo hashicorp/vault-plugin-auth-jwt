@@ -52,16 +52,18 @@ func getClaim(logger log.Logger, allClaims map[string]interface{}, claim string)
 		}
 	}
 
-	// The claims unmarshalled by go-oidc don't use UseNumber, so there will
-	// be mismatches if they're coming in as float64 since Vault's config will
-	// be represented as json.Number. If the operator can coerce claims data to
-	// be in string form, there is no problem. As an alternative, we try to
-	// intelligently convert float32 and float64 to json.Number:
 	switch v := val.(type) {
-	case float32:
-		return json.Number(strconv.Itoa(int(v)))
 	case float64:
-		return json.Number(strconv.Itoa(int(v)))
+		if v == float64(int64(v)) {
+			return json.Number(strconv.FormatInt(int64(v), 10))
+		}
+		return json.Number(strconv.FormatFloat(v, 'f', -1, 64))
+	case float32:
+		f := float64(v)
+		if f == float64(int64(f)) {
+			return json.Number(strconv.FormatInt(int64(f), 10))
+		}
+		return json.Number(strconv.FormatFloat(f, 'f', -1, 64))
 	}
 	return val
 }
