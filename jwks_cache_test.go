@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	sqjwt "github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	sqjwt "github.com/go-jose/go-jose/v4/jwt"
 	"github.com/hashicorp/cap/jwt"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/stretchr/testify/assert"

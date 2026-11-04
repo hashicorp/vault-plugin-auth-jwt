@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/hashicorp/cap/oidc"
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/vault/sdk/logical"

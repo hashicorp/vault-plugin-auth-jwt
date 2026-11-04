@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	sqjwt "github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	sqjwt "github.com/go-jose/go-jose/v4/jwt"
 	"github.com/go-test/deep"
 	"github.com/hashicorp/cap/jwt"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -177,7 +177,7 @@ func getTestJWT(t *testing.T, privKey string, cl interface{}, privateCl interfac
 		t.Fatal(err)
 	}
 
-	raw, err := sqjwt.Signed(sig).Claims(cl).Claims(privateCl).CompactSerialize()
+	raw, err := sqjwt.Signed(sig).Claims(cl).Claims(privateCl).Serialize()
 	if err != nil {
 		t.Fatal(err)
 	}
