@@ -873,6 +873,84 @@ func TestOIDC_Callback(t *testing.T) {
 		}
 	})
 
+	t.Run("successful login with token_claim_mappings", func(t *testing.T) {
+		b, storage, s := getBackendAndServer(t, false)
+		defer s.server.Close()
+
+		req := &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "role/test",
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"token_claim_mappings": map[string]string{
+					"sk":               "sk",
+					"/nested/username": "username",
+				},
+			},
+		}
+		resp, err := b.HandleRequest(context.Background(), req)
+		if err != nil || (resp != nil && resp.IsError()) {
+			t.Fatalf("err:%v resp:%#v\n", err, resp)
+		}
+
+		req = &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "oidc/auth_url",
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"role":         "test",
+				"redirect_uri": "https://example.com",
+			},
+		}
+		resp, err = b.HandleRequest(context.Background(), req)
+		if err != nil || (resp != nil && resp.IsError()) {
+			t.Fatalf("err:%v resp:%#v\n", err, resp)
+		}
+		authURL := resp.Data["auth_url"].(string)
+		state := getQueryParam(t, authURL, "state")
+		nonce := getQueryParam(t, authURL, "nonce")
+
+		s.customClaims = sampleClaims(nonce)
+		s.code = "abc"
+		s.codeChallenge = getQueryParam(t, authURL, "code_challenge")
+
+		req = &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "oidc/callback",
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"state": state,
+				"code":  "abc",
+			},
+		}
+		resp, err = b.HandleRequest(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp == nil || resp.IsError() {
+			t.Fatalf("unexpected response: %#v", resp)
+		}
+
+		expectedAlias := map[string]string{
+			"role":  "test",
+			"color": "green",
+			"size":  "medium",
+		}
+		if !reflect.DeepEqual(resp.Auth.Alias.Metadata, expectedAlias) {
+			t.Fatalf("expected alias metadata %v, got %v", expectedAlias, resp.Auth.Alias.Metadata)
+		}
+		expectedToken := map[string]string{
+			"role":     "test",
+			"color":    "green",
+			"size":     "medium",
+			"sk":       "42",
+			"username": "nested_username",
+		}
+		if !reflect.DeepEqual(resp.Auth.Metadata, expectedToken) {
+			t.Fatalf("expected token metadata %v, got %v", expectedToken, resp.Auth.Metadata)
+		}
+	})
+
 	t.Run("failed login - bad nonce", func(t *testing.T) {
 		b, storage, s := getBackendAndServer(t, false)
 		defer s.server.Close()

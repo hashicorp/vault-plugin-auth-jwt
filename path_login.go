@@ -188,9 +188,9 @@ func (b *jwtAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d 
 		return logical.ErrorResponse("error validating claims: %s", err.Error()), nil
 	}
 
-	tokenMetadata := make(map[string]string)
-	for k, v := range alias.Metadata {
-		tokenMetadata[k] = v
+	tokenMetadata, err := b.tokenMetadata(allClaims, alias, role)
+	if err != nil {
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	auth := &logical.Auth{
@@ -230,6 +230,28 @@ func (b *jwtAuthBackend) pathLoginRenew(ctx context.Context, req *logical.Reques
 	resp.Auth.MaxTTL = role.TokenMaxTTL
 	resp.Auth.Period = role.TokenPeriod
 	return resp, nil
+}
+
+// tokenMetadata returns the metadata for the issued token: a copy of the
+// alias metadata plus the role's token_claim_mappings. The token_claim_mappings
+// are deliberately not set on the alias, so that claims which change on every
+// login (e.g. a GitHub Actions run_id) don't change the alias and make Vault
+// persist the entity on each login.
+func (b *jwtAuthBackend) tokenMetadata(allClaims map[string]interface{}, alias *logical.Alias, role *jwtRole) (map[string]string, error) {
+	tokenMetadata := make(map[string]string, len(alias.Metadata)+len(role.TokenClaimMappings))
+	for k, v := range alias.Metadata {
+		tokenMetadata[k] = v
+	}
+
+	tokenOnly, err := extractMetadata(b.Logger(), allClaims, role.TokenClaimMappings)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range tokenOnly {
+		tokenMetadata[k] = v
+	}
+
+	return tokenMetadata, nil
 }
 
 // createIdentity creates an alias and set of groups aliases based on the role

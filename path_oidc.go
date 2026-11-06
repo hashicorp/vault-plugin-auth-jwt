@@ -328,9 +328,9 @@ func (b *jwtAuthBackend) pathCallback(ctx context.Context, req *logical.Request,
 		return logical.ErrorResponse("error validating claims: %s", err.Error()), nil
 	}
 
-	tokenMetadata := make(map[string]string)
-	for k, v := range alias.Metadata {
-		tokenMetadata[k] = v
+	tokenMetadata, err := b.tokenMetadata(allClaims, alias, role)
+	if err != nil {
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	auth := &logical.Auth{

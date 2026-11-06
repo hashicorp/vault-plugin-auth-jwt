@@ -133,6 +133,13 @@ Defaults to 60 (1 minute) if set to 0 and can be disabled if set to -1.`,
 				Type:        framework.TypeKVPairs,
 				Description: `Mappings of claims (key) that will be copied to a metadata field (value)`,
 			},
+			"token_claim_mappings": {
+				Type: framework.TypeKVPairs,
+				Description: `Mappings of claims (key) that will be copied to a metadata field (value)
+on the issued token only. Unlike claim_mappings, these are not set on the
+Identity entity alias, so claims that change on every login do not cause an
+entity update.`,
+			},
 			"user_claim": {
 				Type:        framework.TypeString,
 				Description: `The claim to use for the Identity entity alias name`,
@@ -218,6 +225,7 @@ type jwtRole struct {
 	BoundClaimsType      string                 `json:"bound_claims_type"`
 	BoundClaims          map[string]interface{} `json:"bound_claims"`
 	ClaimMappings        map[string]string      `json:"claim_mappings"`
+	TokenClaimMappings   map[string]string      `json:"token_claim_mappings"`
 	UserClaim            string                 `json:"user_claim"`
 	GroupsClaim          string                 `json:"groups_claim"`
 	OIDCScopes           []string               `json:"oidc_scopes"`
@@ -326,6 +334,7 @@ func (b *jwtAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request,
 		"bound_claims_type":       role.BoundClaimsType,
 		"bound_claims":            role.BoundClaims,
 		"claim_mappings":          role.ClaimMappings,
+		"token_claim_mappings":    role.TokenClaimMappings,
 		"user_claim":              role.UserClaim,
 		"user_claim_json_pointer": role.UserClaimJSONPointer,
 		"groups_claim":            role.GroupsClaim,
@@ -500,22 +509,17 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 	}
 
 	if claimMappingsRaw, ok := data.GetOk("claim_mappings"); ok {
-		claimMappings := claimMappingsRaw.(map[string]string)
+		role.ClaimMappings = claimMappingsRaw.(map[string]string)
+	}
 
-		// sanity check mappings for duplicates and collision with reserved names
-		targets := make(map[string]bool)
-		for _, metadataKey := range claimMappings {
-			if strutil.StrListContains(reservedMetadata, metadataKey) {
-				return logical.ErrorResponse("metadata key %q is reserved and may not be a mapping destination", metadataKey), nil
-			}
+	if tokenClaimMappingsRaw, ok := data.GetOk("token_claim_mappings"); ok {
+		role.TokenClaimMappings = tokenClaimMappingsRaw.(map[string]string)
+	}
 
-			if targets[metadataKey] {
-				return logical.ErrorResponse("multiple keys are mapped to metadata key %q", metadataKey), nil
-			}
-			targets[metadataKey] = true
-		}
-
-		role.ClaimMappings = claimMappings
+	// Validate both mappings together: they write into the same token metadata,
+	// so a metadata key may only be a destination once across the two.
+	if err := validateClaimMappings(role.ClaimMappings, role.TokenClaimMappings); err != nil {
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	if userClaim, ok := data.GetOk("user_claim"); ok {
@@ -589,6 +593,25 @@ func (b *jwtAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.
 	}
 
 	return resp, nil
+}
+
+// validateClaimMappings checks claim_mappings and token_claim_mappings for
+// metadata keys that are reserved or used as a destination more than once.
+func validateClaimMappings(claimMappings, tokenClaimMappings map[string]string) error {
+	targets := make(map[string]bool)
+	for _, mappings := range []map[string]string{claimMappings, tokenClaimMappings} {
+		for _, metadataKey := range mappings {
+			if strutil.StrListContains(reservedMetadata, metadataKey) {
+				return fmt.Errorf("metadata key %q is reserved and may not be a mapping destination", metadataKey)
+			}
+
+			if targets[metadataKey] {
+				return fmt.Errorf("multiple keys are mapped to metadata key %q", metadataKey)
+			}
+			targets[metadataKey] = true
+		}
+	}
+	return nil
 }
 
 // roleStorageEntry stores all the options that are set on an role
