@@ -1,3 +1,14 @@
+## v0.27.3
+
+## What's Changed
+* [CHANGELOG] Prepare for v0.27.2 release by @hc-github-team-secure-vault-ecosystem in https://github.com/hashicorp/vault-plugin-auth-jwt/pull/418
+* Update go-jose dependency from v3 to v4. by @dsymonds in https://github.com/hashicorp/vault-plugin-auth-jwt/pull/420
+
+## New Contributors
+* @dsymonds made their first contribution in https://github.com/hashicorp/vault-plugin-auth-jwt/pull/420
+
+**Full Changelog**: https://github.com/hashicorp/vault-plugin-auth-jwt/compare/v0.27.2...v0.27.3
+
 ## v0.27.2
 ### October 23, 2026
 
