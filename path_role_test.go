@@ -769,6 +769,7 @@ func TestPath_Read(t *testing.T) {
 		"bound_claims_type":       "string",
 		"bound_claims":            map[string]interface{}(nil),
 		"claim_mappings":          map[string]string(nil),
+		"token_claim_mappings":    map[string]string(nil),
 		"bound_subject":           "testsub",
 		"bound_audiences":         []string{"vault"},
 		"allowed_redirect_uris":   []string{"http://127.0.0.1"},
@@ -940,4 +941,113 @@ func TestPath_Delete(t *testing.T) {
 	if resp != nil {
 		t.Fatalf("Unexpected resp data: expected nil got %#v\n", resp.Data)
 	}
+}
+
+func TestPath_TokenClaimMappings(t *testing.T) {
+	baseData := func() map[string]interface{} {
+		return map[string]interface{}{
+			"role_type":       "jwt",
+			"user_claim":      "user",
+			"bound_audiences": "vault",
+		}
+	}
+	write := func(t *testing.T, b logical.Backend, storage logical.Storage, data map[string]interface{}) *logical.Response {
+		t.Helper()
+		resp, err := b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "role/test",
+			Storage:   storage,
+			Data:      data,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp
+	}
+
+	t.Run("stored and read back", func(t *testing.T) {
+		b, storage := getBackend(t)
+		data := baseData()
+		data["claim_mappings"] = map[string]string{"repository": "repository"}
+		data["token_claim_mappings"] = map[string]string{"run_id": "run_id", "/run_attempt": "run_attempt"}
+		if resp := write(t, b, storage, data); resp != nil && resp.IsError() {
+			t.Fatalf("unexpected error: %v", resp.Error())
+		}
+
+		resp, err := b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "role/test",
+			Storage:   storage,
+		})
+		if err != nil || resp == nil || resp.IsError() {
+			t.Fatalf("err: %v resp: %#v", err, resp)
+		}
+		expected := map[string]string{"run_id": "run_id", "/run_attempt": "run_attempt"}
+		if diff := deep.Equal(resp.Data["token_claim_mappings"], expected); diff != nil {
+			t.Fatal(diff)
+		}
+		if diff := deep.Equal(resp.Data["claim_mappings"], map[string]string{"repository": "repository"}); diff != nil {
+			t.Fatal(diff)
+		}
+	})
+
+	errCases := []struct {
+		name           string
+		claimMappings  map[string]string
+		tokenMappings  map[string]string
+		expectedErrMsg string
+	}{
+		{
+			name:           "reserved destination",
+			tokenMappings:  map[string]string{"run_id": "role"},
+			expectedErrMsg: `metadata key "role" is reserved`,
+		},
+		{
+			name:           "duplicate destination within token_claim_mappings",
+			tokenMappings:  map[string]string{"run_id": "id", "run_number": "id"},
+			expectedErrMsg: `multiple keys are mapped to metadata key "id"`,
+		},
+		{
+			name:           "destination shared with claim_mappings",
+			claimMappings:  map[string]string{"repository": "repository"},
+			tokenMappings:  map[string]string{"repository_id": "repository"},
+			expectedErrMsg: `multiple keys are mapped to metadata key "repository"`,
+		},
+	}
+	for _, tc := range errCases {
+		t.Run(tc.name, func(t *testing.T) {
+			b, storage := getBackend(t)
+			data := baseData()
+			if tc.claimMappings != nil {
+				data["claim_mappings"] = tc.claimMappings
+			}
+			data["token_claim_mappings"] = tc.tokenMappings
+			resp := write(t, b, storage, data)
+			if resp == nil || !resp.IsError() || !strings.Contains(resp.Error().Error(), tc.expectedErrMsg) {
+				t.Fatalf("expected error containing %q, got %#v", tc.expectedErrMsg, resp)
+			}
+		})
+	}
+
+	t.Run("update of claim_mappings checked against stored token_claim_mappings", func(t *testing.T) {
+		b, storage := getBackend(t)
+		data := baseData()
+		data["token_claim_mappings"] = map[string]string{"run_id": "run_id"}
+		if resp := write(t, b, storage, data); resp != nil && resp.IsError() {
+			t.Fatalf("unexpected error: %v", resp.Error())
+		}
+
+		resp, err := b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "role/test",
+			Storage:   storage,
+			Data:      map[string]interface{}{"claim_mappings": map[string]string{"run_number": "run_id"}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp == nil || !resp.IsError() || !strings.Contains(resp.Error().Error(), `multiple keys are mapped to metadata key "run_id"`) {
+			t.Fatalf("expected collision error, got %#v", resp)
+		}
+	})
 }

@@ -1785,3 +1785,125 @@ AwEHoUQDQgAE+C3CyjVWdeYtIqgluFJlwZmoonphsQbj9Nfo5wrEutv+3RTFnDQh
 vttUajcFAcl4beR+jHFYC00vSO4i5jZ64g==
 -----END EC PRIVATE KEY-----`
 )
+
+func TestLogin_TokenClaimMappings(t *testing.T) {
+	b, storage := setupBackend(t, testConfig{audience: true})
+
+	// Map per-login claims onto the token only. The role already maps
+	// first_name and /org/primary through claim_mappings.
+	resp, err := b.HandleRequest(context.Background(), &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      "role/plugin-test",
+		Storage:   storage,
+		Data: map[string]interface{}{
+			"role_type": "jwt",
+			"token_claim_mappings": map[string]string{
+				"run_id":       "run_id",
+				"/run_attempt": "run_attempt",
+			},
+		},
+	})
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("err: %v resp: %#v", err, resp)
+	}
+
+	login := func(t *testing.T, extraClaims map[string]interface{}) *logical.Response {
+		t.Helper()
+		cl := sqjwt.Claims{
+			Subject:   "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
+			Issuer:    "https://team-vault.auth0.com/",
+			NotBefore: sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
+			Audience:  sqjwt.Audience{"https://vault.plugin.auth.jwt.test"},
+		}
+		privateCl := map[string]interface{}{
+			"https://vault/user":   "jeff",
+			"https://vault/groups": []string{"foo"},
+			"first_name":           "jeff2",
+			"org":                  map[string]interface{}{"primary": "engineering"},
+		}
+		for k, v := range extraClaims {
+			privateCl[k] = v
+		}
+		jwtData, _ := getTestJWT(t, ecdsaPrivKey, cl, privateCl)
+
+		resp, err := b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.UpdateOperation,
+			Path:      "login",
+			Storage:   storage,
+			Data: map[string]interface{}{
+				"role": "plugin-test",
+				"jwt":  jwtData,
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp == nil {
+			t.Fatal("got nil response")
+		}
+		return resp
+	}
+
+	aliasMetadata := map[string]string{
+		"name":        "jeff2",
+		"primary_org": "engineering",
+		"role":        "plugin-test",
+	}
+
+	t.Run("token gets the claims, alias does not", func(t *testing.T) {
+		var firstAlias *logical.Alias
+		for _, runID := range []string{"1658821493", "1658821494"} {
+			resp := login(t, map[string]interface{}{
+				"run_id":      runID,
+				"run_attempt": "1",
+			})
+			if resp.IsError() {
+				t.Fatalf("got error: %v", resp.Error())
+			}
+			auth := resp.Auth
+
+			if diff := deep.Equal(auth.Alias.Metadata, aliasMetadata); diff != nil {
+				t.Fatal(diff)
+			}
+
+			tokenMetadata := map[string]string{
+				"name":        "jeff2",
+				"primary_org": "engineering",
+				"role":        "plugin-test",
+				"run_id":      runID,
+				"run_attempt": "1",
+			}
+			if diff := deep.Equal(auth.Metadata, tokenMetadata); diff != nil {
+				t.Fatal(diff)
+			}
+
+			// The alias must be identical across logins from different
+			// workflow runs, so Vault core sees no alias change.
+			if firstAlias == nil {
+				firstAlias = auth.Alias
+			} else if diff := deep.Equal(auth.Alias, firstAlias); diff != nil {
+				t.Fatal(diff)
+			}
+		}
+	})
+
+	t.Run("missing claims are omitted", func(t *testing.T) {
+		resp := login(t, map[string]interface{}{"run_id": "1658821495"})
+		if resp.IsError() {
+			t.Fatalf("got error: %v", resp.Error())
+		}
+		if _, ok := resp.Auth.Metadata["run_attempt"]; ok {
+			t.Fatalf("expected no run_attempt in token metadata, got %v", resp.Auth.Metadata)
+		}
+		if resp.Auth.Metadata["run_id"] != "1658821495" {
+			t.Fatalf("unexpected token metadata: %v", resp.Auth.Metadata)
+		}
+	})
+
+	t.Run("non-string claim is rejected", func(t *testing.T) {
+		resp := login(t, map[string]interface{}{"run_id": 1658821496})
+		if !resp.IsError() || !strings.Contains(resp.Error().Error(), "error converting claim 'run_id' to string") {
+			t.Fatalf("expected conversion error, got %#v", resp)
+		}
+	})
+}
