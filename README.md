@@ -35,6 +35,16 @@ Successfully enabled 'jwt' at 'jwt'!
 
 To see all the supported paths, see the [JWT auth backend docs](https://developer.hashicorp.com/vault/docs/auth/jwt).
 
+### OIDC Public Client Support
+
+This plugin supports OIDC authentication for public clients using PKCE flow without requiring a client secret. Configure by providing only `oidc_discovery_url` and `oidc_client_id`:
+
+```sh
+$ vault write auth/jwt/config \
+    oidc_discovery_url="https://your-provider.com" \
+    oidc_client_id="your-client-id"
+```
+
 ## Developing
 
 If you wish to work on this plugin, you'll first need
@@ -156,7 +166,7 @@ Additionally, there are some BATs tests in the `tests` dir.
 - [Configure an OIDC provider](https://developer.hashicorp.com/vault/docs/auth/jwt/oidc-providers)
 - Save and export the following values to your shell:
   - `CLIENT_ID`
-  - `CLIENT_SECRET`
+  - `CLIENT_SECRET` (optional for public clients)
   - `ISSUER`
 - Export `VAULT_IMAGE` to test the image of your choice or place a vault binary
   in the `tests` directory.

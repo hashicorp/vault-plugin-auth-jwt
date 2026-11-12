@@ -603,10 +603,11 @@ func TestConfig_OIDC_Write(t *testing.T) {
 
 	// Verify OIDC config sanity:
 	//   - if providing client id/secret, discovery URL needs to be set
-	//   - both oidc client and secret should be provided if either one is
+	//   - client_secret is optional (public clients use PKCE)
 	tests := []struct {
-		id   string
-		data map[string]interface{}
+		id          string
+		data        map[string]interface{}
+		expectError bool
 	}{
 		{
 			"missing discovery URL",
@@ -615,13 +616,7 @@ func TestConfig_OIDC_Write(t *testing.T) {
 				"oidc_client_id":         "abc",
 				"oidc_client_secret":     "def",
 			},
-		},
-		{
-			"missing secret",
-			map[string]interface{}{
-				"oidc_discovery_url": "https://team-vault.auth0.com/",
-				"oidc_client_id":     "abc",
-			},
+			true,
 		},
 		{
 			"missing ID",
@@ -629,6 +624,15 @@ func TestConfig_OIDC_Write(t *testing.T) {
 				"oidc_discovery_url": "https://team-vault.auth0.com/",
 				"oidc_client_secret": "abc",
 			},
+			true,
+		},
+		{
+			"public client without secret",
+			map[string]interface{}{
+				"oidc_discovery_url": "https://team-vault.auth0.com/",
+				"oidc_client_id":     "public-client-id",
+			},
+			false,
 		},
 	}
 
@@ -643,8 +647,11 @@ func TestConfig_OIDC_Write(t *testing.T) {
 		if err != nil {
 			t.Fatalf("test '%s', %v", test.id, err)
 		}
-		if !resp.IsError() {
+		if test.expectError && !resp.IsError() {
 			t.Fatalf("test '%s', expected error", test.id)
+		}
+		if !test.expectError && resp != nil && resp.IsError() {
+			t.Fatalf("test '%s', unexpected error: %v", test.id, resp.Error())
 		}
 	}
 }
