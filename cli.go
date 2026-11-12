@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/cap/util"
@@ -164,15 +165,39 @@ func (h *CLIHandler) Auth(c *api.Client, m map[string]string) (*api.Secret, erro
 }
 
 func callbackHandler(c *api.Client, mount string, clientNonce string, doneCh chan<- loginResp) http.HandlerFunc {
+	var mu sync.Mutex
+	var succeeded bool
+	var sent bool
+
 	return func(w http.ResponseWriter, req *http.Request) {
 		var response string
 		var secret *api.Secret
 		var err error
 
+		// Serialize callbacks so a duplicate Safari GET cannot race a successful
+		// exchange and overwrite it with "Expired or missing OAuth state".
+		mu.Lock()
+		defer mu.Unlock()
+
 		defer func() {
 			w.Write([]byte(response))
+			if succeeded && err != nil {
+				return
+			}
+			if err == nil {
+				succeeded = true
+			}
+			if sent {
+				return
+			}
+			sent = true
 			doneCh <- loginResp{secret, err}
 		}()
+
+		if succeeded {
+			response = successHTML
+			return
+		}
 
 		// Pull any parameters from either the body or query parameters.
 		// FormValue prioritizes body values, if found.
@@ -188,7 +213,8 @@ func callbackHandler(c *api.Client, mount string, clientNonce string, doneCh cha
 		// the same state/code to complete the auth as normal.
 		if req.Method == http.MethodPost {
 			url := c.Address() + path.Join("/v1/auth", mount, "oidc/callback")
-			resp, err := http.PostForm(url, data)
+			var resp *http.Response
+			resp, err = http.PostForm(url, data)
 			if err != nil {
 				summary, detail := parseError(err)
 				response = errorHTML(summary, detail)
