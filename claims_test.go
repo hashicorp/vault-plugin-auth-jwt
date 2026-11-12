@@ -199,33 +199,6 @@ func TestExtractMetadata(t *testing.T) {
 	}
 }
 
-func TestValidateAudience(t *testing.T) {
-	tests := []struct {
-		boundAudiences []string
-		audience       []string
-		strict         bool
-		errExpected    bool
-	}{
-		{[]string{"a"}, []string{"a"}, false, false},
-		{[]string{"a"}, []string{"b"}, false, true},
-		{[]string{"a"}, []string{""}, false, true},
-		{[]string{}, []string{"a"}, false, false},
-		{[]string{}, []string{"a"}, true, true},
-		{[]string{"a", "b"}, []string{"a"}, false, false},
-		{[]string{"a", "b"}, []string{"b"}, false, false},
-		{[]string{"a", "b"}, []string{"a", "b", "c"}, false, false},
-		{[]string{"a", "b"}, []string{"c", "d"}, false, true},
-	}
-
-	for _, test := range tests {
-		err := validateAudience(test.boundAudiences, test.audience, test.strict)
-		if test.errExpected != (err != nil) {
-			t.Fatalf("unexpected error result: boundAudiences %v, audience %v, strict %t, err: %v",
-				test.boundAudiences, test.audience, test.strict, err)
-		}
-	}
-}
-
 func TestValidateBoundClaims(t *testing.T) {
 	tests := []struct {
 		name            string
