@@ -39,7 +39,10 @@ const (
 
 var errorRegex = regexp.MustCompile(`(?s)Errors:.*\* *(.*)`)
 
-type CLIHandler struct{}
+type CLIHandler struct {
+	// BinaryName is the executable shown in help. It defaults to "vault".
+	BinaryName string
+}
 
 // loginResp implements vault's command.LoginHandler interface, but we do not check
 // the implementation as that'd cause an import loop.
@@ -279,15 +282,20 @@ func parseError(err error) (string, string) {
 
 // Help method for OIDC cli
 func (h *CLIHandler) Help() string {
+	binaryName := h.BinaryName
+	if binaryName == "" {
+		binaryName = "vault"
+	}
+
 	help := fmt.Sprintf(`
-Usage: vault login -method=oidc [CONFIG K=V...]
+Usage: %s login -method=oidc [CONFIG K=V...]
 
   The OIDC auth method allows users to authenticate using an OIDC provider.
   The provider must be configured as part of a role by the operator.
 
   Authenticate using role "engineering":
 
-      $ vault login -method=oidc role=engineering
+      $ %s login -method=oidc role=engineering
       Complete the login via your OIDC provider. Launching browser to:
 
           https://accounts.google.com/o/oauth2/v2/...
@@ -321,6 +329,7 @@ Configuration:
   %s=<bool>
     Abort on any error. (default: false).
 `,
+		binaryName, binaryName,
 		FieldListenAddress, FieldPort, FieldCallbackMethod,
 		FieldCallbackHost, FieldCallbackPort, FieldSkipBrowser,
 		FieldAbortOnError,

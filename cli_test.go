@@ -6,6 +6,8 @@ package jwtauth
 import (
 	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseHelp(t *testing.T) {
@@ -57,4 +59,19 @@ func TestParseHelp(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCLIHandler_Help verifies that Help uses BinaryName in the commands it
+// shows and falls back to "vault" when it's unset.
+func TestCLIHandler_Help(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, (&CLIHandler{}).Help(), "vault login -method=oidc")
+
+	help := (&CLIHandler{BinaryName: "vault-client"}).Help()
+	require.Contains(t, help, "vault-client login -method=oidc")
+	require.NotContains(t, help, "vault login")
+
+	// Make sure a binary name with a format verb shows up as is
+	require.Contains(t, (&CLIHandler{BinaryName: "client-%s"}).Help(), "client-%s login -method=oidc")
 }
