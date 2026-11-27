@@ -67,7 +67,9 @@ func getClaim(logger log.Logger, allClaims map[string]interface{}, claim string)
 }
 
 // extractMetadata builds a metadata map from a set of claims and claims mappings.
-// The referenced claims must be strings and the claims mappings must be of the structure:
+// Claim values can be strings, numbers, booleans, or arrays/objects — non-string
+// values are converted to their JSON string representation. The claims mappings
+// must be of the structure:
 //
 //	{
 //	    "/some/claim/pointer": "metadata_key1",
@@ -78,15 +80,43 @@ func extractMetadata(logger log.Logger, allClaims map[string]interface{}, claimM
 	metadata := make(map[string]string)
 	for source, target := range claimMappings {
 		if value := getClaim(logger, allClaims, source); value != nil {
-			strValue, ok := value.(string)
-			if !ok {
-				return nil, fmt.Errorf("error converting claim '%s' to string", source)
+			strValue, err := claimToString(value)
+			if err != nil {
+				return nil, fmt.Errorf("error converting claim '%s' to string: %w", source, err)
 			}
 
 			metadata[target] = strValue
 		}
 	}
 	return metadata, nil
+}
+
+// claimToString converts a claim value to its string representation.
+// Strings are returned as-is; numbers and booleans use their standard
+// representations; slices and maps are JSON-encoded.
+func claimToString(v interface{}) (string, error) {
+	switch val := v.(type) {
+	case string:
+		return val, nil
+	case json.Number:
+		return val.String(), nil
+	case bool:
+		return strconv.FormatBool(val), nil
+	case []interface{}:
+		jsonBytes, err := json.Marshal(val)
+		if err != nil {
+			return "", fmt.Errorf("unable to marshal to JSON: %w", err)
+		}
+		return string(jsonBytes), nil
+	case map[string]interface{}:
+		jsonBytes, err := json.Marshal(val)
+		if err != nil {
+			return "", fmt.Errorf("unable to marshal to JSON: %w", err)
+		}
+		return string(jsonBytes), nil
+	default:
+		return fmt.Sprintf("%v", val), nil
+	}
 }
 
 // validateAudience checks whether any of the audiences in audClaim match those
